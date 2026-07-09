@@ -1,15 +1,15 @@
 # ========================================================================
-# 🐳 uestcradar-build:cross Dockerfile
-# 用于构建 uestcradar 算法仓库专属的 AArch64 跨平台隔离交叉编译环境
+# 🐳 uestcradar 算子模板专属隔离编译开发底座 (Dockerfile)
+# 用于支持该模板工程自闭环地在容器内构建 X86 二进制动态插件
 # ========================================================================
 ARG BASE_IMAGE=docker.m.daocloud.io/library/ubuntu:24.04
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 仅安装 CMake 构建基础件与 AArch64 交叉编译器
+# 安装 CMake 与 C++ 编译基础链
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
-        build-essential cmake g++-aarch64-linux-gnu gcc-aarch64-linux-gnu && \
+        build-essential cmake && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

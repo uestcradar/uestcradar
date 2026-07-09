@@ -1,4 +1,7 @@
-# 🟢 极简算子交叉编译开发底座 (免除 gRPC/Protobuf 重型库污染)
+# ========================================================================
+# 🐳 uestcradar-build:cross Dockerfile
+# 用于构建 uestcradar 算法仓库专属的 AArch64 跨平台隔离交叉编译环境
+# ========================================================================
 ARG BASE_IMAGE=docker.m.daocloud.io/library/ubuntu:24.04
 FROM ${BASE_IMAGE}
 

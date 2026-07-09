@@ -29,8 +29,7 @@ graph TD
    * **输入输出格式相同**：将 `work` 函数写成直通（Pass-through）逻辑（如用 `std::memcpy` 零拷贝直通），将输入数据无损复制到输出。
    * **输入输出格式不同**：根据输出的格式契约，将输入数据在 work 中进行最基础的格式转换映射（如只取实部转换或填充特征常量值），形式化地满足输出类型。
 2. **联调与波形观察**：
-   * 将空壳插件编译并部署到目标物理机，启动流图，**在前端 cyweb 订阅对应的 Probe 探针，直接观察波形，验证系统链路是否 100% 连通（包括拓扑连接、网络通道打流以及前端解析渲染）**。
-   * **核心价值**：通过空壳直通将系统架构级错误与复杂的数学算法错误彻底隔离。系统全链路调试畅通并观察到波形前，严禁开发核心算法。
+   * 将空壳插件通过专属的 [C++ 算法统一部署运维手册 (cpp_algorithm_ops)](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/SKILL.md) 编译并部署到目标物理机，启动流图。**在前端 cyweb 订阅对应的 Probe 探针，直接观察波形，验证系统链路是否 100% 连通（包括拓扑连接、网络通道打流以及前端解析渲染）**。
 
 ### 📂 阶段三: 算法实现与闭环自检 (Implementation & Verification)
 
@@ -41,6 +40,7 @@ graph TD
 ### 📂 阶段四：算法实际物理部署 (Actual Deployment)
 
 算法插件的分布式多节点同步、Docker隔离编译、前置测试熔断自检以及容器热重启，已由专属的运维技能包统一接管：
+
 * **请点击直达阅读**：**[C++ 算法统一部署运维手册 (cpp_algorithm_ops)](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/SKILL.md)**。
 
 ---
