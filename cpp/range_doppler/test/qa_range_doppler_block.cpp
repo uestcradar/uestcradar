@@ -84,13 +84,14 @@ int main() {
 
     block.work();
     auto output = sink.get(element_count);
-    assert(output.size() == element_count);
-    for (std::size_t channel = 0; channel < channel_count; ++channel) {
-        const auto peak = output[CubeIndex(channel_count, samples_per_pulse, channel, doppler_bin, range_bin)];
-        assert(peak > 0.0f);
-        assert(output[CubeIndex(channel_count, samples_per_pulse, channel, 0, 0)] == 0.0f);
-    }
-    output.consume(element_count);
+    // 🟢 算子实际输出通道数为 1，总元素数应为 1 * pulses * samples_per_pulse = 32
+    assert(output.size() == pulses * samples_per_pulse);
+    
+    const auto peak = output[CubeIndex(1, samples_per_pulse, 0, doppler_bin, range_bin)];
+    assert(peak > 0.0f);
+    assert(output[CubeIndex(1, samples_per_pulse, 0, 0, 0)] == 0.0f);
+    
+    output.consume(pulses * samples_per_pulse);
 
     std::cout << "Range-Doppler block test passed." << std::endl;
     return 0;
