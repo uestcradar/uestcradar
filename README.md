@@ -44,6 +44,9 @@ uestcradar/
 
 ### 1. 准备数据
 
+本仓库代码处理的雷达数据可从以下地址获取：
+[https://chengyistudio.com/downloads/data/Helium](https://chengyistudio.com/downloads/data/Helium)
+
 程序依赖于底层采集生成的 `.bin` 文件及对应的 `metadata.json` 配置文件。你的数据目录结构应当如下所示：
 
 **发射侧参考信号目录**：
