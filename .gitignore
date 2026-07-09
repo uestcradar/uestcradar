@@ -9,6 +9,11 @@
 *~
 *.swp
 
+# 1.5 忽略私有本地部署配置文件
+.env
+.env.local
+.env.*
+
 # 2. 忽略 C++ 构建系统生成的各种中间过程产物与编译器缓存
 **/CMakeFiles/**
 **/CMakeCache.txt

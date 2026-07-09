@@ -9,37 +9,24 @@ description: C++ 雷达算法插件物理机交叉编译、代码同步、容器
 
 ---
 
-## 🗺️ 总体全分支运维流
+## 🗺️ 五阶段部署决策流 (If-Else)
 
 ```mermaid
 graph TD
-    Start([开始部署流程]) --> S1[📋 Phase 1: 解析环境变量]
-    S1 --> S2_Cond{判断 ARCH 硬件架构}
+    Start([开始部署]) --> S1{Phase 1: 环境变量已定义?}
+    S1 -->|🔴 否| F1[🚨 中止: 环境参数缺失]
+    S1 -->|🟢 是| S2{Phase 2: 隔离/交叉编译成功?}
     
-    %% ARCH=x86 本地同构分支
-    S2_Cond -->|ARCH = x86| S2_x86{本地是否有 cycore-build:latest 镜像?}
-    S2_x86 -->|是: 分支 A 🚀| S2_x86_run[挂载 cycore-build-local 容器执行编译]
-    S2_x86 -->|否: 分支 B 🐳| S2_x86_build[使用 Dockerfile.build 构建本地编译镜像]
-    S2_x86_build --> S2_x86_run
+    S2 -->|🔴 否| F2[🚨 中止: 编译构建失败]
+    S2 -->|🟢 是| S3{Phase 3: 容器单测 100% 通过?}
     
-    %% ARCH=arm 交叉编译分支
-    S2_Cond -->|ARCH = arm| S2_arm_build[使用 Dockerfile.build_cross 构建交叉底座]
-    S2_arm_build --> S2_arm_run[使用 cycore-build-cross 交叉编译出 ARM64 .so]
+    S3 -->|🔴 否| F3[🚨 熔断: 单测断言报错]
+    S3 -->|🟢 是| S3_5{Phase 3.5: 拓扑与参数类型合规?}
     
-    %% 测试阶段
-    S2_x86_run --> S3[🛑 Phase 3: 容器内运行算子单测]
-    S2_arm_run --> S3
+    S3_5 -->|🔴 否| F4[🚨 熔断: 拓扑或参数类型错误]
+    S3_5 -->|🟢 是| S4[🚀 Phase 4: 执行物理部署与容器热重启]
     
-    S3 --> S3_Cond{单测是否全部通过?}
-    S3_Cond -->|🔴 报错失败| S3_Fatal[🚨 触发前置熔断: 终止部署并报告人类]
-    S3_Cond -->|🟢 绿灯通过| S4_Cond{判断 USE_DOCKER}
-    
-    %% 部署分发阶段
-    S4_Cond -->|USE_DOCKER = false| S4_Host[🚀 Phase 4: 物理分发插件至宿主机挂载目录]
-    S4_Cond -->|USE_DOCKER = true| S4_Docker[🚀 Phase 4: 物理分发插件并重启运行容器]
-    
-    S4_Host --> End([部署热重载完成])
-    S4_Docker --> End
+    S4 --> End([部署热重载完成])
 ```
 
 ---
@@ -51,6 +38,7 @@ graph TD
 * 📋 **[第一阶段：环境变量配置](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/references/phase1-environment.md)**：定义远程节点拓扑、连接参数与硬件架构特性。
 * 🔨 **[第二阶段：Docker隔离编译](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/references/phase2-compilation.md)**：基于架构自适应选择容器安全构建插件。
 * 🛑 **[第三阶段：单测前置熔断](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/references/phase3-testing-shield.md)**：测试前置校验熔断防线，防范故障代码上线。
+* 📋 **[第3.5阶段：流图拓扑合规性静态校验](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/references/phase3_5-topology-check.md)**：审查 YAML 拓扑参数、探针挂载以及参数类型防死锁校验。
 * 🚀 **[第四阶段：物理部署热重载](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/references/phase4-distribution.md)**：物理覆盖分发插件并重启运行容器。
 
 ## 🐳 Docker 编译镜像定义
@@ -60,4 +48,6 @@ graph TD
 
 ## ⚡ 自动化控制脚本
 
-* 🛠️ **[一键自动化部署控制脚本](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/scripts/deploy_to.sh)**：直接运行该脚本，自动执行上述四阶段流水线动作。
+* 🛠️ **[1. 代码同步与编译脚本 (build.sh)](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/scripts/build.sh)**：自适应目标机架构，在本地 Docker 中隔离进行同构编译或 AArch64 交叉编译。
+* 🧪 **[2. 容器单测熔断脚本 (test.sh)](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/scripts/test.sh)**：直接在本地开发机自检容器中挂载运行单测，未通过则前置拦截熔断。
+* 🚀 **[3. 覆盖分发与热重载脚本 (deploy.sh)](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/scripts/deploy.sh)**：在本地执行流图拓扑合规及参数类型防死锁静态校验（Phase 3.5），通过后跨网络将 `.so` 产物分发推送并热重启容器。
