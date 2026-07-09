@@ -1,0 +1,12 @@
+# 🟢 极简算子交叉编译开发底座 (免除 gRPC/Protobuf 重型库污染)
+ARG BASE_IMAGE=docker.m.daocloud.io/library/ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 仅安装 CMake 构建基础件与 AArch64 交叉编译器
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        build-essential cmake g++-aarch64-linux-gnu gcc-aarch64-linux-gnu && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*

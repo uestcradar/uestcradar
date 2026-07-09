@@ -1,0 +1,3 @@
+/home/zikun/code/common/cycore/.agents/skills/develop_new_algorithm/algorithm_template/build/CMakeFiles/my_plugin.dir
+/home/zikun/code/common/cycore/.agents/skills/develop_new_algorithm/algorithm_template/build/CMakeFiles/edit_cache.dir
+/home/zikun/code/common/cycore/.agents/skills/develop_new_algorithm/algorithm_template/build/CMakeFiles/rebuild_cache.dir

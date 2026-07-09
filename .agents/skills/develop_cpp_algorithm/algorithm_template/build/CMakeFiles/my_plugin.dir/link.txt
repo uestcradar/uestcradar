@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -shared  -o my_plugin.so CMakeFiles/my_plugin.dir/src/algorithm_block.cpp.o 
