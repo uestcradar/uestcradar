@@ -45,8 +45,8 @@ int main() {
             for (std::size_t channel = 0; channel < channel_count; ++channel) {
                 const auto index = CubeIndex(channel_count, samples_per_pulse, channel, pulse, sample);
                 input[index] = InputSample{
-                    static_cast<std::int16_t>(100 * pulse + 10 * sample + channel),
-                    static_cast<std::int16_t>(-(100 * static_cast<int>(pulse) + 10 * static_cast<int>(sample) + static_cast<int>(channel)))};
+                    static_cast<std::int16_t>((100 * pulse + 10 * sample + channel) * 256),
+                    static_cast<std::int16_t>(-(100 * static_cast<int>(pulse) + 10 * static_cast<int>(sample) + static_cast<int>(channel)) * 256)};
             }
         }
     }
@@ -56,7 +56,8 @@ int main() {
     auto output = sink.get(element_count);
     assert(output.size() == element_count);
     for (std::size_t i = 0; i < element_count; ++i) {
-        assert(output[i] == input[i]);
+        assert(output[i].i == input[i].i / 256);
+        assert(output[i].q == input[i].q / 256);
     }
     output.consume(element_count);
 
