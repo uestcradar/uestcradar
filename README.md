@@ -1,6 +1,6 @@
 # UESTC 雷达信号处理平台 (uestcradar)
 
-本项目是一个结合了 **MATLAB 原型算法仿真** 与 **C++ 高性能流图算法插件** 的混合雷达信号处理开发平台，用于实现雷达数字信号处理流水线。
+本项目是一个结合了 **MATLAB 原型算法仿真** 与 **C++ 高性能流图算子插件** 的混合雷达信号处理开发平台，用于实现实时的雷达数字信号处理（DSP）流水线。
 
 ---
 
@@ -23,12 +23,14 @@ uestcradar/
 │   ├── range_doppler/            # 2D 距离-多普勒积累算子
 │   ├── cfar_plotter/             # 恒虚警（CFAR）目标检测算子
 │   └── kalman_tracker/           # 卡尔曼滤波航迹跟踪器
+├── algorithm_template/           # C++ 新算子开发通用模板脚手架
+│   └── README.md                 # 模板使用与编译自检指南
 └── LICENSE                       # 项目授权协议
 ```
 
 ---
 
-## MATLAB 仿真工具箱 (MATLAB 部分)
+## 📊 MATLAB 仿真工具箱 (MATLAB 部分)
 
 `matlab` 目录提供了完整的 Range-Doppler（距离-多普勒）二维处理流程和雷达回波仿真分析工具。
 
@@ -49,7 +51,7 @@ uestcradar/
 
 ---
 
-## C++ 算法部分 (C++ 部分)
+## ⚡ C++ 算子插件 (C++ 部分)
 
 C++ 算子插件通过 YAML 流图配置文件进行动态拓扑连接，基于 Cycore SDK 的 `Reader`/`Writer` 连续物理切片锁定机制，提供无锁、原地读写的高性能零拷贝内存操作，支持在 X86 和 AArch64 异构环境下的动态加载运行。
 
@@ -77,3 +79,11 @@ graph TD
 * **`range_doppler`**：2D 距离-多普勒相干/非相干积累。
 * **`cfar_plotter`**：恒虚警检测（CFAR）滑动窗口背景噪声估计与动态判决。
 * **`kalman_tracker`**：多目标航迹状态卡尔曼滤波与关联管理。
+
+### 3. C++ 新算子开发模板 (algorithm_template)
+
+为了便于开发者快速构建、本地调试及跨平台容器化编译全新的 C++ 雷达流图算子，项目根目录下内置了专属的算子开发模板脚手架。该模板已集成核心 SDK 头文件映射、CMake 编译框架以及静态自检测试沙盒的标准实现。
+
+> [!IMPORTANT]
+> 📖 关于如何基于脚手架模板克隆新算法、制定数据格式、执行本地静态自检沙盒测试以及进行 AArch64 容器化交叉编译，请参阅：
+> **[C++ 算子开发模板专属指南 (algorithm_template/README.md)](file:///home/zikun/code/common/uestcradar/algorithm_template/README.md)**
