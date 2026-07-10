@@ -131,7 +131,7 @@ CYCORE_EXPORT_ALGORITHM(
 
 ### 1.CMakelist规范
 
-为了让 C++ 算子代码成功被编译为能够被 Cycore 流图调度引擎动态加载的共享插件模块，必须在 [CMakeLists.txt](../.agents/skills/develop_cpp_algorithm/algorithm_template/CMakeLists.txt) 中声明以下核心配置：
+为了让 C++ 算子代码成功被编译为能够被 Cycore 流图调度引擎动态加载的共享插件模块，必须在 [CMakeLists.txt](file:///home/zikun/code/common/uestcradar/.agents/skills/develop_cpp_algorithm/algorithm_template/CMakeLists.txt) 中声明以下核心配置：
 
 #### (1)包含 SDK 依赖目录
 
