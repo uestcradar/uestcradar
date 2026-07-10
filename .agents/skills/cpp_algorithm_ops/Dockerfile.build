@@ -1,0 +1,12 @@
+# 🟢 极简算子本地同构编译开发底座 (X86 环境)
+ARG BASE_IMAGE=docker.m.daocloud.io/library/ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 安装 CMake 与原生编译工具链
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        build-essential cmake g++ gcc && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*

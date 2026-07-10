@@ -1,0 +1,38 @@
+# ========================================================================
+# Uestcradar Git 忽略规则配置
+# ========================================================================
+
+# 1. 忽略通用的 IDE 配置文件与系统临时文件
+.vscode/
+.idea/
+.DS_Store
+*~
+*.swp
+
+# 1.5 忽略私有本地部署配置文件
+.env
+.env.local
+.env.*
+
+# 2. 忽略 C++ 构建系统生成的各种中间过程产物与编译器缓存
+**/CMakeFiles/**
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/Makefile
+*.o
+*.a
+
+# 3. 忽略 build 和 build_cross 构建目录下的所有生成内容
+**/build/**
+**/build_cross/**
+
+# 4. 🚨 关键例外规则: 必须保留最终编译生成的 .so 动态插件与 bin/ 下的测试产物
+!**/build/lib/
+!**/build/lib/*.so
+!**/build_cross/lib/
+!**/build_cross/lib/*.so
+
+!**/build/bin/
+!**/build/bin/*
+!**/build_cross/bin/
+!**/build_cross/bin/*
