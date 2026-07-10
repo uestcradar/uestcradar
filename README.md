@@ -1,86 +1,79 @@
-# UESTC Radar (雷达信号处理工具箱)
+# UESTC 雷达信号处理平台 (uestcradar)
 
-这是一个基于 MATLAB 的雷达信号处理与分析工具箱，主要用于解析、处理和动态可视化雷达原始双向信号（TX 发射参考与 RX 接收回波）。
+本项目是一个结合了 **MATLAB 原型算法仿真** 与 **C++ 高性能流图算法插件** 的混合雷达信号处理开发平台，用于实现雷达数字信号处理流水线。
 
-该仓库包含了一套完整的 Range-Doppler（距离-多普勒）处理流程，涵盖了脉冲压缩、动目标指示（MTI）、自适应距离零点标定、恒虚警率检测（CFAR）等核心算法，并提供了一个交互式图形用户界面（GUI）方便用户进行数据回放和动态分析。
+---
 
-## 目录结构
+## 📦 目录架构
 
 ```text
 uestcradar/
-├── algorithm/                 # 核心数字信号处理（DSP）算法模块
-│   ├── calibrate_range_zero.m # 自动寻找直漏峰值，标定距离零点
-│   ├── cfar_detector.m        # 恒虚警率（CFAR）检测器
-│   ├── doppler_fft.m          # 多普勒 FFT 处理
-│   ├── make_hann_window.m     # 汉宁窗生成
-│   ├── mti_avg.m              # MTI (复均值相减)
-│   ├── mti_two_pulse.m        # MTI (双脉冲对消)
-│   ├── process_one_window.m   # 单个滑窗数据的完整 RD 处理流水线
-│   ├── pulse_compression.m    # 脉冲压缩（匹配滤波）
-│   ├── read_contiguous_pri_block.m # 连续 PRI 数据块读取
-│   ├── read_cs16_channel_file.m    # CS16 格式通道数据读取
-│   └── read_json_file.m       # JSON 元数据解析
-├── lfm_tx.m                   # LFM 发射波形生成或相关脚本
-├── parse_bin.m                # 原始双向数据（TX 和 RX）解析与 MAT 格式导出工具
-├── parse_capture.m            # 脚本化滑窗 Range-Doppler 动图（GIF）生成与分析
-├── radar_gui.m                # 【核心入口】雷达滑窗 Range-Doppler 动态分析仪 GUI
-├── test_calibrate_zero.m      # 距离零点自动标定（脉压互相关峰值）测试与调试脚本
-└── LICENSE                    # MIT 开源协议许可文件
+├── matlab/                       # MATLAB 仿真与算法验证（核心入口）
+│   ├── README.md                 # MATLAB 专属使用指南
+│   ├── algorithm/                # 基础算法 M 函数 (PC, CFAR 等)
+│   ├── radar_gui.m               # 交互式雷达目标回波 GUI 仿真器
+│   ├── lfm_tx.m                  # LFM 发射信号生成仿真
+│   └── parse_bin.m               # 二进制雷达抓取 Cube 数据解析与校准
+├── cpp/                          # C++ Cycore 流图算子插件源码
+│   ├── CMakeLists.txt            # CMake 编译定义
+│   ├── sdk/                      # 依赖的 Cycore 算法 SDK 头文件
+│   ├── pulse_compression/        # 时域滑动互相关匹配滤波算子
+│   ├── fft/                      # FFT (时域 -> 频域离散傅里叶变换)
+│   ├── ifft/                     # IFFT (频域 -> 时域逆离散傅里叶变换)
+│   ├── range_doppler/            # 2D 距离-多普勒积累算子
+│   ├── cfar_plotter/             # 恒虚警（CFAR）目标检测算子
+│   └── kalman_tracker/           # 卡尔曼滤波航迹跟踪器
+└── LICENSE                       # 项目授权协议
 ```
 
-## 功能特性
+---
 
-1. **交互式 GUI 分析仪** (`radar_gui.m`)：提供方便的面板用于加载数据、自动解析元数据、动态调整 DSP 参数（如 FFT 点数、MTI 强度、CFAR 门限等），并实时播放四宫格 Range-Doppler 对比图。
-2. **自动化零点标定**：通过捕获直达波/泄漏信号的最强峰值，自适应标定绝对距离的零点，消除硬件线缆和链路带来的延迟。
-3. **支持多通道 CS16 格式**：能够直接读取和解交织底层采集硬件生成的 `int16` / `CS16` 交错二进制数据格式。
-4. **元数据驱动**：参数无需在代码中硬编码，所有雷达射频和基带参数（采样率、PRI、频段、通道数等）均由所在目录的 `metadata.json` 自动解析加载。
+## MATLAB 仿真工具箱 (MATLAB 部分)
 
-## 依赖要求
+`matlab` 目录提供了完整的 Range-Doppler（距离-多普勒）二维处理流程和雷达回波仿真分析工具。
 
-- **MATLAB** (推荐 R2021a 或以上版本，主要为了兼容较新的 `uifigure` 及相关 UI 组件)
-- 无需额外的特殊工具箱依赖，核心函数均由手写或使用内置基础函数实现。
+### 1. 核心功能特性
 
-## 使用说明
+* **交互式 GUI 动态分析仪 (`radar_gui.m`)**：
+  提供一站式图形用户面板。支持加载 TX/RX 二进制回波数据，动态调整 DSP 参数（如 FFT 变换点数、MTI 强度、CFAR 判决门限），实时渲染播放四宫格 Range-Doppler 谱图及切片对比线，并支持将回放过程一键导出为 GIF 动图。
+* **自适应距离零点标定算法 (`calibrate_range_zero.m`)**：
+  利用发射与接收通道间的互相关峰值捕获直达波（Leakage）信号，自动标定绝对距离的零点，消除物理线缆和硬件传输链路带来的时延。
+* **静止杂波抑制（MTI 算子库）**：
+  提供了复均值相减（`mti_avg.m`）和双脉冲对消（`mti_two_pulse.m`）两种经典的动目标指示算法，有效抑制地杂波并突出运动目标。
+* **元数据驱动机制**：
+  支持直接读取并解析多通道 `CS16` 格式交错二进制数据。雷达射频参数、PRI、频段及通道数等均由所在目录的 `metadata.json` 自动加载解析，无需硬编码。
 
-### 1. 准备数据
+> [!TIP]
+> 📖 关于 MATLAB 工具箱的依赖安装、详细数据包下载准备以及 GUI 运行步骤指南，请参阅：
+> **[MATLAB 子目录专属说明文档 (matlab/README.md)](file:///home/zikun/code/common/uestcradar/matlab/README.md)**
 
-本仓库代码处理的雷达数据可从以下地址获取：
-[https://chengyistudio.com/downloads/data/Helium](https://chengyistudio.com/downloads/data/Helium)
+---
 
-程序依赖于底层采集生成的 `.bin` 文件及对应的 `metadata.json` 配置文件。你的数据目录结构应当如下所示：
+## C++ 算法部分 (C++ 部分)
 
-**发射侧参考信号目录**：
-- `tx_waveform.bin` (发射的参考二进制基带数据)
-- `metadata.json` (描述发射信号参数，包含 `sample_rate`, `PRI`, `format`, `channels` 等)
+C++ 算子插件通过 YAML 流图配置文件进行动态拓扑连接，基于 Cycore SDK 的 `Reader`/`Writer` 连续物理切片锁定机制，提供无锁、原地读写的高性能零拷贝内存操作，支持在 X86 和 AArch64 异构环境下的动态加载运行。
 
-**接收侧回波目录**：
-- `cpi_001.bin`, `cpi_002.bin` ... (连续存储的接收回波数据)
-- `metadata.json` (描述接收数据参数，包含 `format`, `channels` 等)
+### 1. 级联流水线拓扑
 
-### 2. 启动 GUI 进行动态分析
+以下为标准的级联处理流水线：
 
-在 MATLAB 命令行中进入 `uestcradar` 目录，输入以下命令即可启动可视化工具：
-
-```matlab
-radar_gui
+```mermaid
+graph TD
+    A["device_source<br/>(ADC CS16 复数 IQ 信号)"] -->|CS16 Cube| B["pulse_compression<br/>(时域滑动互相关)"]
+    B -->|CS16 Cube| C["fft<br/>(1024点 DFT 变换)"]
+    C -->|CS16 Cube| D["range_doppler<br/>(2D 距离-多普勒积累)"]
+    D -->|Float32 矩阵| E["cfar_plotter<br/>(CFAR 检测与阈值判决)"]
+    E -->|RawBytes| F["kalman_tracker<br/>(多目标航迹跟踪管理)"]
+    F -->|RawBytes| G["sim_sink / device_sink<br/>(航迹坐标输出)"]
 ```
 
-在弹出的界面中：
-1. 点击**“选择发射...”**按钮，选择 TX 目录下的 `.bin` 参考文件。
-2. 点击**“选择接收...”**按钮，选择 RX 目录（包含 `cpi_*.bin` 文件的文件夹）。
-3. 界面会自动加载两边的 `metadata.json` 并在左侧展示参数。
-4. 点击**“播放”**即可在右侧查看无 MTI 与弱 MTI 的 Range-Doppler 谱图及切片对比。
-5. 你也可以点击 **“导出 GIF”** 将回放过程保存为动图。
+> [!NOTE]
+> 流水线中的所有算子均采用多通道交织一维物理连续内存格式传输数据，其跨步步长（Stride）可根据算子配置参数（如 channels, points）动态对齐。
 
-### 3. 数据解析与导出
+### 2. 支持的算子模块列表
 
-如果你只需要将 `.bin` 二进制文件解析并提取为 MATLAB 的 `.mat` 矩阵变量以便自己做其它算法验证，请运行：
-
-```matlab
-parse_bin
-```
-按照弹窗提示选择发射和接收文件后，它会自动在接收目录下生成 `tx_*.mat`, `rx_*.mat` 和 `rf_param_*.mat`。
-
-## 许可证
-
-本项目采用 [MIT License](LICENSE) 开源许可证。
+* **`pulse_compression`**：时域滑动互相关匹配滤波算法，在 C++ 层面实现了复数共轭乘加与快速时域归一化幅值包络提取。
+* **`fft` / `ifft`**：高性能时/频域离散傅里叶变换与逆变换算子。
+* **`range_doppler`**：2D 距离-多普勒相干/非相干积累。
+* **`cfar_plotter`**：恒虚警检测（CFAR）滑动窗口背景噪声估计与动态判决。
+* **`kalman_tracker`**：多目标航迹状态卡尔曼滤波与关联管理。
