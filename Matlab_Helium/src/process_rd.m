@@ -1,4 +1,4 @@
-function out_file = process_rd(data_dir, parse_bundle, rd_ctx, preproc_state, process_cfg, result_dir, status_cb)
+﻿function out_file = process_rd(data_dir, parse_bundle, rd_ctx, preproc_state, process_cfg, result_dir, status_cb)
 %PROCESS_RD 距离-多普勒处理模块。
 %
 % 输入：
@@ -119,9 +119,9 @@ block_global_idx = 1;
 last_phase = 0;
 effective_frames = rd_ctx.total_frames_global - 1;
 
-if process_cfg.process.do_mti_mean || process_cfg.process.do_mti_twopulse
-    status_cb(sprintf('[RD] MTI 参数：均值消除=%d，两脉冲相消=%d', ...
-        process_cfg.process.do_mti_mean, process_cfg.process.do_mti_twopulse));
+if process_cfg.process.do_mti_twopulse
+    status_cb(sprintf('[RD] MTI 参数：两脉冲相消=%d', ...
+        process_cfg.process.do_mti_twopulse));
 end
 if process_cfg.preprocess.do_dw_blank
     status_cb(sprintf('[预处理] 直达波空白区间：[%d, %d]，共 %d 个采样点', ...
@@ -168,9 +168,6 @@ for chunk_idx = 1:rd_ctx.num_chunks
         end
 
         blk = PC_corr(:, sf:ef);
-        if process_cfg.process.do_mti_mean
-            blk = blk - mean(blk, 2);
-        end
         if process_cfg.process.do_mti_twopulse
             proc_blk = blk(:, 2:end) - blk(:, 1:end - 1);
         else

@@ -1,4 +1,4 @@
-# 使用说明
+﻿# 使用说明
 
 本文只说明当前正在使用的代码结构、原始数据目录规则、主流程、参数区和输出结果，不讨论旧入口、旧兼容逻辑或历史版本。
 
@@ -329,7 +329,6 @@
 - `cfg.rd.n_overlap`
 - `cfg.rd.max_range_m`
 - `cfg.rd.frames_per_chunk`
-- `cfg.rd.do_mti_mean`
 - `cfg.rd.do_mti_twopulse`
 
 作用：
