@@ -26,13 +26,23 @@ public:
         }
 
         // 🟢 构造预存的 256 点时域发射 Chirp Replica，消除 work 中的三角函数 CPU 运行开销
+        // 🟢 构建完全匹配发射端 LFM Chirp 回波参数的匹配滤波器参考波形
+        constexpr double kSampleRate = 30.72e6;
+        constexpr double kPulseWidth = 256.0 / kSampleRate;
+        constexpr double kBandwidth = 20e6;
+        constexpr double kChirpSlope = kBandwidth / kPulseWidth;
+        constexpr double kStartFreq = -10e6;
+
         ref_replica_.resize(256);
-        for (std::size_t m = 0; m < 256; ++m) {
-            double t = static_cast<double>(m) / 30.72e6;
-            // K = B / Tp = 20e6 / (256 / 30.72e6) = 2.4e12
-            // f_start = -10e6
-            double ref_phase = (2.0 * 3.14159265358979323846) * (-10e6) * t + 3.14159265358979323846 * 2.4e12 * t * t;
-            ref_replica_[m] = ComplexReplica{ std::cos(ref_phase), std::sin(ref_phase) };
+        for (std::size_t i = 0; i < 256; ++i) {
+            double t = static_cast<double>(i) / kSampleRate;
+            double ref_phase = 2.0 * 3.14159265358979323846 * kStartFreq * t + 3.14159265358979323846 * kChirpSlope * t * t;
+            double cos_val = std::cos(ref_phase);
+            double sin_val = std::sin(ref_phase);
+            ref_replica_[i] = {
+                cos_val,
+                sin_val
+            };
         }
     }
 
@@ -68,13 +78,18 @@ public:
                             sum_q += static_cast<double>(x.q) * ref_cos - static_cast<double>(x.i) * ref_sin;
                         }
                     }
-                    // 计算时域互相关幅值包络并除以相干积累增益
-                    double amp = std::sqrt(sum_i * sum_i + sum_q * sum_q);
-                    std::int16_t out_val = static_cast<std::int16_t>(std::round(amp / 256.0));
+                    // 🟢 保留相干相位信息：将复数 I/Q 滑动相关结果除以 256.0 缩放并输出为完整的复数
+                    auto clamp_s16 = [](double val) -> std::int16_t {
+                        if (val >= 32767.0) return 32767;
+                        if (val <= -32768.0) return -32768;
+                        return static_cast<std::int16_t>(std::round(val));
+                    };
+                    std::int16_t out_i = clamp_s16(sum_i / 256.0);
+                    std::int16_t out_q = clamp_s16(sum_q / 256.0);
 
                     (*output)(channel, pulse, sample) = pulse_compression_data::OutputSample{
-                        out_val, // 实部输出当前通道的时域脉压包络
-                        0
+                        out_i,
+                        out_q
                     };
                 }
             }

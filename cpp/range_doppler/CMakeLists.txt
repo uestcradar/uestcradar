@@ -17,3 +17,10 @@ set_target_properties(range_doppler PROPERTIES
     PREFIX ""
     SUFFIX ".so"
 )
+
+# 🟢 编译静态测试沙盒可执行文件
+add_executable(qa_range_doppler_block
+    src/algorithm.cpp
+    test/qa_range_doppler_block.cpp
+)
+

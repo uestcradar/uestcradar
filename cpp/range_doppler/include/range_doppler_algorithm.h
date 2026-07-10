@@ -4,57 +4,90 @@
 
 #include <cycore_algorithm_sdk.h>
 
-#include <cstdio>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
+#include <vector>
 
-namespace range_doppler_data = cycore::algorithm::range_doppler;
+namespace rd_data = cycore::algorithm::range_doppler;
 
 class RangeDopplerAlgorithm {
 public:
     explicit RangeDopplerAlgorithm(const cycore::sdk::Params& params)
-        : num_channels_(ReadSizeParam(params, "num_channels", range_doppler_data::kDefaultNumChannels)),
-          num_pulses_(ReadSizeParam(params, "num_pulses", range_doppler_data::kDefaultNumPulses)),
-          samples_per_pulse_(ReadSizeParam(params, "samples_per_pulse", range_doppler_data::kDefaultSamplesPerPulse)) {}
+        : num_channels_(ReadSizeParam(params, "num_channels", rd_data::kDefaultNumChannels)),
+          num_pulses_(ReadSizeParam(params, "num_pulses", rd_data::kDefaultNumPulses)),
+          samples_per_pulse_(ReadSizeParam(params, "samples_per_pulse", rd_data::kDefaultSamplesPerPulse)) {
+        
+        if (num_channels_ == 0 || num_pulses_ == 0 || samples_per_pulse_ == 0) {
+            throw std::invalid_argument("Invalid Range-Doppler dimensions");
+        }
 
-    bool work(cycore::sdk::Reader<range_doppler_data::InputSample>& in,
-              cycore::sdk::Writer<range_doppler_data::OutputSample>& out) {
+        // 预计算慢时间维 (num_pulses) DFT 旋转因子以消除实时三角函数开销
+        twiddle_factors_.resize(num_pulses_);
+        const double pi = 3.14159265358979323846;
+        for (std::size_t m = 0; m < num_pulses_; ++m) {
+            double angle = 2.0 * pi * m / num_pulses_;
+            twiddle_factors_[m].cos_val = static_cast<float>(std::cos(angle));
+            twiddle_factors_[m].sin_val = static_cast<float>(std::sin(angle));
+        }
+    }
+
+    bool work(cycore::sdk::Reader<rd_data::InputSample>& in,
+              cycore::sdk::Writer<rd_data::OutputSample>& out) {
         auto input = in.read_cube(num_channels_, num_pulses_, samples_per_pulse_);
         if (!input) {
             return false;
         }
-        // 🟢 输出通道数固定为 1
-        auto output = out.reserve_cube(1, num_pulses_, samples_per_pulse_);
+
+
+
+        auto output = out.reserve_cube(num_channels_, num_pulses_, samples_per_pulse_);
         if (!output) {
             return false;
         }
 
-        // 🟢 仅将输出的通道 0 置零
-        for (std::size_t pulse = 0; pulse < num_pulses_; ++pulse) {
+        const float scale = 1.0f / std::sqrt(static_cast<float>(num_pulses_));
+        rd_data::OutputSample* out_ptr = output->data();
+        std::size_t cpi_size = num_pulses_ * samples_per_pulse_;
+
+        for (std::size_t ch = 0; ch < num_channels_; ++ch) {
             for (std::size_t sample = 0; sample < samples_per_pulse_; ++sample) {
-                (*output)(0, pulse, sample) = 0.0f;
+                for (std::size_t k = 0; k < num_pulses_; ++k) {
+                    float sum_i = 0.0f;
+                    float sum_q = 0.0f;
+
+                    for (std::size_t n = 0; n < num_pulses_; ++n) {
+                        auto x = (*input)(ch, n, sample);
+
+                        std::size_t idx = (k * n) % num_pulses_;
+                        const auto& twiddle = twiddle_factors_[idx];
+
+                        sum_i += static_cast<float>(x.i) * twiddle.cos_val + static_cast<float>(x.q) * twiddle.sin_val;
+                        sum_q += static_cast<float>(x.q) * twiddle.cos_val - static_cast<float>(x.i) * twiddle.sin_val;
+                    }
+
+                    float amp = std::sqrt(sum_i * sum_i + sum_q * sum_q);
+                    float amp_scaled = amp * scale;
+                    
+                    // 🟢 恢复绝对对数分贝输出，保留微弱目标在超宽动态范围下的探测能力
+                    std::size_t out_idx = ch * cpi_size + k * samples_per_pulse_ + sample;
+                    out_ptr[out_idx] = 20.0f * std::log10(std::max(amp_scaled, 1e-6f));
+                }
             }
         }
 
-        if (num_pulses_ < 2 || samples_per_pulse_ < 2) {
-            return true;
+        // 🌟 新增：多普勒积累后 64 个 bin 能量分布 debug 诊断打印
+        static int print_accum_count = 0;
+        if (print_accum_count < 3 && samples_per_pulse_ > 37) {
+            std::fprintf(stderr, "\n=== [DEBUG RD ACCUMULATION] Frame %d, Channel 0, Sample 37 ===\n", print_accum_count);
+            for (std::size_t k = 0; k < num_pulses_; ++k) {
+                std::size_t out_idx = 0 * cpi_size + k * samples_per_pulse_ + 37;
+                std::fprintf(stderr, "  Doppler Bin %zu: Value = %.4f dB\n", k, out_ptr[out_idx]);
+            }
+            std::fprintf(stderr, "=== [DEBUG END] ===\n\n");
+            print_accum_count++;
         }
 
-        // 🟢 提取输入通道 0 进行目标相位估计并写入唯一的输出通道 0 中
-        const auto base = (*input)(0, 0, 0);
-        const auto next_sample = (*input)(0, 0, 1);
-        const auto next_pulse = (*input)(0, 1, 0);
-        const std::size_t range_bin = EstimateBin(base, next_sample, samples_per_pulse_);
-        const std::size_t doppler_bin = EstimateBin(base, next_pulse, num_pulses_);
-        (*output)(0, doppler_bin, range_bin) = Power(base);
-
-        static std::uint32_t print_cnt = 0;
-        if (++print_cnt % 30 == 0) {
-            std::printf("[RangeDoppler] Ch0 Target estimated at: doppler=%zu, range=%zu, power=%.2f\n",
-                        doppler_bin, range_bin, Power(base));
-            std::fflush(stdout);
-        }
         return true;
     }
 
@@ -69,31 +102,13 @@ private:
         return static_cast<std::size_t>(value);
     }
 
-    static std::size_t EstimateBin(const cy::common::CS16& current,
-                                   const cy::common::CS16& next,
-                                   std::size_t bin_count) {
-        const double dot = static_cast<double>(current.i) * static_cast<double>(next.i) +
-                           static_cast<double>(current.q) * static_cast<double>(next.q);
-        const double cross = static_cast<double>(current.i) * static_cast<double>(next.q) -
-                             static_cast<double>(current.q) * static_cast<double>(next.i);
-        double phase = std::atan2(cross, dot);
-        if (phase < 0.0) {
-            phase += 2.0 * kPi;
-        }
-        const auto rounded = static_cast<std::size_t>(
-            std::llround((phase / (2.0 * kPi)) * static_cast<double>(bin_count)));
-        return rounded % bin_count;
-    }
-
-    static float Power(const cy::common::CS16& sample) {
-        const float i = static_cast<float>(sample.i);
-        const float q = static_cast<float>(sample.q);
-        return i * i + q * q;
-    }
-
-    static constexpr double kPi = 3.14159265358979323846;
+    struct TwiddleFactor {
+        float cos_val;
+        float sin_val;
+    };
 
     std::size_t num_channels_;
     std::size_t num_pulses_;
     std::size_t samples_per_pulse_;
+    std::vector<TwiddleFactor> twiddle_factors_;
 };
