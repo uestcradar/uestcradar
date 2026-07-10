@@ -2,7 +2,7 @@
 
 在执行任何编译与部署前，部署脚本必须首先解析出目标物理节点的拓扑与物理连接元数据。
 
-我们已在技能根目录下预置了 **[部署环境变量模板 (env.template)](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/env.template)** 配置文件。
+我们已在技能根目录下预置了 **[部署环境变量模板 (env.template)](../env.template)** 配置文件。
 
 ## 📌 环境变量字段规范定义
 

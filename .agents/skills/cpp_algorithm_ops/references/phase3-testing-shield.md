@@ -23,7 +23,7 @@
 ## 🧪 自动化单测自检脚本
 
 在项目专属运维技能包中，我们预置了本地单测自检与熔断控制脚本。您可以在项目根目录下通过相对路径直接调用：
-* **脚本路径**：[.agents/skills/cpp_algorithm_ops/scripts/test.sh](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/scripts/test.sh)
+* **脚本路径**：[.agents/skills/cpp_algorithm_ops/scripts/test.sh](../scripts/test.sh)
 * **调用指令**：
   ```bash
   bash .agents/skills/cpp_algorithm_ops/scripts/test.sh

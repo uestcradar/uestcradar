@@ -131,7 +131,7 @@ bool PulseCompressionAlgorithm::work(cycore::sdk::Reader<pulse_compression_data:
 
 ## 第四部分：插件导出与注册
 
-导出宏 `CYCORE_EXPORT_ALGORITHM` 必须且只能编写在顶层 C++ 源文件 [src/algorithm.cpp](file:///home/zikun/code/common/uestcradar/cpp/pulse_compression/src/algorithm.cpp) 的全局最底部：
+导出宏 `CYCORE_EXPORT_ALGORITHM` 必须且只能编写在顶层 C++ 源文件 [src/algorithm.cpp](src/algorithm.cpp) 的全局最底部：
 
 ```cpp
 CYCORE_EXPORT_ALGORITHM(
@@ -147,7 +147,7 @@ CYCORE_EXPORT_ALGORITHM(
 
 ## 第五部分：CMake 编译配置规范
 
-要让脉冲压缩编译输出为合规的运行时加载插件，[CMakeLists.txt](file:///home/zikun/code/common/uestcradar/cpp/pulse_compression/CMakeLists.txt) 必须声明以下参数：
+要让脉冲压缩编译输出为合规的运行时加载插件，[CMakeLists.txt](CMakeLists.txt) 必须声明以下参数：
 
 1. **包含 SDK 头文件目录**：
    ```cmake

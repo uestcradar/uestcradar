@@ -47,7 +47,7 @@ uestcradar/
 
 > [!TIP]
 > 📖 关于 MATLAB 工具箱的依赖安装、详细数据包下载准备以及 GUI 运行步骤指南，请参阅：
-> **[MATLAB 子目录专属说明文档 (matlab/README.md)](file:///home/zikun/code/common/uestcradar/matlab/README.md)**
+> **[MATLAB 子目录专属说明文档 (matlab/README.md)](matlab/README.md)**
 
 ---
 
@@ -86,4 +86,4 @@ graph TD
 
 > [!IMPORTANT]
 > 📖 关于如何基于脚手架模板克隆新算法、制定数据格式、执行本地静态自检沙盒测试以及进行 AArch64 容器化交叉编译，请参阅：
-> **[C++ 算子开发模板专属指南 (algorithm_template/README.md)](file:///home/zikun/code/common/uestcradar/algorithm_template/README.md)**
+> **[C++ 算子开发模板专属指南 (algorithm_template/README.md)](algorithm_template/README.md)**

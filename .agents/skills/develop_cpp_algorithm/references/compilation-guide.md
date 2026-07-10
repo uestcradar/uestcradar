@@ -34,4 +34,4 @@ docker run --rm \
 
 当本地开发自检完成，需要将算子插件推送到 ARM64 物理板卡（如 `node2`、`node4` 等分布式节点）时，必须执行跨平台交叉编译及网络分发。
 
-* **交叉编译与物理分发详阅**：**[Phase 2: Docker隔离编译与交叉编译 (cpp_algorithm_ops)](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/references/phase2-compilation.md)**。
+* **交叉编译与物理分发详阅**：**[Phase 2: Docker隔离编译与交叉编译 (cpp_algorithm_ops)](../../cpp_algorithm_ops/references/phase2-compilation.md)**。

@@ -88,7 +88,7 @@ docker run --rm \
 
 * **A**: **100% 为 CPU 架构不匹配（即在 ARM64 主机上加载了 X86_64 格式库）。**
   Linux 动态链接器检测到 ELF 头部架构不匹配拒绝载入，会误报“文件不存在”进行隐蔽报错。
-* **修复红线**：禁止修改目录权限或物理映射。必须立刻在本地使用 [build.sh](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/scripts/build.sh) 交叉编译生成正确的 AArch64 二进制动态库再执行部署。
+* **修复红线**：禁止修改目录权限或物理映射。必须立刻在本地使用 [build.sh](../scripts/build.sh) 交叉编译生成正确的 AArch64 二进制动态库再执行部署。
 
 ---
 
@@ -97,7 +97,7 @@ docker run --rm \
 ## 🛠️ 自动化编译快捷脚本
 
 在项目专属运维技能包中，我们预置了自适应编译脚本。您可以在项目根目录下通过相对路径直接调用：
-* **脚本路径**：[.agents/skills/cpp_algorithm_ops/scripts/build.sh](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/scripts/build.sh)
+* **脚本路径**：[.agents/skills/cpp_algorithm_ops/scripts/build.sh](../scripts/build.sh)
 * **调用指令**：
   ```bash
   bash .agents/skills/cpp_algorithm_ops/scripts/build.sh

@@ -66,7 +66,7 @@ graph TD
 ## 🚀 自动化覆盖部署与热重启脚本
 
 在项目专属运维技能包中，我们预置了自动化分发与热重启脚本。您可以在项目根目录下通过相对路径直接调用：
-* **脚本路径**：[.agents/skills/cpp_algorithm_ops/scripts/deploy.sh](file:///home/zikun/code/common/uestcradar/.agents/skills/cpp_algorithm_ops/scripts/deploy.sh)
+* **脚本路径**：[.agents/skills/cpp_algorithm_ops/scripts/deploy.sh](../scripts/deploy.sh)
 * **调用指令**：
   ```bash
   bash .agents/skills/cpp_algorithm_ops/scripts/deploy.sh
