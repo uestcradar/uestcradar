@@ -86,4 +86,4 @@ graph TD
 
 > [!IMPORTANT]
 > 📖 关于如何基于脚手架模板克隆新算法、制定数据格式、执行本地静态自检沙盒测试以及进行 AArch64 容器化交叉编译，请参阅：
-> **[C++ 算子开发模板专属指南 (algorithm_template/README.md)](algorithm_template/README.md)**
+> **[C++ 算子开发模板专属指南 (algorithm_template/README.md)](.agents/skills/develop_cpp_algorithm/algorithm_template/README.md)**
