@@ -1,0 +1,4 @@
+interface:
+  display_name: "Matlab Helium Docs"
+  short_description: "Maintain concise, code-aligned project documentation."
+  default_prompt: "Use $matlab-helium-docs to update project documentation so it matches the current code structure and workflow."
