@@ -1,25 +1,28 @@
 # Matlab_Helium
 
-Matlab_Helium 是一个面向雷达原始 `bin` 数据的 MATLAB 批处理工程。当前版本强调三件事：
-
-- 入口脚本直接展示完整处理顺序
-- `src/` 只保留真正参与当前流程的处理模块
-- 所有可修改参数集中放在入口脚本最前面的参数区
+面向雷达原始 `bin` 数据的 MATLAB 批处理工程。支持**传统连续流模式**和**多波位 TWS 模式**，包含 LUT 查表测角与跨波位点迹融合。
 
 ## 项目定位
 
-当前唯一正式入口：
+唯一正式入口：[`apps/run_batch_pipeline.m`](./apps/run_batch_pipeline.m)
 
-- [`apps/run_batch_pipeline.m`](./apps/run_batch_pipeline.m)
+所有路径、开关、算法参数集中在脚本最前面的参数区，按顺序调度完整流程。
 
-这个入口脚本承担两类职责：
+## 两种运行模式
 
-1. 在顶部统一放置全部路径、开关和算法参数
-2. 从上到下依次调度完整流程：数据定位、解析、预处理、RD、检测、聚类、测角、保存、绘图
+### 传统连续流模式（`cfg.beam.enable = false`）
+
+将全部脉冲视为连续相干流，滑动 CPI 窗口做 RD → 检测 → 聚类 → 测角 → 逐帧 GIF。
+
+### 多波位 TWS 模式（`cfg.beam.enable = true`）
+
+每个 CPI 文件 = 一轮扫描（128 波位 × 256 脉冲）。按波位分组独立 RD，最后跨波位融合：
+
+- **旁瓣鬼影剔除**：同 (R,V) 位置、功率差 > 6dB → 剔除弱者为旁瓣泄漏
+- **邻域加权融合**：波位交叠区同一目标被多次检出 → 功率加权合并
+- **网格 DBSCAN**：最终空间聚类
 
 ## 原始数据目录结构
-
-当前代码按如下结构读取数据：
 
 ```text
 数据集目录/
@@ -28,125 +31,107 @@ Matlab_Helium 是一个面向雷达原始 `bin` 数据的 MATLAB 批处理工程
 │     ├─ lfm_tx.bin
 │     └─ metadata.json
 └─ RX/
-   ├─ 某采集批次子目录/
-   │  ├─ cpi_000.bin
-   │  ├─ ...
-   │  ├─ cpi_019.bin
-   │  └─ metadata.json
-   ├─ 某采集批次子目录/
-   │  ├─ cpi_000.bin
+   ├─ 2026-06-10_02-59-55/
+   │  ├─ cpi_000.bin  ~  cpi_039.bin
    │  └─ metadata.json
    └─ ...
 ```
 
-当前读取规则如下：
+每个 CPI 文件包含一轮完整扫描（128 波位 × 256 脉冲 = 32,768 PRI）。
 
-1. 先进入数据集目录下的 `TX/`
-2. 在 `TX/` 下寻找一个同时包含 `lfm_tx.bin` 和 `metadata.json` 的发射配置子目录
-3. 再进入数据集目录下的 `RX/`
-4. 按批次子目录名称排序，依次收集每个批次中的 `cpi_*.bin`
-5. 默认使用第一个接收批次中的 `metadata.json` 作为接收参数来源
+## 波位排布文件格式
 
-这样设计的目的，是直接贴合你当前真实的落盘方式，避免再靠旧目录兼容逻辑增加中间层。
+多波位模式需要波位文件（如 `波位格式.txt`），格式：`方位角(°), 俯仰角(°), [驻留脉冲数]`。
+
+```text
+# 注释以 # 开头
+-37.5, -17.5, 256
+-32.5, -17.5, 256
+...
+ 37.5,  17.5, 256
+```
 
 ## 工程结构
 
 ### `apps/`
 
-- [`run_batch_pipeline.m`](./apps/run_batch_pipeline.m)
-  - 当前唯一正式入口
+- [`run_batch_pipeline.m`](./apps/run_batch_pipeline.m) — 唯一正式入口
 
 ### `src/`
 
-- [`batch_parse_bin.m`](./src/batch_parse_bin.m)
-  - 解析原始 `bin` 数据，输出通道缓存和解析索引
-- [`preprocess.m`](./src/preprocess.m)
-  - 预处理入口，负责初始化和分块预处理
-- [`align_direct_wave_range.m`](./src/align_direct_wave_range.m)
-  - 直达波定位与距离零点校准
-- [`process_rd.m`](./src/process_rd.m)
-  - 完成 RD 主处理
-- [`cfar_2d.m`](./src/cfar_2d.m)
-  - 二维 CFAR 检测
-- [`dbscan_cluster.m`](./src/dbscan_cluster.m)
-  - 检测点聚类
-- [`mono_angle.m`](./src/mono_angle.m)
-  - 单脉冲测角
-- [`radar_plot.m`](./src/radar_plot.m)
-  - 基于已有结果做 GIF 绘图导出
+| 文件 | 作用 |
+|---|---|
+| `batch_parse_bin.m` | 原始 bin 解析：交织 → 单通道 mat |
+| `preprocess.m` | 预处理入口（init / chunk），含直达波对齐、距离压缩、频偏补偿 |
+| `align_direct_wave_range.m` | 直达波定位与距离零点校准 |
+| `process_rd.m` | 传统模式 RD：连续流滑动 CPI |
+| `process_rd_beam.m` | 波位模式 RD：按偏移量跳读，每驻留独立 CPI |
+| `cfar_2d.m` | 2D CA-CFAR 检测 |
+| `dbscan_cluster.m` | 逐帧 DBSCAN 聚类（像素空间） |
+| `mono_angle.m` | 测角统一入口：线性 k_mono / LUT 生成 / LUT 查表 + 2D 解耦 |
+| `fuse_beam_plots.m` | 三级跨波位融合（旁瓣抑制 → 邻域加权 → 网格 DBSCAN） |
+| `parse_beam_schedule.m` | 波位排布文件解析 |
+| `radar_plot.m` | 传统模式绘图（RD / 检测 / 测角 GIF） |
 
 ### `docs/`
 
-- [`usage_guide.md`](./docs/usage_guide.md)
-  - 当前详细使用说明
+- [`usage_guide.md`](./docs/usage_guide.md) — 详细使用说明
 
 ### `temp_gui/`
 
-- GUI 临时归档，不参与当前正式主流程
+- GUI 临时归档，不参与正式流程
 
-## 当前主流程
+## 主流程
 
-[`apps/run_batch_pipeline.m`](./apps/run_batch_pipeline.m) 当前按以下顺序执行：
+```
+参数配置 → 定位原始输入 → 解析 bin → 构建上下文
+    ├─ 传统模式：preprocess init → process_rd → 检测 → 聚类 → 测角 → GIF
+    └─ 波位模式：preprocess init → 逐波位 process_rd_beam → 检测 → 聚类
+                   → LUT 测角 → 跨波位融合 → Timeline GIF
+```
 
-1. 设置路径参数、运行开关和算法参数
-2. 按 `TX/` 与 `RX/` 目录规则定位原始输入
-3. 解析 `cpi_*.bin`
-4. 构建 RD 共用上下文
-5. 初始化预处理状态
-6. 执行 RD 处理
-7. 执行 CFAR 检测
-8. 执行 DBSCAN 聚类
-9. 执行单脉冲测角
-10. 保存分析结果
-11. 导出 GIF 图像
+## 关键参数速查
+
+```matlab
+% 模式切换
+cfg.beam.enable = true;              % 多波位 TWS / 传统连续流
+
+% 运行开关
+cfg.run.do_parse = false;            % 重新解析 bin
+cfg.run.do_process = false;          % 重新 RD 处理
+
+% 测角
+cfg.angle.use_lut = true;            % LUT 查表 vs 线性 k_mono
+cfg.angle.k_az = 25.0;               % 方位单脉冲斜率
+cfg.angle.k_el = 25.0;               % 俯仰单脉冲斜率
+
+% RD
+cfg.rd.n_cpi = 512;                  % CPI 脉冲数（波位模式自动覆写为 256）
+cfg.rd.max_range_m = 2000;           % 最大处理距离 (m)
+
+% 检测
+cfg.detect.range_window_m = [300, 800];
+cfg.detect.velocity_window_mps = [-50, 50];
+```
 
 ## 输出结果
 
-每次运行都会在数据集目录下创建：
+每次运行在 `数据集目录/Results/时间戳/` 下生成：
 
-```text
-数据集目录/Results/时间戳/
-```
-
-当前可能输出的结果包括：
-
-- `rx_ch*.mat`
-  - 各接收通道解析缓存
-- `parse_info_*.mat`
-  - 解析索引文件，记录本次解析参数与对应缓存文件
-- `RD_Proc_*.mat`
-  - RD 主结果
-- `*_det.mat`
-  - 检测与聚类结果
-- `*_angle.mat`
-  - 测角结果
-- `*_rd.gif`
-  - RD 动图
-- `*_det.gif`
-  - 检测动图
-- `*_angle.gif`
-  - 测角动图
+| 文件 | 模式 | 说明 |
+|---|---|---|
+| `rx_ch*.mat` | 通用 | 各通道解析缓存 |
+| `parse_info_*.mat` | 通用 | 解析索引 |
+| `RD_Proc_*.mat` | 传统 | RD 主结果 |
+| `beam_XXX/RD_Proc_beamXXX_*.mat` | 波位 | 逐波位 RD 结果 |
+| `*_det.mat` | 传统 | 检测聚类结果 |
+| `*_angle.mat` | 传统 | 测角结果 |
+| `Fused_Targets_*.mat` | 波位 | 融合后的全局目标列表 |
+| `*_rd.gif` | 传统 | RD 动图 |
+| `Timeline_*.gif` | 波位 | 40 帧逐帧目标动图（速度-距离，颜色=方位角） |
 
 ## 运行方式
 
 1. 打开 [`apps/run_batch_pipeline.m`](./apps/run_batch_pipeline.m)
-2. 在最前面的参数区修改数据目录、开关和算法参数
-3. 直接运行脚本
-
-如果 `cfg.paths.data_folders` 为空，程序会弹出目录选择框。
-
-## 文档维护建议
-
-当前建议把文档分工固定为：
-
-- [`apps/run_batch_pipeline.m`](./apps/run_batch_pipeline.m)：第一参考
-- [`README.md`](./README.md)：整体结构与项目概览
-- [`docs/usage_guide.md`](./docs/usage_guide.md)：详细使用说明
-
-以下内容发生变化时，应同步修改文档：
-
-- 原始目录结构变化
-- 入口参数区字段变化
-- 主流程顺序变化
-- 模块职责变化
-- 输出结果规则变化
+2. 修改参数区的数据目录、开关和算法参数
+3. 直接运行；若 `data_folders` 为空则弹窗选择目录
