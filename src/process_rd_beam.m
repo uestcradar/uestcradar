@@ -103,6 +103,9 @@ for channel_idx = 1:numel(channel_ids)
     n_blocks_written = 0;
     last_phase = 0;
 
+    % 预分配输出变量为 3D（避免 matfile 在第 1 帧写入时折叠为 2D）
+    mf.(output_names{channel_idx})(rd_ctx.max_calc_samples, rd_ctx.n_cpi, num_cpi_files) = complex(single(0), single(0));
+
     for file_idx = 1:num_cpi_files
         % 本波位在当前文件中的 PRI 范围（1-based，相对全局 total_pri）
         start_pri = (file_idx - 1) * pulses_per_file + (beam_id - 1) * pulses_per_dwell + 1;
@@ -112,6 +115,15 @@ for channel_idx = 1:numel(channel_ids)
         % 样本级偏移
         samp_s = channel_preproc_state.dw_offset + (start_pri - 1) * pri_len + 1;
         samp_e = channel_preproc_state.dw_offset + end_pri * pri_len;
+
+        % 末尾保护：最后一个波位在最后一个文件中 samp_e 可能超出 mat 文件末尾
+        % （超出量为 dw_offset），此时将读取窗口整体前移
+        total_samples_in_mat = double(parse_bundle.rx_param.total_samples);
+        if samp_e > total_samples_in_mat
+            excess = samp_e - total_samples_in_mat;
+            samp_s = samp_s - excess;
+            samp_e = total_samples_in_mat;
+        end
 
         % 从通道 mat 文件读取当前驻留段
         cur = reshape(single(mf_rx.(channel_var_name)(samp_s:samp_e, 1)), pri_len, N_cur);

@@ -140,12 +140,13 @@ for ci = 1:n_clu
     if r_val < angle_r_range(1) || r_val > angle_r_range(2), continue; end
     if v_val < angle_v_range(1) || v_val > angle_v_range(2), continue; end
 
-    m_raz = az_ratio(rb, vb);
-    m_rel = el_ratio(rb, vb);
+    m_raz = double(az_ratio(rb, vb));
+    m_rel = double(el_ratio(rb, vb));
 
     % Step 1: 在 az=0 剖面用 rel 查俯仰偏移
     el_off = interp1_local(vec_rel_az0, vec_el, m_rel);
     if isnan(el_off) || abs(el_off) > roi_deg, continue; end
+    el_off = double(el_off);
 
     % Step 2: 在 el=el_off 切片上用 raz 查方位偏移
     vec_raz_slice = interp2(lut.az_grid, lut.el_grid, lut.raz_map, ...
