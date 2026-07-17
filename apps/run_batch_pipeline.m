@@ -226,7 +226,7 @@ for di = 1:numel(cfg.paths.data_folders)
             process_cfg.process = cfg.rd;
             process_cfg.preprocess = cfg.preprocess;
 
-            % all_raw_plots 列定义：[r(m), az_beam(deg), el_beam(deg), vr(m/s), time(s), pwr(dB), beam_id]
+            % all_raw_plots 列定义：[r(m), az(deg), el(deg), vr(m/s), time(s), pwr(dB), beam_id, scan_id]
             all_raw_plots = [];
             scan_period = beam_schedule.total_pulses / parse_bundle.rx_param.prf;
             num_cpi_files = numel(parse_bundle.rx_param.cpi_files);
@@ -368,11 +368,14 @@ for di = 1:numel(cfg.paths.data_folders)
                                     plot_el = repmat(beam_el, n_pts, 1);
                                 end
 
-                                time_val = k * scan_period / n_blocks;
+                                % 测量时刻：扫描起点 + 波位驻留中心偏移
+                                dwell_center_offset = (beam_id - 1) * pulses_per_dwell + pulses_per_dwell / 2;
+                                time_val = ((k - 1) * beam_schedule.total_pulses + dwell_center_offset) / parse_bundle.rx_param.prf;
                                 all_raw_plots = [all_raw_plots; ...
                                     r_m(:), plot_az, plot_el, ...
                                     v_m(:), repmat(time_val, n_pts, 1), ...
-                                    pwr_dB(:), repmat(beam_id, n_pts, 1)]; %#ok<AGROW>
+                                    pwr_dB(:), repmat(beam_id, n_pts, 1), ...
+                                    repmat(k, n_pts, 1)]; %#ok<AGROW>
                             end
                         end
                     end
@@ -384,22 +387,37 @@ for di = 1:numel(cfg.paths.data_folders)
                 end
             end
 
-            % ============ 跨波位融合 ============
+            % ============ 跨波位融合（逐扫描进行）============
             fprintf('\n  [步骤9] 多波位点迹融合\n');
             fusion_params = struct();
             fusion_params.resolutions = [base_r_res, 5.0, 5.0, base_v_res];
             fusion_params.dbscan_eps_grid = 3;
             fusion_params.dbscan_minpts_grid = 1;
-            [fused_plots, fusion_stats] = fuse_beam_plots(all_raw_plots, fusion_params);
+
+            scan_ids = unique(all_raw_plots(:, 8));
+            fused_plots = [];
+            total_input = 0; total_ghosts = 0; total_after = 0; total_final = 0;
+
+            for si = 1:numel(scan_ids)
+                sid = scan_ids(si);
+                raw_scan = all_raw_plots(all_raw_plots(:, 8) == sid, 1:7);  % 去掉 scan_id 列
+                [fused_scan, stats_scan] = fuse_beam_plots(raw_scan, fusion_params);
+                if ~isempty(fused_scan)
+                    fused_plots = [fused_plots; fused_scan, repmat(sid, size(fused_scan, 1), 1)]; %#ok<AGROW>
+                end
+                total_input  = total_input  + stats_scan.num_input;
+                total_ghosts = total_ghosts + stats_scan.num_ghosts_suppressed;
+                total_after  = total_after  + stats_scan.num_after_fusion;
+                total_final  = total_final  + stats_scan.num_final;
+            end
 
             % 保存融合结果
             ts_out = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
             fused_mat = fullfile(batch_result_dir, sprintf('Fused_Targets_%s.mat', ts_out));
-            save(fused_mat, 'fused_plots', 'fusion_stats', 'all_raw_plots', 'beam_schedule', '-v7.3');
+            save(fused_mat, 'fused_plots', 'all_raw_plots', 'beam_schedule', '-v7.3');
             lg(sprintf('  [保存] 融合结果已写入：%s', fused_mat));
             lg(sprintf('  [融合统计] 输入=%d, 鬼影剔除=%d, 融合后=%d, 最终=%d', ...
-                fusion_stats.num_input, fusion_stats.num_ghosts_suppressed, ...
-                fusion_stats.num_after_fusion, fusion_stats.num_final));
+                total_input, total_ghosts, total_after, total_final));
 
             % ---- 绘图（如果启用）----
             if cfg.run.do_plot
@@ -1048,23 +1066,28 @@ fprintf('[全景绘图] 已保存：%s\n', png_file);
 end
 
 function plot_beam_timeline_gif(all_raw_plots, fused_plots, beam_schedule, result_dir, cfg)
-%PLOT_BEAM_TIMELINE_GIF 逐帧目标检测动图。
-% 按时间维拆分为逐帧散点图，合成为 GIF。
+%PLOT_BEAM_TIMELINE_GIF 逐扫描融合后目标动图。
+% 使用 fused_plots（融合后）按 scan_id 分帧，合成为 GIF。
+% fused_plots 列: [r(m), az(deg), el(deg), vr(m/s), time(s), scan_id]
 
-if isempty(all_raw_plots)
-    fprintf('[时间线GIF] 无数据，跳过。\n');
+if isempty(fused_plots) || size(fused_plots, 2) < 6
+    fprintf('[时间线GIF] fused_plots 缺少 scan_id 列，回退到原始点迹。\n');
+    if isempty(all_raw_plots), return; end
+    % 回退：画原始点迹（按 scan_id 列=8）
+    scan_ids = unique(all_raw_plots(:, 8));
+    use_fused = false;
+else
+    scan_ids = unique(fused_plots(:, 6));
+    use_fused = true;
+end
+
+n_frames = numel(scan_ids);
+if n_frames < 1
+    fprintf('[时间线GIF] 无有效帧，跳过。\n');
     return;
 end
 
-time_vals = unique(all_raw_plots(:, 5));
-n_frames = numel(time_vals);
-
-if n_frames < 2
-    fprintf('[时间线GIF] 仅 %d 个时间点，帧数不足，跳过。\n', n_frames);
-    return;
-end
-
-fprintf('[时间线GIF] 生成 %d 帧动图...\n', n_frames);
+fprintf('[时间线GIF] 生成 %d 帧动图（融合后目标）...\n', n_frames);
 
 fig = figure('Visible', 'off', 'Position', [100, 100, 800, 600]);
 gif_file = fullfile(result_dir, sprintf('Timeline_%s.gif', ...
@@ -1076,40 +1099,46 @@ v_range = cfg.plot.velocity_window_mps;
 
 for fi = 1:n_frames
     clf;
-    t_now = time_vals(fi);
+    sid = scan_ids(fi);
 
-    % 当前帧的原始检测点
-    mask = all_raw_plots(:, 5) == t_now;
-    frame_plots = all_raw_plots(mask, :);
-
-    if isempty(frame_plots)
-        continue;
+    if use_fused
+        mask = fused_plots(:, 6) == sid;
+        frame = fused_plots(mask, :);
+        % 列: [r, az, el, vr, time, scan_id]
+        r_data = frame(:, 1);
+        v_data = frame(:, 4);
+        az_data = frame(:, 2);
+        marker_sz = 50;  % 融合后目标用统一大小
+    else
+        mask = all_raw_plots(:, 8) == sid;
+        frame = all_raw_plots(mask, :);
+        r_data = frame(:, 1);
+        v_data = frame(:, 4);
+        az_data = frame(:, 2);
+        pwr_data = frame(:, 6);
+        marker_sz = max(15, pwr_data - min(pwr_data) + 15);
     end
 
-    % 散点图：距离-速度，颜色=方位角，大小=功率
-    az_data = frame_plots(:, 2);      % 方位角 (deg)
-    pwr_data = frame_plots(:, 6);     % 功率 (dB)
-    sz = max(15, pwr_data - min(pwr_data) + 15);  % 功率映射到点大小
+    if isempty(frame), continue; end
 
-    scatter(frame_plots(:, 4), frame_plots(:, 1), sz, az_data, 'filled');
+    scatter(v_data, r_data, marker_sz, az_data, 'filled');
     colormap(gca, jet);
     cbar = colorbar;
     cbar.Label.String = 'Azimuth (deg)';
     az_span = max(az_data) - min(az_data);
     if az_span < 1e-6
-        caxis([-5, 5]);  % 单波位时给默认色轴
+        caxis([-5, 5]);
     end
     xlim(v_range);
     ylim(r_range);
     xlabel('Radial Velocity (m/s)');
     ylabel('Range (m)');
-    title(sprintf('Scan %d/%d (%.1fs)  N=%d', fi, n_frames, t_now, size(frame_plots, 1)));
+    title(sprintf('Scan %d/%d  N=%d', fi, n_frames, size(frame, 1)));
     grid on;
     box on;
 
     drawnow;
 
-    % 写入 GIF
     frame_img = getframe(fig);
     im = frame2im(frame_img);
     [A, map] = rgb2ind(im, 256);

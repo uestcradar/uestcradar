@@ -81,11 +81,14 @@ for ci = 1:n_clu
     if r_val < angle_r_range(1) || r_val > angle_r_range(2), continue; end
     if v_val < angle_v_range(1) || v_val > angle_v_range(2), continue; end
 
+    peak_pwr_dB = 10 * log10(double(pwr_ci(best)) + eps);
+    if peak_pwr_dB < min_display_power_dB, continue; end
+
     r_m(end + 1) = r_val; %#ok<AGROW>
     v_m(end + 1) = v_val; %#ok<AGROW>
     az_m(end + 1) = az_ratio(rb, vb) / k_mono; %#ok<AGROW>
     el_m(end + 1) = el_ratio(rb, vb) / k_mono; %#ok<AGROW>
-    sz_m(end + 1) = max(30, 20 * log10(pwr_ci(best) + eps) - min_display_power_dB + 10); %#ok<AGROW>
+    sz_m(end + 1) = max(30, peak_pwr_dB - min_display_power_dB + 10); %#ok<AGROW>
 end
 end
 
@@ -154,11 +157,14 @@ for ci = 1:n_clu
     az_off = interp1_local(vec_raz_slice(:), vec_az, m_raz);
     if isnan(az_off) || abs(az_off) > roi_deg, continue; end
 
+    peak_pwr_dB = 10 * log10(double(pwr_ci(best)) + eps);
+    if peak_pwr_dB < min_display_power_dB, continue; end
+
     r_m(end + 1) = r_val; %#ok<AGROW>
     v_m(end + 1) = v_val; %#ok<AGROW>
     az_m(end + 1) = az_off; %#ok<AGROW>
     el_m(end + 1) = el_off; %#ok<AGROW>
-    sz_m(end + 1) = max(30, 20 * log10(pwr_ci(best) + eps) - min_display_power_dB + 10); %#ok<AGROW>
+    sz_m(end + 1) = max(30, peak_pwr_dB - min_display_power_dB + 10); %#ok<AGROW>
 end
 end
 
