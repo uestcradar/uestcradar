@@ -173,11 +173,13 @@ end
 % =====================================================================
 function monopulse_lut = generate_lut_local(k_az, k_el, roi_deg, step_deg, beam_schedule)
 %GENERATE_LUT_LOCAL 理论模型 LUT 生成。
-% 模型：raz = k_az * sin(δaz) * cos(δel)，rel = k_el * sin(δel)
-% 方位耦合项 cos(δel) 反映俯仰偏离时有效孔径的缩小。
+% 模型：raz = k_az * sin(δaz) * cos(δel + el_center)，rel = k_el * (sin(δel + el_center) - sin(el_center))
+% 为每个波位考虑波束中心俯仰对耦合项的影响。
 
 if nargin < 4 || isempty(step_deg), step_deg = 0.1; end
-if nargin < 5, beam_schedule = []; end
+if nargin < 5 || isempty(beam_schedule)
+    error('mono_angle:MissingBeamSchedule', 'generate_lut 模式需要 beam_schedule 参数。');
+end
 
 k_az = double(k_az);
 k_el = double(k_el);
@@ -202,32 +204,26 @@ monopulse_lut.k_el = k_el;
 monopulse_lut.roi_deg = roi_deg;
 
 % 为每个波位生成独立 LUT（考虑波束中心俯仰对耦合项的影响）
-if ~isempty(beam_schedule) && isfield(beam_schedule, 'num_beams') && beam_schedule.num_beams > 1
-    num_beams = beam_schedule.num_beams;
-    lut_set = cell(1, num_beams);
-    for b = 1:num_beams
-        beam_el_c = deg2rad(beam_schedule.beam_positions(b, 2));
-        el_r_b = el_rad + beam_el_c;
-        raz_b = k_az * sin(az_rad) .* cos(el_r_b);
-        rel_b = k_el * (sin(el_r_b) - sin(beam_el_c));
+num_beams = beam_schedule.num_beams;
+lut_set = cell(1, num_beams);
+for b = 1:num_beams
+    beam_el_c = deg2rad(beam_schedule.beam_positions(b, 2));
+    el_r_b = el_rad + beam_el_c;
+    raz_b = k_az * sin(az_rad) .* cos(el_r_b);
+    rel_b = k_el * (sin(el_r_b) - sin(beam_el_c));
 
-        beam_lut = struct();
-        beam_lut.beam_az = beam_schedule.beam_positions(b, 1);
-        beam_lut.beam_el = beam_schedule.beam_positions(b, 2);
-        beam_lut.az_grid = angle_offsets;
-        beam_lut.el_grid = angle_offsets;
-        beam_lut.raz_map = reshape(raz_b, size(AZ_OFF));
-        beam_lut.rel_map = reshape(rel_b, size(EL_OFF));
-        lut_set{b} = beam_lut;
-    end
-    monopulse_lut.data = lut_set;
-    fprintf('[LUT] 已为 %d 个波位生成独立鉴角表（k_az=%.1f, k_el=%.1f, ROI=±%.1f°）\n', ...
-        num_beams, k_az, k_el, roi_deg);
-else
-    monopulse_lut.data = {monopulse_lut};
-    fprintf('[LUT] 已生成单波位鉴角表（k_az=%.1f, k_el=%.1f, ROI=±%.1f°, 步长 %.1f°）\n', ...
-        k_az, k_el, roi_deg, step_deg);
+    beam_lut = struct();
+    beam_lut.beam_az = beam_schedule.beam_positions(b, 1);
+    beam_lut.beam_el = beam_schedule.beam_positions(b, 2);
+    beam_lut.az_grid = angle_offsets;
+    beam_lut.el_grid = angle_offsets;
+    beam_lut.raz_map = reshape(raz_b, size(AZ_OFF));
+    beam_lut.rel_map = reshape(rel_b, size(EL_OFF));
+    lut_set{b} = beam_lut;
 end
+monopulse_lut.data = lut_set;
+fprintf('[LUT] 已为 %d 个波位生成独立鉴角表（k_az=%.1f, k_el=%.1f, ROI=±%.1f°）\n', ...
+    num_beams, k_az, k_el, roi_deg);
 end
 
 % =====================================================================

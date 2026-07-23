@@ -1,5 +1,5 @@
 function out_file = process_rd_beam(beam_id, beam_az, beam_el, data_dir, parse_bundle, rd_ctx, preproc_state, process_cfg, result_dir, status_cb)
-%PROCESS_RD_BEAM 单波位 RD 处理。
+%PROCESS_RD_BEAM 逐波位 RD 处理。
 %
 % 输入：
 %   beam_id       - 波位编号（1-based）
@@ -15,10 +15,8 @@ function out_file = process_rd_beam(beam_id, beam_az, beam_el, data_dir, parse_b
 % 输出：
 %   out_file      - 生成的 RD_Proc_beam*_*.mat 完整路径
 % 作用：
-%   从通道 mat 文件中提取波位 beam_id 对应的脉冲段（每个 CPI 文件 256 脉冲），
-%   各段独立做距离压缩与慢时间 FFT，写入单波位 RD 结果文件。
-%   单独保留这个模块的原因是：波位 RD 处理的读取模式（跨文件跳读）
-%   与连续流模式完全不同，独立函数便于保持两者互不干扰。
+%   从通道 mat 文件中提取波位 beam_id 对应的脉冲段（每个 CPI 文件对应波位的驻留脉冲），
+%   各段独立做距离压缩与慢时间 FFT，写入逐波位 RD 结果文件。
 
 if nargin < 10 || isempty(status_cb)
     status_cb = @(msg) fprintf('%s\n', msg);

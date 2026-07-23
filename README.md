@@ -1,6 +1,6 @@
 # Matlab_Helium
 
-面向雷达原始 `bin` 数据的 MATLAB 批处理工程。支持**传统连续流模式**和**多波位 TWS 模式**，包含 LUT 查表测角与跨波位点迹融合。
+面向雷达原始 `bin` 数据的 MATLAB 批处理工程。基于**多波位 TWS 模式**，包含逐波位 LUT 查表测角与跨波位点迹融合。
 
 ## 项目定位
 
@@ -8,13 +8,7 @@
 
 所有路径、开关、算法参数集中在脚本最前面的参数区，按顺序调度完整流程。
 
-## 两种运行模式
-
-### 传统连续流模式（`cfg.beam.enable = false`）
-
-将全部脉冲视为连续相干流，滑动 CPI 窗口做 RD → 检测 → 聚类 → 测角 → 逐帧 GIF。
-
-### 多波位 TWS 模式（`cfg.beam.enable = true`）
+## 多波位 TWS 模式
 
 每个 CPI 文件 = 一轮扫描（128 波位 × 256 脉冲）。按波位分组独立 RD，最后跨波位融合：
 
@@ -64,38 +58,32 @@
 | `batch_parse_bin.m` | 原始 bin 解析：交织 → 单通道 mat |
 | `preprocess.m` | 预处理入口（init / chunk），含直达波对齐、距离压缩、频偏补偿 |
 | `align_direct_wave_range.m` | 直达波定位与距离零点校准 |
-| `process_rd.m` | 传统模式 RD：连续流滑动 CPI |
 | `process_rd_beam.m` | 波位模式 RD：按偏移量跳读，每驻留独立 CPI |
 | `cfar_2d.m` | 2D CA-CFAR 检测 |
 | `dbscan_cluster.m` | 逐帧 DBSCAN 聚类（像素空间） |
 | `mono_angle.m` | 测角统一入口：线性 k_mono / LUT 生成 / LUT 查表 + 2D 解耦 |
 | `fuse_beam_plots.m` | 三级跨波位融合（旁瓣抑制 → 邻域加权 → 网格 DBSCAN） |
 | `parse_beam_schedule.m` | 波位排布文件解析 |
-| `radar_plot.m` | 传统模式绘图（RD / 检测 / 测角 GIF） |
-
-### `docs/`
-
-- [`usage_guide.md`](./docs/usage_guide.md) — 详细使用说明
 
 ### `temp_gui/`
 
 - GUI 临时归档，不参与正式流程
 
+### `docs/`
+
+- [`usage_guide.md`](./docs/usage_guide.md) — 详细使用说明
+
 ## 主流程
 
 ```
-参数配置 → 定位原始输入 → 解析 bin → 构建上下文
-    ├─ 传统模式：preprocess init → process_rd → 检测 → 聚类 → 测角 → GIF
-    └─ 波位模式：preprocess init → 逐波位 process_rd_beam → 检测 → 聚类
-                   → LUT 测角 → 跨波位融合 → Timeline GIF
+参数配置 → 定位原始输入 → 解析 bin → 波位排布加载 → 构建上下文
+    → preprocess init → 逐波位 process_rd_beam → 检测 → 聚类
+    → LUT 测角 → 跨波位融合 → Timeline GIF
 ```
 
 ## 关键参数速查
 
 ```matlab
-% 模式切换
-cfg.beam.enable = true;              % 多波位 TWS / 传统连续流
-
 % 运行开关
 cfg.run.do_parse = false;            % 重新解析 bin
 cfg.run.do_process = false;          % 重新 RD 处理
@@ -106,7 +94,7 @@ cfg.angle.k_az = 25.0;               % 方位单脉冲斜率
 cfg.angle.k_el = 25.0;               % 俯仰单脉冲斜率
 
 % RD
-cfg.rd.n_cpi = 512;                  % CPI 脉冲数（波位模式自动覆写为 256）
+cfg.rd.n_cpi = 256;                  % CPI 脉冲数（由波位文件自动覆写）
 cfg.rd.max_range_m = 2000;           % 最大处理距离 (m)
 
 % 检测
@@ -118,17 +106,13 @@ cfg.detect.velocity_window_mps = [-50, 50];
 
 每次运行在 `数据集目录/Results/时间戳/` 下生成：
 
-| 文件 | 模式 | 说明 |
-|---|---|---|
-| `rx_ch*.mat` | 通用 | 各通道解析缓存 |
-| `parse_info_*.mat` | 通用 | 解析索引 |
-| `RD_Proc_*.mat` | 传统 | RD 主结果 |
-| `beam_XXX/RD_Proc_beamXXX_*.mat` | 波位 | 逐波位 RD 结果 |
-| `*_det.mat` | 传统 | 检测聚类结果 |
-| `*_angle.mat` | 传统 | 测角结果 |
-| `Fused_Targets_*.mat` | 波位 | 融合后的全局目标列表 |
-| `*_rd.gif` | 传统 | RD 动图 |
-| `Timeline_*.gif` | 波位 | 40 帧逐帧目标动图（速度-距离，颜色=方位角） |
+| 文件 | 说明 |
+|---|---|
+| `rx_ch*.mat` | 各通道解析缓存 |
+| `parse_info_*.mat` | 解析索引 |
+| `beam_XXX/RD_Proc_beamXXX_*.mat` | 逐波位 RD 结果 |
+| `Fused_Targets_*.mat` | 融合后的全局目标列表 |
+| `Timeline_*.gif` | 逐帧目标动图（速度-距离，颜色=方位角） |
 
 ## 运行方式
 

@@ -1,6 +1,6 @@
 ﻿# 使用说明
 
-本文只说明当前正在使用的代码结构、原始数据目录规则、主流程、参数区和输出结果，不讨论旧入口、旧兼容逻辑或历史版本。
+本文只说明当前正在使用的代码结构、原始数据目录规则、主流程、参数区和输出结果。
 
 ## 1. 当前唯一正式入口
 
@@ -169,7 +169,7 @@
 
 对应模块：
 
-- [`../src/process_rd.m`](../src/process_rd.m)
+- [`../src/process_rd_beam.m`](../src/process_rd_beam.m)
 
 ### 3.6 执行目标检测
 
@@ -233,9 +233,7 @@
 
 作用：
 
-- 导出 RD 动图
-- 导出检测动图
-- 导出测角动图
+- 生成融合目标的逐帧 Timeline GIF 动图（速度-距离，颜色=方位角）
 
 为什么单独放在最后：
 
@@ -244,7 +242,7 @@
 
 对应模块：
 
-- [`../src/radar_plot.m`](../src/radar_plot.m)
+- `run_batch_pipeline.m` 内部本地函数 `plot_beam_timeline_gif`
 
 ## 4. 参数区说明
 
@@ -265,7 +263,6 @@
 - `cfg.paths.rx_pattern`
 - `cfg.paths.parse_info_pattern`
 - `cfg.paths.result_dir_name`
-- `cfg.paths.rd_pattern`
 
 建议：
 
@@ -328,12 +325,12 @@
 - `cfg.rd.n_cpi`
 - `cfg.rd.n_overlap`
 - `cfg.rd.max_range_m`
-- `cfg.rd.frames_per_chunk`
 - `cfg.rd.do_mti_twopulse`
 
 作用：
 
-- 控制 CPI 长度、块间重叠、最大处理距离、按块读取规模和 MTI 处理方式
+- 控制 CPI 长度、块间重叠、最大处理距离和 MTI 处理方式
+- 注意：`n_cpi` 和 `n_overlap` 在波位模式下由波位文件逐波位覆写
 
 ### 4.6 检测参数 `cfg.detect`
 
@@ -419,21 +416,18 @@
 
 ### 5.2 RD 阶段
 
-- `RD_Proc_*.mat`
-  - RD 主结果文件
+- `beam_XXX/RD_Proc_beamXXX_*.mat`
+  - 逐波位 RD 主结果文件
 
-### 5.3 目标分析阶段
+### 5.3 融合阶段
 
-- `*_det.mat`
-  - 检测与聚类结果
-- `*_angle.mat`
-  - 测角结果
+- `Fused_Targets_*.mat`
+  - 跨波位融合后的全局目标列表
 
 ### 5.4 绘图阶段
 
-- `*_rd.gif`
-- `*_det.gif`
-- `*_angle.gif`
+- `Timeline_*.gif`
+  - 逐帧目标动图（速度-距离，颜色=方位角）
 
 ## 6. 模块清单
 
@@ -445,16 +439,18 @@
   - 预处理入口
 - [`../src/align_direct_wave_range.m`](../src/align_direct_wave_range.m)
   - 直达波定位与距离零点校准
-- [`../src/process_rd.m`](../src/process_rd.m)
-  - RD 主处理
+- [`../src/process_rd_beam.m`](../src/process_rd_beam.m)
+  - 逐波位 RD 主处理
 - [`../src/cfar_2d.m`](../src/cfar_2d.m)
   - CFAR 检测
 - [`../src/dbscan_cluster.m`](../src/dbscan_cluster.m)
   - 目标聚类
 - [`../src/mono_angle.m`](../src/mono_angle.m)
-  - 单脉冲测角
-- [`../src/radar_plot.m`](../src/radar_plot.m)
-  - GIF 绘图导出
+  - 单脉冲测角（LUT 查表 + 2D 解耦）
+- [`../src/fuse_beam_plots.m`](../src/fuse_beam_plots.m)
+  - 跨波位三级点迹融合
+- [`../src/parse_beam_schedule.m`](../src/parse_beam_schedule.m)
+  - 波位排布文件解析
 
 ## 7. 文档维护规则
 
