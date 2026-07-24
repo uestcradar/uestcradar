@@ -17,6 +17,7 @@ function out_file = process_rd_beam(beam_id, beam_az, beam_el, data_dir, parse_b
 % 作用：
 %   从通道 mat 文件中提取波位 beam_id 对应的脉冲段（每个 CPI 文件对应波位的驻留脉冲），
 %   各段独立做距离压缩与慢时间 FFT，写入逐波位 RD 结果文件。
+%   数据布局由 RX 元数据决定（每文件 pulses_per_file），波位排布文件决定处理哪些波位。
 
 if nargin < 10 || isempty(status_cb)
     status_cb = @(msg) fprintf('%s\n', msg);
@@ -66,20 +67,11 @@ mf.beam_el = single(beam_el);
 mf.processing_meta = build_processing_meta(rd_ctx, process_cfg, channel_ids);
 status_cb(sprintf('[RD Beam %d] 输出文件：%s', beam_id, out_file));
 
-% ---- 计算本波位在文件内的脉冲范围 ----
-pulses_per_dwell = rd_ctx.n_cpi;  % 256
-pri_len = rd_ctx.pri_len;         % 1024
-total_pri_per_file = double(parse_bundle.rx_param.total_pri);  % 1,310,720
-
-% 从原始 CPI 文件数量反推每文件脉冲数
-num_cpi_files = numel(parse_bundle.rx_param.cpi_files);
-pulses_per_file = total_pri_per_file / num_cpi_files;  % ~32768
-
-% 验证一致性
-if mod(pulses_per_file, 1) ~= 0
-    error('process_rd_beam:InconsistentPulses', ...
-        '总 PRI 数 %d 无法被文件数 %d 整除。', total_pri_per_file, num_cpi_files);
-end
+% ---- 帧间间隔与帧数（由主流程根据波位数决定）----
+pulses_per_dwell = rd_ctx.n_cpi;
+pri_len = rd_ctx.pri_len;
+pulses_per_scan = rd_ctx.pulses_per_scan;   % 单波位=连续流，多波位=槽位间隔
+total_frames = rd_ctx.total_blocks;
 
 % ---- 逐通道处理 ----
 shared_preproc_state = preproc_state;
@@ -102,11 +94,13 @@ for channel_idx = 1:numel(channel_ids)
     last_phase = 0;
 
     % 预分配输出变量为 3D（避免 matfile 在第 1 帧写入时折叠为 2D）
-    mf.(output_names{channel_idx})(rd_ctx.max_calc_samples, rd_ctx.n_cpi, num_cpi_files) = complex(single(0), single(0));
+    mf.(output_names{channel_idx})(rd_ctx.max_calc_samples, rd_ctx.n_cpi, total_frames) = complex(single(0), single(0));
 
-    for file_idx = 1:num_cpi_files
-        % 本波位在当前文件中的 PRI 范围（1-based，相对全局 total_pri）
-        start_pri = (file_idx - 1) * pulses_per_file + (beam_id - 1) * pulses_per_dwell + 1;
+    for k = 1:total_frames
+        % 本波位在连续 PRI 流中的位置（1-based）
+        % 扫描 k: 从 (k-1)*pulses_per_scan 开始
+        % 波位 beam_id: 偏移 (beam_id-1)*pulses_per_dwell
+        start_pri = (k - 1) * pulses_per_scan + (beam_id - 1) * pulses_per_dwell + 1;
         end_pri   = start_pri + pulses_per_dwell - 1;
         N_cur = pulses_per_dwell;
 
@@ -114,8 +108,7 @@ for channel_idx = 1:numel(channel_ids)
         samp_s = channel_preproc_state.dw_offset + (start_pri - 1) * pri_len + 1;
         samp_e = channel_preproc_state.dw_offset + end_pri * pri_len;
 
-        % 末尾保护：最后一个波位在最后一个文件中 samp_e 可能超出 mat 文件末尾
-        % （超出量为 dw_offset），此时将读取窗口整体前移
+        % 末尾保护
         total_samples_in_mat = double(parse_bundle.rx_param.total_samples);
         if samp_e > total_samples_in_mat
             excess = samp_e - total_samples_in_mat;
@@ -129,7 +122,7 @@ for channel_idx = 1:numel(channel_ids)
         % 预处理（距离压缩 + 对齐 + 频偏补偿）
         [PC_corr, channel_preproc_state] = preprocess( ...
             'chunk', cur, rd_ctx, process_cfg.preprocess, channel_preproc_state, ...
-            estimate_alignment, file_idx, last_phase, status_cb);
+            estimate_alignment, k, last_phase, status_cb);
         last_phase = channel_preproc_state.last_phase;
 
         % MTI（两脉冲相消）

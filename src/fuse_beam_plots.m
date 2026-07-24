@@ -22,8 +22,7 @@ end
 
 stats = struct();
 stats.num_input = size(all_raw_plots, 1);
-fprintf('\n========== 多波位点迹融合开始 ==========\n');
-fprintf('[融合] 输入原始点迹数：%d\n', stats.num_input);
+fprintf('  [融合] 输入 %d 点', stats.num_input);
 
 if numel(fusion_params.resolutions) < 4
     error('fuse_beam_plots:InvalidResolutions', ...
@@ -66,9 +65,9 @@ end
 plots_after_sl = sorted_plots(valid_mask, :);
 stats.num_ghosts_suppressed = num_suppressed;
 if num_suppressed > 0
-    fprintf('[Stage A 旁瓣抑制] 剔除鬼影点数：%d（剩余 %d）\n', num_suppressed, size(plots_after_sl, 1));
+    fprintf(' | A:%d→%d', num_suppressed + size(plots_after_sl, 1), size(plots_after_sl, 1));
 else
-    fprintf('[Stage A 旁瓣抑制] 未发现旁瓣鬼影\n');
+    fprintf(' | A:%d→%d', size(plots_after_sl, 1), size(plots_after_sl, 1));
 end
 
 % =====================================================================
@@ -113,7 +112,7 @@ while ~isempty(plots_to_process)
 end
 
 stats.num_after_fusion = size(plots_after_fusion, 1);
-fprintf('[Stage B 邻域融合] 融合后点迹数：%d\n', stats.num_after_fusion);
+fprintf(' | B:%d', stats.num_after_fusion);
 
 % =====================================================================
 % Stage C: 网格 DBSCAN 最终聚类
@@ -130,8 +129,7 @@ end
 fused_plots = grid_dbscan_local(plots_after_fusion, fusion_params.resolutions, eps_grid, minpts_grid);
 
 stats.num_final = size(fused_plots, 1);
-fprintf('[Stage C 网格聚类] 最终量测数：%d\n', stats.num_final);
-fprintf('========== 多波位点迹融合完成 ==========\n\n');
+fprintf(' | C:%d\n', stats.num_final);
 end
 
 % =====================================================================

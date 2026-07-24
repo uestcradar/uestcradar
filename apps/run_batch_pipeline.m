@@ -29,10 +29,12 @@ cfg.beam.output_rd_per_beam = true;     % 是否保留逐波位 RD_Proc_beam*.ma
 %% 2. 参数区：运行开关
 cfg.run.do_parse = false; % 是否重新解析原始 bin 文件；true 表示重新生成 rx_ch*.mat 和 parse_info_*.mat。
 cfg.run.do_process = false; % 是否重新执行 RD 处理；false 表示直接复用已有 RD_Proc_*.mat。
-cfg.run.do_detect = true; % 是否执行 CFAR 检测；通常保持 true，除非只想验证前级数据。
-cfg.run.do_cluster = true; % 是否执行 DBSCAN 聚类；关闭后只保留检测点，不输出聚类编号。
-cfg.run.do_angle = true; % 是否执行单脉冲测角；要求 RD 结果中存在方位差与俯仰差通道。
-cfg.run.do_plot = true; % 是否执行绘图与 GIF 导出；关闭后只保留 mat 结果。
+cfg.run.do_detect = false; % 是否执行 CFAR 检测；通常保持 true，除非只想验证前级数据。
+cfg.run.do_cluster = false; % 是否执行 DBSCAN 聚类；关闭后只保留检测点，不输出聚类编号。
+cfg.run.do_angle = false; % 是否执行单脉冲测角；要求 RD 结果中存在方位差与俯仰差通道。
+cfg.run.do_plot = false; % 是否生成 Timeline GIF（RD 图）
+cfg.run.do_plot_3d = true; % 是否生成 3D 航迹 GIF + 静态图
+cfg.run.do_track = true; % 是否仅从已有融合结果运行跟踪+绘图（跳过检测/聚类/测角）
 
 %% 3. 参数区：预处理参数
 cfg.preprocess.do_dw_calibrate = true; % 是否自动标定直达波距离零点；true 表示利用首个 CPI 自动估计对齐位置。
@@ -85,20 +87,35 @@ cfg.angle.lut_step_deg = 0.1;     % LUT 栅格步长（度）
 
 %% 9. 参数区：结果导出参数
 cfg.export.save_analysis_mat = true; % 是否保存检测结果和测角结果 mat 文件；便于后续直接复用分析结果。
-cfg.export.gif_delay = 0.05; % GIF 帧间延时，单位秒；值越小动画播放越快。
+cfg.export.gif_delay = 0.01; % GIF 帧间延时（最小 0.01s，GIF 格式限制）
 cfg.export.keep_parse_mat = true; % 是否保留解析阶段生成的 rx_ch*.mat 和 parse_info_*.mat；若每次都重新 parse，可改为 false。
 cfg.export.keep_rd_mat = true; % 是否保留 RD_Proc_*.mat；若只关心最终图像且不复用 RD，可改为 false。
 
-%% 10. 参数区：绘图参数
+%% 10. 参数区：跟踪参数（EKF + GNN 多目标跟踪）
+cfg.track.enable = true;              % 是否启用多目标跟踪
+cfg.track.radar_height = 30;          % 雷达架高 (m)
+cfg.track.range_noise_std = 20;       % 距离量测噪声标准差 (m)
+cfg.track.angle_noise_std_deg = 3;    % 角度量测噪声标准差 (°)
+cfg.track.vr_noise_std = 2.0;         % 径向速度量测噪声标准差 (m/s)
+cfg.track.decimation = 1;             % 跟踪降采样：每 N 帧取 1 帧
+cfg.track.q = 0.1;                    % 过程噪声强度因子
+cfg.track.v_tan_std_init = 10.0;      % 初始切向速度不确定性 (m/s)
+cfg.track.M = 50;                      % M/N 逻辑：最少命中次数（5/6 确认，滤除间歇性杂波）
+cfg.track.N = 60;                      % M/N 逻辑：判定窗口帧数
+cfg.track.max_predictions = 3;      % 
+cfg.track.gate_confidence = 0.999;    % Chi-squared 关联门限置信度
+cfg.track.max_history_length = 1000;   % 航迹历史最大存储点数（静态图完整显示）
+
+%% 11. 参数区：绘图参数
 cfg.plot.range_window_m = [300, 800]; % 绘图显示的距离范围，单位米。
 cfg.plot.velocity_window_mps = [-50, 50]; % 绘图显示的速度范围，单位米每秒。
 cfg.plot.clim_dB = [110, 155]; % RD 幅度图颜色条范围，单位 dB；用于统一不同帧的显示亮度。
-cfg.plot.frame_step = 20; % GIF 抽帧步长；例如 20 表示每隔 20 帧导出 1 帧动画。
+cfg.plot.frame_step = 20; % GIF 抽帧步长；1=全帧，20=每20帧取1帧
 
-%% 11. 参数区：运行时输出
+%% 12. 参数区：运行时输出
 cfg.runtime.status_cb = @(msg) fprintf('%s\n', msg); % 统一日志输出回调；所有模块都通过它打印中文状态。
 
-%% 12. 初始化运行环境
+%% 13. 初始化运行环境
 this_dir = fileparts(mfilename('fullpath'));
 project_root = fileparts(this_dir);
 addpath(project_root);
@@ -126,7 +143,7 @@ fprintf('\n========== Matlab_Helium 批处理开始：共 %d 个数据目录 ===
 t_total = tic;
 run_ts_global = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
 
-%% 13. 逐个数据集执行完整流程
+%% 14. 逐个数据集执行完整流程
 for di = 1:numel(cfg.paths.data_folders)
     data_dir = cfg.paths.data_folders{di};
     [~, dataset_name] = fileparts(data_dir);
@@ -196,7 +213,97 @@ for di = 1:numel(cfg.paths.data_folders)
 
         % 构建基础 RD 上下文（pri_len, fs, prt 等基础参数）
         rd_ctx = build_rd_context(parse_bundle.rx_param, parse_bundle.tx, cfg.rd, cfg.radar);
+        % 根据波位排布确定 chunk 数（= 总帧数）
+        rd_ctx.num_chunks = max(floor(double(parse_bundle.rx_param.total_pri) / beam_schedule.total_pulses), rd_ctx.num_chunks);
         lg = cfg.runtime.status_cb;
+
+        % ---- 快速路径：仅跟踪+绘图（复用已有融合结果）----
+        if cfg.run.do_track
+            % 在所有历史运行目录中搜索最近的融合结果
+            all_run_dirs = get_all_run_output_dirs(data_dir, cfg.paths.result_dir_name);
+            fused_candidates = [];
+            for ri = 1:numel(all_run_dirs)
+                batch_dir = fullfile(all_run_dirs{ri}, raw_spec.batch_name);
+                entries = dir(fullfile(batch_dir, 'Fused_Targets_*.mat'));
+                if ~isempty(entries)
+                    fused_candidates = [fused_candidates; entries]; %#ok<AGROW>
+                end
+            end
+            if isempty(fused_candidates)
+                error('run_batch_pipeline:MissingFusedMat', ...
+                    '未在历史结果中找到 Fused_Targets_*.mat，请先跑完整流程。');
+            end
+            [~, idx] = max([fused_candidates.datenum]);
+            fused_file = fullfile(fused_candidates(idx).folder, fused_candidates(idx).name);
+            lg(sprintf('  [快速路径] 加载融合结果：%s', fused_file));
+            S = load(fused_file, 'fused_plots', 'beam_schedule');
+            fused_plots = S.fused_plots;
+            total_scan_frames = floor(double(parse_bundle.rx_param.total_pri) / beam_schedule.total_pulses);
+            scan_period = beam_schedule.total_pulses / parse_bundle.rx_param.prf;
+            ts_out = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+
+            % --- 跟踪 ---
+            track_results = {};
+            if cfg.track.enable
+                fprintf('  [步骤10] 多目标跟踪 (EKF+GNN)\n');
+                tracker_params = struct();
+                tracker_params.dt_frame = scan_period * cfg.track.decimation;
+                fprintf('  [跟踪] dt_frame = %.3f s (scan_period=%.3f × decimation=%d)\n', ...
+                    tracker_params.dt_frame, scan_period, cfg.track.decimation);
+                tracker_params.radar_height = cfg.track.radar_height;
+                sigma_r  = cfg.track.range_noise_std;
+                sigma_a  = deg2rad(cfg.track.angle_noise_std_deg);
+                sigma_e  = deg2rad(cfg.track.angle_noise_std_deg);
+                sigma_vr = cfg.track.vr_noise_std;
+                tracker_params.measurement_noise = diag([sigma_r^2, sigma_a^2, sigma_e^2, sigma_vr^2]);
+                Q_base = [tracker_params.dt_frame^3/3, tracker_params.dt_frame^2/2;
+                          tracker_params.dt_frame^2/2, tracker_params.dt_frame];
+                tracker_params.process_noise_matrix = blkdiag(Q_base, Q_base, Q_base) * cfg.track.q;
+                tracker_params.M = cfg.track.M;
+                tracker_params.N = cfg.track.N;
+                tracker_params.max_predictions = cfg.track.max_predictions;
+                tracker_params.gate_confidence = cfg.track.gate_confidence;
+                tracker_params.max_history_length = cfg.track.max_history_length;
+                tracker_params.v_tan_std_init = cfg.track.v_tan_std_init;
+
+                [tracks, track_id_counter] = track_init();
+                decimated_frames = 1:cfg.track.decimation:total_scan_frames;
+                track_results = cell(total_scan_frames, 1);
+                for dd = 1:numel(decimated_frames)
+                    fi = decimated_frames(dd);
+                    meas_idx = fused_plots(:, 6) == fi;
+                    raw_meas = fused_plots(meas_idx, 1:5);
+                    if ~isempty(raw_meas)
+                        raw_meas(:, 2:3) = deg2rad(raw_meas(:, 2:3));
+                        raw_meas(:, 4) = -raw_meas(:, 4);  % 翻转vr符号: 雷达(正=接近)→EKF(正=远离)
+                    end
+                    [tracks, track_id_counter] = tracker_3D_EKF(tracks, raw_meas, track_id_counter, tracker_params);
+                    track_results{fi} = tracks;
+                end
+                n_active = sum(~[tracks.is_terminated]);
+                n_confirmed = sum([tracks.is_confirmed]);
+                lg(sprintf('  [跟踪] 总航迹=%d, 活跃=%d, 已确认=%d', numel(tracks), n_active, n_confirmed));
+                fprintf('  [跟踪] 保存结果...\n');
+                track_mat = fullfile(batch_result_dir, sprintf('Tracks_%s.mat', ts_out));
+                save(track_mat, 'tracks', '-v7.3');
+            end
+
+            % --- 绘图 ---
+            if cfg.run.do_plot
+                fprintf('  [步骤11] 逐帧动图 (RD)\n');
+                plot_beam_timeline_gif([], fused_plots, total_scan_frames, batch_result_dir, cfg, track_results);
+            end
+            if cfg.run.do_plot_3d && cfg.track.enable
+                fprintf('  [步骤12] 3D 航迹动图\n');
+                plot_tracking_3d_gif(fused_plots, total_scan_frames, track_results, ...
+                    cfg.track.radar_height, batch_result_dir, cfg);
+            end
+
+            if ~cfg.export.keep_parse_mat
+                cleanup_parse_outputs(parse_bundle, lg);
+            end
+            continue;
+        end
 
         % ============ 多波位 TWS 模式 ============
             lg(sprintf('\n---------- 多波位 TWS 模式：%d 个波位 ----------', beam_schedule.num_beams));
@@ -229,8 +336,11 @@ for di = 1:numel(cfg.paths.data_folders)
                 beam_rd_cfg.n_cpi = pulses_per_dwell;
                 beam_rd_cfg.n_overlap = 0;
                 beam_rx_param = parse_bundle.rx_param;
-                beam_rx_param.total_pri = pulses_per_dwell * num_cpi_files + 1;  % +1 补偿 effective_frames = total-1
                 beam_rd_ctx = build_rd_context(beam_rx_param, parse_bundle.tx, beam_rd_cfg, cfg.radar);
+                % 一轮扫描脉冲数 = 波位文件决定（N 波位 × 每波位脉冲数）
+                beam_rd_ctx.pulses_per_scan = beam_schedule.total_pulses;
+                beam_rd_ctx.total_blocks = floor(double(parse_bundle.rx_param.total_pri) / beam_schedule.total_pulses);
+                beam_rd_ctx.num_chunks = beam_rd_ctx.total_blocks;
 
                 if mod(beam_id, 20) == 1 || beam_id == beam_schedule.num_beams
                     lg(sprintf('[波位 %3d/%d] az=%+.1f°, el=%+.1f°, 帧数=%d', ...
@@ -403,10 +513,72 @@ for di = 1:numel(cfg.paths.data_folders)
             lg(sprintf('  [融合统计] 输入=%d, 鬼影剔除=%d, 融合后=%d, 最终=%d', ...
                 total_input, total_ghosts, total_after, total_final));
 
+            % ---- 多目标跟踪（EKF + GNN）----
+            total_scan_frames = floor(double(parse_bundle.rx_param.total_pri) / beam_schedule.total_pulses);
+
+            if cfg.track.enable
+                fprintf('  [步骤10] 多目标跟踪 (EKF+GNN)\n');
+
+                tracker_params = struct();
+                tracker_params.dt_frame = scan_period * cfg.track.decimation;
+                fprintf('  [跟踪] dt_frame = %.3f s (scan_period=%.3f × decimation=%d)\n', ...
+                    tracker_params.dt_frame, scan_period, cfg.track.decimation);
+                tracker_params.radar_height = cfg.track.radar_height;
+                sigma_r  = cfg.track.range_noise_std;
+                sigma_a  = deg2rad(cfg.track.angle_noise_std_deg);
+                sigma_e  = deg2rad(cfg.track.angle_noise_std_deg);
+                sigma_vr = cfg.track.vr_noise_std;
+                tracker_params.measurement_noise = diag([sigma_r^2, sigma_a^2, sigma_e^2, sigma_vr^2]);
+                Q_base = [tracker_params.dt_frame^3/3, tracker_params.dt_frame^2/2;
+                          tracker_params.dt_frame^2/2, tracker_params.dt_frame];
+                tracker_params.process_noise_matrix = blkdiag(Q_base, Q_base, Q_base) * cfg.track.q;
+                tracker_params.M = cfg.track.M;
+                tracker_params.N = cfg.track.N;
+                tracker_params.max_predictions = cfg.track.max_predictions;
+                tracker_params.gate_confidence = cfg.track.gate_confidence;
+                tracker_params.max_history_length = cfg.track.max_history_length;
+                tracker_params.v_tan_std_init = cfg.track.v_tan_std_init;
+
+                [tracks, track_id_counter] = track_init();
+                decimated_frames = 1:cfg.track.decimation:total_scan_frames;
+                track_results = cell(total_scan_frames, 1);
+                for dd = 1:numel(decimated_frames)
+                    fi = decimated_frames(dd);
+                    if ~isempty(fused_plots)
+                        meas_idx = fused_plots(:, 6) == fi;
+                        raw_meas = fused_plots(meas_idx, 1:5);
+                    else
+                        raw_meas = [];
+                    end
+                    if ~isempty(raw_meas)
+                        raw_meas(:, 2:3) = deg2rad(raw_meas(:, 2:3));
+                        raw_meas(:, 4) = -raw_meas(:, 4);  % 翻转vr符号: 雷达(正=接近)→EKF(正=远离)
+                    end
+                    [tracks, track_id_counter] = tracker_3D_EKF(tracks, raw_meas, track_id_counter, tracker_params);
+                    track_results{fi} = tracks;
+                end
+
+                n_active = sum(~[tracks.is_terminated]);
+                n_confirmed = sum([tracks.is_confirmed]);
+                lg(sprintf('  [跟踪] 总航迹=%d, 活跃=%d, 已确认=%d', numel(tracks), n_active, n_confirmed));
+
+                % 保存跟踪最终状态
+                fprintf('  [跟踪] 保存结果...\n');
+                track_mat = fullfile(batch_result_dir, sprintf('Tracks_%s.mat', ts_out));
+                save(track_mat, 'tracks', '-v7.3');
+            else
+                track_results = {};
+            end
+
             % ---- 绘图（如果启用）----
             if cfg.run.do_plot
-                fprintf('  [步骤10] 逐帧动图\n');
-                plot_beam_timeline_gif(all_raw_plots, fused_plots, beam_schedule, batch_result_dir, cfg);
+                fprintf('  [步骤11] 逐帧动图 (RD)\n');
+                plot_beam_timeline_gif(all_raw_plots, fused_plots, total_scan_frames, batch_result_dir, cfg, track_results);
+            end
+            if cfg.run.do_plot_3d && cfg.track.enable
+                fprintf('  [步骤12] 3D 航迹动图\n');
+                plot_tracking_3d_gif(fused_plots, total_scan_frames, track_results, ...
+                    cfg.track.radar_height, batch_result_dir, cfg);
             end
 
             % 可选：清理逐波位目录
@@ -691,29 +863,23 @@ function rd_ctx = build_rd_context(rx_param, tx, rd_cfg, radar_cfg)
 end
 
 
-function plot_beam_timeline_gif(all_raw_plots, fused_plots, beam_schedule, result_dir, cfg)
-%PLOT_BEAM_TIMELINE_GIF 逐扫描融合后目标动图。
-% 使用 fused_plots（融合后）按 scan_id 分帧，合成为 GIF。
+function plot_beam_timeline_gif(all_raw_plots, fused_plots, total_frames, result_dir, cfg, track_results)
+%PLOT_BEAM_TIMELINE_GIF 逐帧融合后目标动图，叠加跟踪航迹。
+% 按 scan_id = 1..total_frames 全部遍历，无目标的帧显示空画面。
 % fused_plots 列: [r(m), az(deg), el(deg), vr(m/s), time(s), scan_id]
+% track_results: cell array，每帧对应的 tracks 结构体数组。
 
-if isempty(fused_plots) || size(fused_plots, 2) < 6
-    fprintf('[时间线GIF] fused_plots 缺少 scan_id 列，回退到原始点迹。\n');
-    if isempty(all_raw_plots), return; end
-    % 回退：画原始点迹（按 scan_id 列=8）
-    scan_ids = unique(all_raw_plots(:, 8));
-    use_fused = false;
-else
-    scan_ids = unique(fused_plots(:, 6));
-    use_fused = true;
-end
-
-n_frames = numel(scan_ids);
-if n_frames < 1
+if total_frames < 1
     fprintf('[时间线GIF] 无有效帧，跳过。\n');
     return;
 end
 
-fprintf('[时间线GIF] 生成 %d 帧动图（融合后目标）...\n', n_frames);
+use_fused = ~isempty(fused_plots) && size(fused_plots, 2) >= 6;
+has_tracks = ~isempty(track_results);
+
+track_msg = '';
+if has_tracks, track_msg = ' + 航迹'; end
+fprintf('[时间线GIF] 生成 %d 帧动图（融合后目标%s）...\n', total_frames, track_msg);
 
 fig = figure('Visible', 'off', 'Position', [100, 100, 800, 600]);
 gif_file = fullfile(result_dir, sprintf('Timeline_%s.gif', ...
@@ -723,34 +889,47 @@ delay = cfg.export.gif_delay;
 r_range = cfg.plot.range_window_m;
 v_range = cfg.plot.velocity_window_mps;
 
-for fi = 1:n_frames
+gif_colormap = [];  % 首帧建立，后续复用，避免调色板漂移导致 GIF 截断
+
+for fi = 1:cfg.plot.frame_step:total_frames
     clf;
-    sid = scan_ids(fi);
+    sid = fi;
+
+    % 当前帧的量测数据
+    r_data = []; v_data = []; marker_sz = [];
 
     if use_fused
         mask = fused_plots(:, 6) == sid;
-        frame = fused_plots(mask, :);
-        % 列: [r, az, el, vr, time, scan_id]
-        r_data = frame(:, 1);
-        v_data = frame(:, 4);
-        marker_sz = 50;  % 融合后目标用统一大小
-    else
+        if any(mask)
+            frame = fused_plots(mask, :);
+            r_data = frame(:, 1);
+            v_data = frame(:, 4);
+            marker_sz = 50 * ones(size(r_data));
+        end
+    elseif ~isempty(all_raw_plots)
         mask = all_raw_plots(:, 8) == sid;
-        frame = all_raw_plots(mask, :);
-        r_data = frame(:, 1);
-        v_data = frame(:, 4);
-        pwr_data = frame(:, 6);
-        marker_sz = max(15, pwr_data - min(pwr_data) + 15);
+        if any(mask)
+            frame = all_raw_plots(mask, :);
+            r_data = frame(:, 1);
+            v_data = frame(:, 4);
+            pwr_data = frame(:, 6);
+            marker_sz = max(15, pwr_data - min(pwr_data) + 15);
+        end
     end
 
-    if isempty(frame), continue; end
+    % 量测散点（无目标时仍显示空坐标轴）
+    if ~isempty(r_data)
+        scatter(v_data, r_data, marker_sz, 'b', 'filled');
+    end
 
-    scatter(v_data, r_data, marker_sz, 'b', 'filled');
     xlim(v_range);
     ylim(r_range);
     xlabel('Radial Velocity (m/s)');
     ylabel('Range (m)');
-    title(sprintf('Scan %d/%d  N=%d', fi, n_frames, size(frame, 1)));
+
+    n_meas = numel(r_data);
+    title_str = sprintf('Scan %d/%d  N=%d', fi, total_frames, n_meas);
+    title(title_str);
     grid on;
     box on;
 
@@ -758,14 +937,153 @@ for fi = 1:n_frames
 
     frame_img = getframe(fig);
     im = frame2im(frame_img);
-    [A, map] = rgb2ind(im, 256);
-    if fi == 1
-        imwrite(A, map, gif_file, 'gif', 'LoopCount', inf, 'DelayTime', delay);
+    if isempty(gif_colormap)
+        [A, gif_colormap] = rgb2ind(im, 256, 'nodither');
+        imwrite(A, gif_colormap, gif_file, 'gif', 'LoopCount', inf, 'DelayTime', delay);
     else
-        imwrite(A, map, gif_file, 'gif', 'WriteMode', 'append', 'DelayTime', delay);
+        A = rgb2ind(im, gif_colormap, 'nodither');
+        imwrite(A, gif_colormap, gif_file, 'gif', 'WriteMode', 'append', 'DelayTime', delay);
+    end
+
+    if mod(fi, 100) == 0
+        fprintf('[时间线GIF] %d/%d 帧已写入 (%.0f%%)\n', fi, total_frames, fi/total_frames*100);
     end
 end
 
 close(fig);
 fprintf('[时间线GIF] 已保存：%s\n', gif_file);
 end
+
+
+function plot_tracking_3d_gif(fused_plots, total_frames, track_results, radar_height, result_dir, cfg)
+%PLOT_TRACKING_3D_GIF 三维航迹动图。
+% 显示雷达位置、融合量测、已确认航迹（红色虚线）、已终止航迹（灰色）。
+
+if isempty(track_results)
+    fprintf('[3D航迹] 无跟踪数据，跳过。\n');
+    return;
+end
+
+fprintf('[3D航迹] 生成 %d 帧 3D 动图...\n', total_frames);
+
+fig = figure('Visible', 'off', 'Position', [100, 100, 1000, 600]);
+gif_file = fullfile(result_dir, sprintf('Tracking_3D_%s.gif', ...
+    char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'))));
+
+delay = cfg.export.gif_delay;
+
+gif_colormap = [];
+
+% 收集已确认航迹 ID 并重新编号 → 显示 T1, T2, ...
+all_confirmed_ids = [];
+for fi = 1:total_frames
+    tf = track_results{fi};
+    if ~isempty(tf) && any([tf.is_confirmed])
+        all_confirmed_ids = [all_confirmed_ids, tf([tf.is_confirmed]).track_id]; %#ok<AGROW>
+    end
+end
+all_confirmed_ids = unique(all_confirmed_ids, 'stable');
+id_to_disp = zeros(1, max(all_confirmed_ids));
+for di = 1:numel(all_confirmed_ids)
+    id_to_disp(all_confirmed_ids(di)) = di;
+end
+
+for fi = 1:cfg.plot.frame_step:total_frames
+    clf;
+    hold on;
+    grid on;
+    axis equal;
+
+    % --- 图例收集 ---
+    legend_handles = [];
+    legend_labels = {};
+    has_meas = false;
+    has_track = false;
+
+    % 雷达位置
+    h = plot3(0, 0, radar_height, 'k^', 'MarkerSize', 12, 'MarkerFaceColor', 'k');
+    legend_handles(end+1) = h;
+    legend_labels{end+1} = 'Radar';
+
+    % 当前帧量测：球坐标 → 笛卡尔
+    if ~isempty(fused_plots)
+        mask = fused_plots(:, 6) == fi;
+        if any(mask)
+            r  = fused_plots(mask, 1);
+            az = fused_plots(mask, 2);
+            el = fused_plots(mask, 3);
+            x = r .* cosd(el) .* cosd(az);
+            y = r .* cosd(el) .* sind(az);
+            z = r .* sind(el) + radar_height;
+            h = plot3(x, y, z, 'm*', 'MarkerSize', 10);
+            if ~has_meas
+                legend_handles(end+1) = h;
+                legend_labels{end+1} = 'Measurements';
+                has_meas = true;
+            end
+        end
+    end
+
+    % 航迹
+    tracks_frame = track_results{fi};
+    n_red = 0;
+    if ~isempty(tracks_frame)
+        for ti = 1:numel(tracks_frame)
+            tr = tracks_frame(ti);
+            if size(tr.path, 1) < 2, continue; end
+
+            path = tr.path;
+            if ~tr.is_confirmed
+                continue;  % 未确认航迹（噪点）不显示
+            end
+            h_path = plot3(path(:, 1), path(:, 2), path(:, 3), 'r-', 'LineWidth', 2);
+            plot3(path(end, 1), path(end, 2), path(end, 3), 'ro', 'MarkerSize', 12, 'MarkerFaceColor', 'r');
+            text(path(end, 1) + 50, path(end, 2), path(end, 3) + 20, ...
+                sprintf('T%d', id_to_disp(tr.track_id)), 'Color', 'r', 'FontWeight', 'bold', 'FontSize', 14);
+            if ~has_track
+                legend_handles(end+1) = h_path;
+                legend_labels{end+1} = 'Confirmed Track';
+                has_track = true;
+            end
+            n_red = n_red + 1;
+        end
+    end
+
+    hold off;
+
+    max_r = 1000;
+    xlim([0, max_r]);
+    ylim([-500, 500]);
+    zlim([0, 300]);
+    xlabel('X (m)');
+    ylabel('Y (m)');
+    zlabel('Z (m)');
+    view(-35, 25);
+    title(sprintf('3D Tracking  Frame %d/%d  Confirmed:%d', fi, total_frames, n_red));
+
+    % 图例
+    legend(gca, legend_handles, legend_labels, 'Location', 'northwest');
+
+    drawnow;
+
+    frame_img = getframe(fig);
+    im = frame2im(frame_img);
+    if isempty(gif_colormap)
+        [A, gif_colormap] = rgb2ind(im, 256, 'nodither');
+        imwrite(A, gif_colormap, gif_file, 'gif', 'LoopCount', inf, 'DelayTime', delay);
+    else
+        A = rgb2ind(im, gif_colormap, 'nodither');
+        imwrite(A, gif_colormap, gif_file, 'gif', 'WriteMode', 'append', 'DelayTime', delay);
+    end
+
+    if mod(fi, 100) == 0
+        fprintf('[3D航迹] %d/%d 帧已写入 (%.0f%%)\n', fi, total_frames, fi/total_frames*100);
+    end
+end
+
+close(fig);
+fprintf('[3D航迹] 已保存：%s\n', gif_file);
+end
+
+
+
