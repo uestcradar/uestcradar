@@ -103,7 +103,7 @@ node-c.env
 
 ```dotenv
   # 填入刚获取的真实不可变 Digest
-    SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar@sha256:b1d55382e0d8173b3042e0a0e1e2e77c3e6d0ff89a9331017d05651553c442d4
+    SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
     CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker@sha256:a514f2614b9fbc68eb967a2fd4166591bab7fcc52a34d1461e3fdd63850f0558
   
     NODE_ID=node-a
@@ -116,10 +116,15 @@ node-c.env
     DOWNSTREAM_PORT=13337
   
     # 网络与 RDMA 配置
-	UCX_NET_DEVICES=hns_1:1
+	  UCX_NET_DEVICES=hns_1:1,enp125s0f1
   	SIDECAR_DATA_PATH=strict-rdma
-  	UCX_TLS=rc
-  	UCX_SOCKADDR_TLS_PRIORITY=rdmacm
+	UCX_TLS=rc_verbs,tcp
+  	UCX_RC_VERBS_TX_MIN_INLINE=0
+  	UCX_RC_VERBS_TX_MIN_SGE=2
+	UCX_RNDV_THRESH=64
+	UCX_ZCOPY_THRESH=64
+	UCX_RNDV_SCHEME=put_zcopy
+  	UCX_SOCKADDR_TLS_PRIORITY=tcp
     UCX_PROTO_INFO=y
     UCX_LOG_LEVEL=info
 
@@ -133,7 +138,7 @@ node-c.env
 
 ```
  # 不可变镜像 Digest
-    SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar@sha256:b1d55382e0d8173b3042e0a0e1e2e77c3e6d0ff89a9331017d05651553c442d4
+    SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
     CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker@sha256:a514f2614b9fbc68eb967a2fd4166591bab7fcc52a34d1461e3fdd63850f0558
   
     NODE_ID=node-b
@@ -144,14 +149,19 @@ node-c.env
     UPSTREAM_BIND_HOST=192.170.2.64
     UPSTREAM_PORT=13337
     DOWNSTREAM_ROLE=connect
-    DOWNSTREAM_PEER_HOST=192.170.2.128
+    DOWNSTREAM_PEER_HOST=192.170.2.80
     DOWNSTREAM_PORT=13337
 
     # 网络配置
-	UCX_NET_DEVICES=hns_1:1
+	  UCX_NET_DEVICES=hns_1:1,enp125s0f1
   	SIDECAR_DATA_PATH=strict-rdma
-  	UCX_TLS=rc
-  	UCX_SOCKADDR_TLS_PRIORITY=rdmacm
+	UCX_TLS=rc_verbs,tcp
+  	UCX_RC_VERBS_TX_MIN_INLINE=0
+  	UCX_RC_VERBS_TX_MIN_SGE=2
+	UCX_RNDV_THRESH=64
+	UCX_ZCOPY_THRESH=64
+	UCX_RNDV_SCHEME=put_zcopy
+  	UCX_SOCKADDR_TLS_PRIORITY=tcp
     UCX_PROTO_INFO=y
     UCX_LOG_LEVEL=info
 
@@ -164,7 +174,7 @@ node-c.env
 ### 📄 3. node-c.env（机器 C：Sink 接收测速节点）
 
 ```
-  	SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar@sha256:b1d55382e0d8173b3042e0a0e1e2e77c3e6d0ff89a9331017d05651553c442d4
+  	SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
     CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker@sha256:a514f2614b9fbc68eb967a2fd4166591bab7fcc52a34d1461e3fdd63850f0558
 
     NODE_ID=node-c
@@ -177,10 +187,15 @@ node-c.env
     DOWNSTREAM_ROLE=disabled
 
     # 网络配置
-	UCX_NET_DEVICES=hns_1:1
+	  UCX_NET_DEVICES=hns_1:1,enp125s0f1
   	SIDECAR_DATA_PATH=strict-rdma
-  	UCX_TLS=rc
-  	UCX_SOCKADDR_TLS_PRIORITY=rdmacm
+	UCX_TLS=rc_verbs,tcp
+  	UCX_RC_VERBS_TX_MIN_INLINE=0
+  	UCX_RC_VERBS_TX_MIN_SGE=2
+	UCX_RNDV_THRESH=64
+	UCX_ZCOPY_THRESH=64
+	UCX_RNDV_SCHEME=put_zcopy
+  	UCX_SOCKADDR_TLS_PRIORITY=tcp
     UCX_PROTO_INFO=y
     UCX_LOG_LEVEL=info
 
@@ -225,6 +240,27 @@ docker-compose version
 - RDMA IP、MTU、GID、PFC/ECN 或 IB Subnet Manager 配置正确。
 - B/C 的 13337 端口未占用。
 - 三机时钟、CPU governor、NUMA 和 IRQ 绑定已冻结。
+
+在完整级联前，先任选一台 HNS 节点验证 Sidecar 容器能够创建 RC transport：
+
+```bash
+export SIDECAR_IMAGE='registry.chengyistudio.com/cxx/sidecar@sha256:<digest>'
+docker pull "$SIDECAR_IMAGE"
+
+docker run --rm --network host \
+  --device=/dev/infiniband:/dev/infiniband \
+  --ulimit memlock=-1:-1 \
+  -e UCX_TLS=rc_verbs \
+  -e UCX_NET_DEVICES=hns_1:1 \
+  -e UCX_RC_VERBS_TX_MIN_INLINE=0 \
+  -e UCX_RC_VERBS_TX_MIN_SGE=2 \
+  -e UCX_UD_VERBS_TX_MIN_SGE=1 \
+  --entrypoint ucx_info "$SIDECAR_IMAGE" -d
+```
+
+必须识别 `hns_1:1` 的 RC transport，且不得出现 `hns_roce_set_rq_size`、
+`failed to create RC QP` 或 `ucp_worker_create`。失败时停止，不允许用 TCP 结果
+替代 RDMA 准入。
 
 每台主机验证配置并预拉镜像：
 
