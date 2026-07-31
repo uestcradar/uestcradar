@@ -1,5 +1,8 @@
 ARG OPENEULER_BASE=registry.chengyistudio.com/cxx/sidecar@sha256:0a2a7d06ea0cec3c191bde6536f701cd7447cb2c1da4099500e43a7414e2bdc2
 ARG OPENEULER_BUILD_BASE=registry.chengyistudio.com/cxx/sidecar@sha256:1fe34d35fd560184614694e1f5b6fff9de1a06d9edba497d20d89acebcbcbfc8
+ARG UCX_SOURCE_IMAGE=registry.chengyistudio.com/cxx/sidecar@sha256:a70527380102639192e13e4881992e0a72fea611fea8bf10c1cc17696638bb43
+
+FROM ${UCX_SOURCE_IMAGE} AS ucx_source
 
 FROM ${OPENEULER_BUILD_BASE} AS build
 
@@ -12,7 +15,7 @@ ENV LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-10/root/usr/lib64:/opt/ucx/lib
 ENV PKG_CONFIG_PATH=/opt/ucx/lib/pkgconfig
 
 WORKDIR /tmp
-ADD https://github.com/openucx/ucx/releases/download/v1.16.0/ucx-1.16.0.tar.gz ./ucx-1.16.0.tar.gz
+COPY --from=ucx_source /ucx-1.16.0.tar.gz ./ucx-1.16.0.tar.gz
 ARG BUILD_JOBS=2
 RUN echo "${UCX_SHA256}  ucx-${UCX_VERSION}.tar.gz" | sha256sum -c - \
     && tar -xzf "ucx-${UCX_VERSION}.tar.gz" \
