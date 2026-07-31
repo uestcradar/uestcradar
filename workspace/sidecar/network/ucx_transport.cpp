@@ -118,20 +118,29 @@ struct UCXTransport::Impl : std::enable_shared_from_this<Impl> {
                 throw_ucx(name, result);
             }
         };
+        const auto configured_value = [](
+                                          const char* name,
+                                          const char* fallback) {
+            const char* value = std::getenv(name);
+            return (value != nullptr && value[0] != '\0')
+                ? value
+                : fallback;
+        };
 
         try {
-            configure("TCP_CM_REUSEADDR", "y");
-            configure("RDMA_CM_REUSEADDR", "y");
             if (data_path == DataPathMode::strict_rdma) {
-                const char* configured_tls = std::getenv("UCX_TLS");
                 configure(
                     "TLS",
-                    (configured_tls != nullptr && configured_tls[0] != '\0')
-                        ? configured_tls
-                        : "rc_verbs");
-                configure("RNDV_THRESH", "0");
-                configure("ZCOPY_THRESH", "0");
-                configure("RNDV_SCHEME", "get_zcopy");
+                    configured_value("UCX_TLS", "rc_verbs,tcp"));
+                configure(
+                    "RNDV_THRESH",
+                    configured_value("UCX_RNDV_THRESH", "64"));
+                configure(
+                    "ZCOPY_THRESH",
+                    configured_value("UCX_ZCOPY_THRESH", "64"));
+                configure(
+                    "RNDV_SCHEME",
+                    configured_value("UCX_RNDV_SCHEME", "get_zcopy"));
             }
         } catch (...) {
             ::ucp_config_release(config);
