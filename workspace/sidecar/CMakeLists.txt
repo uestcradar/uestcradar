@@ -25,6 +25,16 @@ target_compile_options(
     cycomm_forwarder PRIVATE -Wall -Wextra -Wpedantic)
 
 if(Protobuf_FOUND)
+    if(TARGET protobuf::libprotobuf-lite)
+        set(SIDECAR_PROTOBUF_TARGET protobuf::libprotobuf-lite)
+    elseif(TARGET protobuf::libprotobuf)
+        set(SIDECAR_PROTOBUF_TARGET protobuf::libprotobuf)
+    else()
+        message(
+            FATAL_ERROR
+            "Protobuf was found, but neither libprotobuf-lite nor libprotobuf is available")
+    endif()
+
     protobuf_generate_cpp(
         TELEMETRY_PROTO_SOURCES
         TELEMETRY_PROTO_HEADERS
@@ -41,7 +51,7 @@ if(Protobuf_FOUND)
         PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(
         cycomm_telemetry
-        PRIVATE protobuf::libprotobuf-lite Threads::Threads)
+        PRIVATE ${SIDECAR_PROTOBUF_TARGET} Threads::Threads)
     target_compile_options(
         cycomm_telemetry PRIVATE -Wall -Wextra -Wpedantic)
 
