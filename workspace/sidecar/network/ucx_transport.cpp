@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -122,7 +123,12 @@ struct UCXTransport::Impl : std::enable_shared_from_this<Impl> {
             configure("TCP_CM_REUSEADDR", "y");
             configure("RDMA_CM_REUSEADDR", "y");
             if (data_path == DataPathMode::strict_rdma) {
-                configure("TLS", "rc");
+                const char* configured_tls = std::getenv("UCX_TLS");
+                configure(
+                    "TLS",
+                    (configured_tls != nullptr && configured_tls[0] != '\0')
+                        ? configured_tls
+                        : "rc_verbs");
                 configure("RNDV_THRESH", "0");
                 configure("ZCOPY_THRESH", "0");
                 configure("RNDV_SCHEME", "get_zcopy");
