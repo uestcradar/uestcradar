@@ -140,7 +140,7 @@ struct UCXTransport::Impl : std::enable_shared_from_this<Impl> {
                     configured_value("UCX_ZCOPY_THRESH", "64"));
                 configure(
                     "RNDV_SCHEME",
-                    configured_value("UCX_RNDV_SCHEME", "get_zcopy"));
+                    configured_value("UCX_RNDV_SCHEME", "put_zcopy"));
             }
         } catch (...) {
             ::ucp_config_release(config);
