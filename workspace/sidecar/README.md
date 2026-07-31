@@ -98,5 +98,80 @@ workspace/sidecar/tools/run_cascade_test.sh correctness
 workspace/sidecar/tools/run_cascade_test.sh benchmark
 ```
 
+## Ubuntu ARM64 镜像发布
+
+生产测试使用仓库中已经固定 Digest 的 Ubuntu `build-base` 和 `runtime-base`。
+普通 Sidecar 代码修改只需要重建并推送最终 Sidecar 镜像；只有基础依赖、UCX、
+编译器或系统包发生变化时，才需要更新两个基础镜像。Worker/SDK 源码没有变化时，
+不需要重新推送 `cascade-worker`。
+
+每次发布同时维护两个 Tag：
+
+- `dual-leg-${GIT_SHA}-arm64`：不可覆盖的版本 Tag，用于审计和回滚。
+- `latest`：可变测试 Tag，每次发布覆盖，服务器的 env 只需配置一次。
+
+在仓库根目录执行：
+
+```bash
+GIT_SHA="$(git rev-parse --short HEAD)"
+SIDECAR_REPO=registry.chengyistudio.com/cxx/sidecar
+VERSION_IMAGE="${SIDECAR_REPO}:dual-leg-${GIT_SHA}-arm64"
+LATEST_IMAGE="${SIDECAR_REPO}:latest"
+
+docker buildx build \
+  --builder default \
+  --platform linux/arm64 \
+  --target runtime \
+  -f workspace/sidecar/Dockerfile \
+  -t "${VERSION_IMAGE}" \
+  --load \
+  .
+
+docker image inspect "${VERSION_IMAGE}" \
+  --format 'id={{.Id}} arch={{.Architecture}} os={{.Os}}'
+
+docker run --rm --platform linux/arm64 \
+  --entrypoint sh "${VERSION_IMAGE}" \
+  -c 'test "$(uname -m)" = aarch64 && ucx_info -v && ldd /app/sidecar'
+
+docker tag "${VERSION_IMAGE}" "${LATEST_IMAGE}"
+docker push "${VERSION_IMAGE}"
+docker push "${LATEST_IMAGE}"
+```
+
+推送日志会返回 Registry Digest。可用以下命令回读确认：
+
+```bash
+docker buildx imagetools inspect "${LATEST_IMAGE}"
+```
+
+> [!IMPORTANT]
+> `latest` 会被覆盖，适合持续生产测试，但不能作为审计依据。测试结果必须同时记录
+> 对应的版本 Tag 或 `repository@sha256:...` Digest。
+
+### 服务器固定使用 latest
+
+每台服务器的 env 只配置一次：
+
+```env
+SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
+```
+
+以后发布新版本不再修改 env。Docker 18.09 不会因为远端 Tag 变化自动替换本地镜像，
+因此每次测试前显式拉取 `latest`，然后强制重建 Sidecar 容器：
+
+```bash
+docker pull "$SIDECAR_IMAGE"
+
+docker-compose --env-file "$ENV_FILE" -p "$PROJECT" \
+  -f "$COMPOSE" up -d --no-build --force-recreate sidecar-node
+
+docker-compose --env-file "$ENV_FILE" -p "$PROJECT" \
+  -f "$COMPOSE" logs --no-color sidecar-node
+```
+
+该流程兼容 Docker Engine 18.09 和 `docker-compose` v1，不使用 `docker compose`、
+`init: true` 或 `up --pull never`。
+
 本地三节点 Compose 与测试参数见 [tools/README.md](tools/README.md)，三台 RDMA
 主机计划见 [tools/DISTRIBUTED_CASCADE_TEST.md](tools/DISTRIBUTED_CASCADE_TEST.md)。
