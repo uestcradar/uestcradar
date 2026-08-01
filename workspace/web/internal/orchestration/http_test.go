@@ -9,10 +9,12 @@ import (
 )
 
 type fakeRemote struct {
-	mu      sync.Mutex
-	started []string
-	stopped []string
-	failIP  string
+	mu       sync.Mutex
+	started  []string
+	stopped  []string
+	uploaded []string
+	existing map[string]bool
+	failIP   string
 }
 
 func (f *fakeRemote) Inspect(_ *Session, ip string, output CommandOutput) (NodeInspection, error) {
@@ -23,8 +25,14 @@ func (f *fakeRemote) Inspect(_ *Session, ip string, output CommandOutput) (NodeI
 }
 func (f *fakeRemote) PullWorker(*Session, string, string, CommandOutput) error { return nil }
 func (f *fakeRemote) PullSidecar(*Session, string, CommandOutput) error        { return nil }
-func (f *fakeRemote) UploadAndValidate(*Session, PlannedNode, CommandOutput) (bool, error) {
-	return false, nil
+func (f *fakeRemote) HasDeployment(_ *Session, ip string, _ CommandOutput) (bool, error) {
+	return f.existing[ip], nil
+}
+func (f *fakeRemote) UploadAndValidate(_ *Session, node PlannedNode, _ CommandOutput) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.uploaded = append(f.uploaded, node.IP)
+	return nil
 }
 func (f *fakeRemote) Start(_ *Session, node PlannedNode, _ CommandOutput) error {
 	f.mu.Lock()
@@ -99,6 +107,22 @@ func TestStopRunsSourceToSink(t *testing.T) {
 	service.stopDeployment(session, []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, task.ID)
 	if strings.Join(remote.stopped, ",") != "10.0.0.1,10.0.0.2,10.0.0.3" {
 		t.Fatalf("unexpected stop order: %#v", remote.stopped)
+	}
+}
+
+func TestDeploymentRequiresConfirmationBeforeUpload(t *testing.T) {
+	remote := &fakeRemote{existing: map[string]bool{"10.0.0.2": true}}
+	service := testService()
+	service.remote = remote
+	session, _ := service.sessions.Create(Credentials{Username: "root", Password: []byte("x")})
+	plan := DeploymentPlan{Nodes: []PlannedNode{{IP: "10.0.0.1"}, {IP: "10.0.0.2"}}}
+	task := service.newTask(session, "deployment")
+	service.deploy(session, plan, false, task.ID)
+	session.mu.Lock()
+	status := session.Tasks[task.ID].Status
+	session.mu.Unlock()
+	if status != "confirmation_required" || len(remote.uploaded) != 0 {
+		t.Fatalf("status=%s uploaded=%#v", status, remote.uploaded)
 	}
 }
 

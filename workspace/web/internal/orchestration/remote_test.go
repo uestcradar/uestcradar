@@ -19,6 +19,12 @@ func TestComposeCommandPrefersV1AndNeverPulls(t *testing.T) {
 	}
 }
 
+func TestDeploymentStatusCommandUsesPortableInspect(t *testing.T) {
+	if !strings.Contains(deploymentStatusCommand, "docker inspect") || !strings.Contains(deploymentStatusCommand, ".State.Status") || strings.Contains(deploymentStatusCommand, "{{.State}}") {
+		t.Fatalf("deployment status command is not portable: %s", deploymentStatusCommand)
+	}
+}
+
 func TestDeploymentStatus(t *testing.T) {
 	tests := []struct {
 		input  string

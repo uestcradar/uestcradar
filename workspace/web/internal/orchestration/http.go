@@ -509,15 +509,22 @@ func (s *Service) handleDeployment(writer http.ResponseWriter, request *http.Req
 }
 
 func (s *Service) deploy(session *Session, plan DeploymentPlan, confirmed bool, taskID string) {
-	s.updateTask(session, taskID, "running", "", "uploading and validating configuration", nil)
+	s.updateTask(session, taskID, "running", "", "checking existing deployments", nil)
 	for _, node := range plan.Nodes {
-		existing, err := s.remote.UploadAndValidate(session, node, s.taskOutput(session, taskID, node.IP))
+		existing, err := s.remote.HasDeployment(session, node.IP, s.taskOutput(session, taskID, node.IP))
 		if err != nil {
 			s.updateTask(session, taskID, "failed", node.IP, err.Error(), nil)
 			return
 		}
 		if existing && !confirmed {
-			s.updateTask(session, taskID, "failed", node.IP, "existing deployment requires confirmation", nil)
+			s.updateTask(session, taskID, "confirmation_required", node.IP, "existing deployment requires confirmation", nil)
+			return
+		}
+	}
+	s.updateTask(session, taskID, "running", "", "uploading and validating configuration", nil)
+	for _, node := range plan.Nodes {
+		if err := s.remote.UploadAndValidate(session, node, s.taskOutput(session, taskID, node.IP)); err != nil {
+			s.updateTask(session, taskID, "failed", node.IP, err.Error(), nil)
 			return
 		}
 	}

@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	workerRepository = "registry.chengyistudio.com/cxx/worker:"
-	sidecarReference = "registry.chengyistudio.com/cxx/sidecar:latest"
-	remoteDirectory  = "/root/workspace/docker"
-	composeFilename  = "compose.cascade.distributed.yaml"
-	envFilename      = "node.env"
+	workerRepository        = "registry.chengyistudio.com/cxx/worker:"
+	sidecarReference        = "registry.chengyistudio.com/cxx/sidecar:latest"
+	remoteDirectory         = "/root/workspace/docker"
+	composeFilename         = "compose.cascade.distributed.yaml"
+	envFilename             = "node.env"
+	deploymentStatusCommand = "for id in $(docker ps -aq --filter label=com.docker.compose.project=uestcradar-cascade); do docker inspect --format '{{index .Config.Labels \"com.docker.compose.service\"}}|{{.State.Status}}' \"$id\"; done"
 )
 
 var safeImageReference = regexp.MustCompile(`^registry\.chengyistudio\.com/cxx/worker:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
@@ -41,7 +42,8 @@ type RemoteBackend interface {
 	Inspect(*Session, string, CommandOutput) (NodeInspection, error)
 	PullWorker(*Session, string, string, CommandOutput) error
 	PullSidecar(*Session, string, CommandOutput) error
-	UploadAndValidate(*Session, PlannedNode, CommandOutput) (bool, error)
+	HasDeployment(*Session, string, CommandOutput) (bool, error)
+	UploadAndValidate(*Session, PlannedNode, CommandOutput) error
 	Start(*Session, PlannedNode, CommandOutput) error
 	Down(*Session, string, CommandOutput) error
 }
@@ -238,7 +240,10 @@ func (b *SSHBackend) Inspect(session *Session, ip string, output CommandOutput) 
 		result.Workers = append(result.Workers, ImageInfo{Reference: reference, ID: image.ID, Architecture: image.Architecture, Entrypoint: image.Config.Entrypoint, Command: image.Config.Cmd, Contract: contract})
 	}
 	sort.Slice(result.Workers, func(i, j int) bool { return result.Workers[i].Reference < result.Workers[j].Reference })
-	deployment, _ := runSSHOutput(client, "docker ps -a --filter label=com.docker.compose.project=uestcradar-cascade --format '{{.Label \"com.docker.compose.service\"}}|{{.State}}'", output)
+	deployment, err := runSSHOutput(client, deploymentStatusCommand, output)
+	if err != nil {
+		return result, fmt.Errorf("inspect existing deployment: %w", err)
+	}
 	result.ExistingDeployment, result.DeploymentState = deploymentStatus(deployment)
 	return result, nil
 }
@@ -337,40 +342,53 @@ func (b *SSHBackend) PullSidecar(session *Session, ip string, output CommandOutp
 	return err
 }
 
-func (b *SSHBackend) UploadAndValidate(session *Session, node PlannedNode, output CommandOutput) (bool, error) {
-	client, err := b.client(session, node.IP)
+func (b *SSHBackend) HasDeployment(session *Session, ip string, output CommandOutput) (bool, error) {
+	client, err := b.client(session, ip)
 	if err != nil {
 		return false, err
 	}
 	defer client.Close()
-	existing, _ := runSSHOutput(client, "docker ps -a --filter label=com.docker.compose.project=uestcradar-cascade --format '{{.ID}}' | head -n 1", output)
+	deployment, err := runSSHOutput(client, deploymentStatusCommand, output)
+	if err != nil {
+		return false, fmt.Errorf("inspect existing deployment: %w", err)
+	}
+	existing, _ := deploymentStatus(deployment)
+	return existing, nil
+}
+
+func (b *SSHBackend) UploadAndValidate(session *Session, node PlannedNode, output CommandOutput) error {
+	client, err := b.client(session, node.IP)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
 	if _, err := runSSHOutput(client, "mkdir -p "+shellQuote(remoteDirectory), output); err != nil {
-		return existing != "", err
+		return err
 	}
 	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
-		return existing != "", err
+		return err
 	}
 	defer sftpClient.Close()
 	composeTemp := remoteDirectory + "/." + composeFilename + ".tmp"
 	envTemp := remoteDirectory + "/." + envFilename + ".tmp"
 	if err := writeRemoteFile(sftpClient, composeTemp, []byte(node.compose), 0644); err != nil {
-		return existing != "", err
+		return err
 	}
 	if err := writeRemoteFile(sftpClient, envTemp, []byte(node.env), 0600); err != nil {
-		return existing != "", err
+		return err
 	}
 	compose := composeCommandFor(node, composeTemp, envTemp, "config")
 	if _, err := runSSHOutput(client, compose, output); err != nil {
-		return existing != "", err
+		return err
 	}
 	if err := sftpClient.PosixRename(composeTemp, remoteDirectory+"/"+composeFilename); err != nil {
-		return existing != "", err
+		return err
 	}
 	if err := sftpClient.PosixRename(envTemp, remoteDirectory+"/"+envFilename); err != nil {
-		return existing != "", err
+		return err
 	}
-	return existing != "", nil
+	return nil
 }
 
 func writeRemoteFile(client *sftp.Client, path string, content []byte, mode uint32) error {

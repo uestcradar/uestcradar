@@ -5,7 +5,7 @@ import { reconcileRoles, roleAt, telemetryForEntry, validateChain } from './logi
 
 const newEntry = (ip: string): ChainEntry => ({ key: crypto.randomUUID(), ip, rdma_device: '', worker_image: '' });
 const rdmaName = (item: {device: string; port: string}) => item.port ? `${item.device}:${item.port}` : item.device;
-const terminal = (status: string) => ['completed', 'failed', 'partial'].includes(status);
+const terminal = (status: string) => ['completed', 'failed', 'partial', 'confirmation_required'].includes(status);
 const pause = (milliseconds: number) => new Promise(resolve => window.setTimeout(resolve, milliseconds));
 
 interface ConsoleEntry { id: string; at: Date; stream: string; ip?: string; text: string }
@@ -176,7 +176,15 @@ export default function App() {
         appendLog('用户取消覆盖已有部署。\n');
         return;
       }
-      const result = await runTask(await api.deployPlan(plan.id, replace), '下发并启动数据流');
+      let result = await runTask(await api.deployPlan(plan.id, replace), '下发并启动数据流');
+      if (result.status === 'confirmation_required') {
+        const confirmed = window.confirm(`节点 ${result.current_ip || ''} 存在预览后发现的已有部署，是否确认覆盖并继续？`);
+        if (!confirmed) {
+          appendLog('用户取消覆盖已有部署。\n');
+          return;
+        }
+        result = await runTask(await api.deployPlan(plan.id, true), '确认覆盖并启动数据流');
+      }
       setStreamRunning(result.status === 'completed' || result.status === 'partial');
       await refreshNodes();
     } catch (error) { handleError(error, appendLog, openClusterLogin); }
