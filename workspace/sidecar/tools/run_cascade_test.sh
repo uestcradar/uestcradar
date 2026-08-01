@@ -16,7 +16,7 @@ if [[ "$mode" != "correctness" && "$mode" != "benchmark" ]]; then
     exit 2
 fi
 
-compose=(docker-compose --project-name "$project" -f "$compose_file")
+compose=(docker compose --project-name "$project" -f "$compose_file")
 
 cleanup() {
     "${compose[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
@@ -50,7 +50,7 @@ run_once() {
     export PAYLOAD_BYTES="$payload"
 
     cleanup
-    "${compose[@]}" up --detach --force-recreate telemetry sidecar-c sidecar-b sidecar-a
+    "${compose[@]}" up --detach --force-recreate sidecar-c sidecar-b sidecar-a
     wait_for_connections
     "${compose[@]}" up --detach worker-c
     "${compose[@]}" up --detach worker-b
@@ -116,8 +116,10 @@ run_once() {
     done
 }
 
-if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-    "${compose[@]}" build sidecar-a worker-a telemetry
+if [[ "${SKIP_BUILD:-1}" == "1" ]]; then
+    "${compose[@]}" pull
+else
+    "${compose[@]}" build sidecar-a worker-a
 fi
 
 if [[ "$mode" == "correctness" ]]; then

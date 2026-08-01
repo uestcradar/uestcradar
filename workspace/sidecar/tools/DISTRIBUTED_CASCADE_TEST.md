@@ -92,14 +92,12 @@ docker push "$CASCADE_TAG"
 
 ```text
 compose.cascade.distributed.yaml
-node-a.env
-node-b.env
-node-c.env
+node.env
 ```
 
 三份 env 均包含以下公共配置：
 
-### 📄 1. node-a.env（机器 A：Source 纯发包节点）
+### 📄 1. node.env（机器 A：Source 纯发包节点）
 
 ```dotenv
   # 填入刚获取的真实不可变 Digest
@@ -134,7 +132,7 @@ node-c.env
     SIDECAR_SHM_SIZE=256m
 ```
 
-### 📄 2. node-b.env（机器 B：Operator 算子中转节点）
+### 📄 2. node.env（机器 B：Operator 算子中转节点）
 
 ```
  # 不可变镜像 Digest
@@ -171,7 +169,7 @@ node-c.env
     SIDECAR_SHM_SIZE=256m
 ```
 
-### 📄 3. node-c.env（机器 C：Sink 接收测速节点）
+### 📄 3. node.env（机器 C：Sink 接收测速节点）
 
 ```
   	SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
@@ -266,8 +264,8 @@ docker run --rm --network host \
 
 ```bash
 export COMPOSE=./compose.cascade.distributed.yaml
-export ENV_FILE=./node-c.env       # B/C 替换为对应文件
-export PROJECT=uestcradar-cascade-c # B/C 使用独立名称
+export ENV_FILE=./node.env       # B/C 替换为对应文件
+export PROJECT=uestcradar-cascade # B/C 使用独立名称
 
 docker-compose --env-file "$ENV_FILE" -p "$PROJECT" \
   -f "$COMPOSE" config --quiet
