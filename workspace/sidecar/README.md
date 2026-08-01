@@ -36,9 +36,10 @@ SDK 自动等待并挂载。网络配置如下：
 | `SIDECAR_DOWNSTREAM_ROLE` | `disabled` / `listen` / `connect`，默认 `disabled` |
 | `SIDECAR_<LEG>_BIND_HOST` | listen 地址，默认 `0.0.0.0` |
 | `SIDECAR_<LEG>_PEER_HOST` | connect 地址，默认 `127.0.0.1` |
+| `SIDECAR_<LEG>_PEER_NODE_ID` | 遥测拓扑中的对端节点 ID |
 | `SIDECAR_<LEG>_PORT` | 独立端口；Upstream 默认 13337，Downstream 默认 13338 |
 | `SIDECAR_<LEG>_CONNECT_TIMEOUT_MS` | 单次建链超时，默认 2000 ms |
-| `SIDECAR_<LEG>_DATA_PATH` | `functional` 或 `strict-rdma` |
+| `SIDECAR_<LEG>_DATA_PATH` | `functional` 强制 TCP；`strict-rdma` 强制 RC/RDMA |
 | `SIDECAR_<LEG>_SHM_NAME` | Sidecar 创建的显式 SHM 名称 |
 
 这里 `<LEG>` 是 `UPSTREAM` 或 `DOWNSTREAM`。每块 Ring 另有：
@@ -79,11 +80,18 @@ Ring 满会自然逐级背压；Payload 直接收发于已经注册的 Ring Slot
 TCP/UCX 负责连接存续期内的可靠字节传输。上述策略有意避免雷达历史数据在
 恢复后形成无意义的突发积压。
 
+## 链路遥测
+
+Sidecar 每 100ms 从独立线程旁路读取两个 Leg 的连接原子状态、累计 Payload 字节和
+Ring 头。节点 Offline 只由中央 Collector 的 3 秒心跳租约决定；Sidecar 在线但
+Leg 未连接时只上报 `disconnected`。Ring 水位超过 70% 由 Collector 判为节点
+Warning，Leg 状态不参与节点 Offline 判定。
+
 ## 零拷贝边界
 
 Worker 与 Sidecar 之间通过 Ring Slot 就地读写。UCX Payload Send/Receive 也
 直接指向同一映射，并传入 `ucp_mem_map` 得到的 memh，不创建中间 Payload
-数组。`functional` 模式可走 TCP，仅证明功能；只有 `strict-rdma` 在可用 RC
+数组。`functional` 模式强制 TCP，仅证明功能；只有 `strict-rdma` 在可用 RC
 设备、锁页权限和 UCX zcopy/rendezvous 协议都验证后，才能把结果标记为 RDMA
 DMA 零拷贝。
 

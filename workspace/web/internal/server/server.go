@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -19,14 +18,13 @@ import (
 
 const (
 	nodeLeaseTTL     = 3 * time.Second
-	nodeScanInterval = 500 * time.Millisecond
+	nodeScanInterval = 100 * time.Millisecond
 )
 
-// Config controls UDP ingestion, HTTP serving, and bounded history.
+// Config controls UDP ingestion and HTTP/WebSocket serving.
 type Config struct {
 	UDPAddress  string
 	HTTPAddress string
-	HistorySize int
 }
 
 // ConfigFromEnv returns server configuration from environment variables.
@@ -34,7 +32,6 @@ func ConfigFromEnv() Config {
 	return Config{
 		UDPAddress:  envOr("TELEMETRY_UDP_ADDR", ":9900"),
 		HTTPAddress: envOr("TELEMETRY_HTTP_ADDR", ":8080"),
-		HistorySize: intOr("HISTORY_SIZE", 600),
 	}
 }
 
@@ -43,17 +40,19 @@ func Run(parent context.Context, config Config) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
-	store := NewStore(config.HistorySize)
-	go scanNodeLeases(ctx, store, nodeLeaseTTL, nodeScanInterval)
+	store := NewStore()
+	hub := NewHub(store)
+	go hub.Run(ctx)
+	go scanNodeLeases(ctx, store, hub, nodeLeaseTTL, nodeScanInterval)
 
 	httpServer := &http.Server{
 		Addr:              config.HTTPAddress,
-		Handler:           newHTTPHandler(store),
+		Handler:           newHTTPHandler(store, hub),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errorsChannel := make(chan error, 2)
 	go func() {
-		errorsChannel <- receiveUDP(ctx, config.UDPAddress, store)
+		errorsChannel <- receiveUDP(ctx, config.UDPAddress, store, hub)
 	}()
 	go func() {
 		err := httpServer.ListenAndServe()
@@ -84,7 +83,7 @@ func Run(parent context.Context, config Config) error {
 	return runError
 }
 
-func newHTTPHandler(store *Store) http.Handler {
+func newHTTPHandler(store *Store, hub *Hub) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -92,12 +91,13 @@ func newHTTPHandler(store *Store) http.Handler {
 			return
 		}
 	})
-	mux.HandleFunc("/api/metrics", func(writer http.ResponseWriter, _ *http.Request) {
-		writeJSON(writer, store.MetricsSnapshot())
+	mux.HandleFunc("/api/snapshot", func(writer http.ResponseWriter, _ *http.Request) {
+		writeJSON(writer, store.Snapshot(time.Now()))
 	})
 	mux.HandleFunc("/api/nodes", func(writer http.ResponseWriter, _ *http.Request) {
-		writeJSON(writer, store.NodesSnapshot())
+		writeJSON(writer, store.Snapshot(time.Now()).Nodes)
 	})
+	mux.HandleFunc("/ws", hub.ServeWebSocket)
 	return mux
 }
 
@@ -111,6 +111,7 @@ func writeJSON(writer http.ResponseWriter, value any) {
 func scanNodeLeases(
 	ctx context.Context,
 	store *Store,
+	hub *Hub,
 	ttl time.Duration,
 	interval time.Duration,
 ) {
@@ -119,14 +120,21 @@ func scanNodeLeases(
 	for {
 		select {
 		case now := <-ticker.C:
-			store.MarkOffline(now, ttl)
+			if store.MarkOffline(now, ttl) {
+				hub.Notify()
+			}
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func receiveUDP(ctx context.Context, address string, store *Store) error {
+func receiveUDP(
+	ctx context.Context,
+	address string,
+	store *Store,
+	hub *Hub,
+) error {
 	connection, err := net.ListenPacket("udp", address)
 	if err != nil {
 		return fmt.Errorf("listen UDP: %w", err)
@@ -160,8 +168,8 @@ func receiveUDP(ctx context.Context, address string, store *Store) error {
 			continue
 		}
 		receivedAt := time.Now()
-		for _, metric := range packet.Rings {
-			store.Update(metric, receivedAt)
+		if store.UpdateHeartbeat(packet.Heartbeat, receivedAt) {
+			hub.Notify()
 		}
 	}
 }
@@ -171,16 +179,4 @@ func envOr(name string, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-func intOr(name string, fallback int) int {
-	value := os.Getenv(name)
-	if value == "" {
-		return fallback
-	}
-	result, err := strconv.Atoi(value)
-	if err != nil || result < 1 {
-		return fallback
-	}
-	return result
 }

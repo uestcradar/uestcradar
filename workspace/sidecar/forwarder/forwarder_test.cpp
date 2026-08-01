@@ -88,6 +88,8 @@ int main() {
         20'000 + (::getpid() % 20'000));
     volatile std::sig_atomic_t egress_running = 1;
     volatile std::sig_atomic_t ingress_running = 1;
+    sidecar::forwarder::LegMetrics egress_metrics;
+    sidecar::forwarder::LegMetrics ingress_metrics;
     std::exception_ptr egress_error;
     std::exception_ptr ingress_error;
 
@@ -99,7 +101,11 @@ int main() {
             UCXMemoryRegion memory = transport.register_memory(
                 ringbuf_storage(destination.get()));
             sidecar::forwarder::run_ingress_session(
-                ingress_running, destination.get(), transport, memory);
+                ingress_running,
+                destination.get(),
+                transport,
+                memory,
+                ingress_metrics);
         } catch (...) {
             ingress_error = std::current_exception();
         }
@@ -114,7 +120,11 @@ int main() {
             UCXMemoryRegion memory = transport.register_memory(
                 ringbuf_storage(source.get()));
             sidecar::forwarder::run_egress_session(
-                egress_running, source.get(), transport, memory);
+                egress_running,
+                source.get(),
+                transport,
+                memory,
+                egress_metrics);
         } catch (...) {
             egress_error = std::current_exception();
         }
@@ -129,6 +139,9 @@ int main() {
     const bool transfer_ok =
         write_record(source.get(), expected) &&
         read_record(destination.get(), actual);
+    const bool sessions_connected =
+        egress_metrics.connected.load(std::memory_order_acquire) &&
+        ingress_metrics.connected.load(std::memory_order_acquire);
 
     egress_running = 0;
     ingress_running = 0;
@@ -148,8 +161,14 @@ int main() {
         }
         return 1;
     }
-    if (!transfer_ok || actual != expected) {
+    if (!transfer_ok || !sessions_connected || actual != expected) {
         std::cerr << "forwarder-test: payload mismatch\n";
+        return 1;
+    }
+    if (egress_metrics.payload_bytes_total.load() != expected.size() ||
+        ingress_metrics.payload_bytes_total.load() != expected.size() ||
+        egress_metrics.connected.load() || ingress_metrics.connected.load()) {
+        std::cerr << "forwarder-test: telemetry metrics mismatch\n";
         return 1;
     }
     return 0;

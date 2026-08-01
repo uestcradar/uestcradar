@@ -119,13 +119,15 @@ struct UCXTransport::Impl : std::enable_shared_from_this<Impl> {
         };
 
         try {
-            configure("TCP_CM_REUSEADDR", "y");
-            configure("RDMA_CM_REUSEADDR", "y");
             if (data_path == DataPathMode::strict_rdma) {
+                configure("RDMA_CM_REUSEADDR", "y");
                 configure("TLS", "rc");
                 configure("RNDV_THRESH", "0");
                 configure("ZCOPY_THRESH", "0");
                 configure("RNDV_SCHEME", "get_zcopy");
+            } else {
+                configure("TCP_CM_REUSEADDR", "y");
+                configure("TLS", "tcp");
             }
         } catch (...) {
             ::ucp_config_release(config);

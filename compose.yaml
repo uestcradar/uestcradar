@@ -1,93 +1,182 @@
 services:
-  # Each Sidecar owns both RingBuffers and runs telemetry in-process.
-  sidecar-alpha:
-    container_name: sidecar-alpha
+  sidecar-a:
+    container_name: sidecar-a
     build:
       context: .
       dockerfile: workspace/sidecar/Dockerfile
-      args:
-        BASE_IMAGE: ${BASE_IMAGE:-registry.chengyistudio.com/cxx/ubuntu:24.04}
-    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/ring-sidecar:0.1.0}
+      target: runtime
+    image: ${SIDECAR_IMAGE:-uestcradar-sidecar:0.1.0}
     ipc: shareable
-    shm_size: ${ALPHA_SHM_SIZE:-64m}
+    shm_size: ${SHM_SIZE:-256m}
     init: true
     environment:
-      NODE_ID: Radar-Alpha
+      NODE_ID: node-a
       SIDECAR_UPSTREAM_ROLE: disabled
-      SIDECAR_DOWNSTREAM_ROLE: listen
-      SIDECAR_DOWNSTREAM_BIND_HOST: 0.0.0.0
-      SIDECAR_DOWNSTREAM_PORT: ${SIDECAR_LINK_PORT:-13337}
-      SIDECAR_DOWNSTREAM_DATA_PATH: ${SIDECAR_DATA_PATH:-functional}
-      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${FORWARDER_MAX_TRANSFER_BYTES:-262144}
-      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${FORWARDER_MAX_TRANSFER_BYTES:-262144}
+      SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_HOST: sidecar-b
+      SIDECAR_DOWNSTREAM_PORT: 23337
+      SIDECAR_DOWNSTREAM_PEER_NODE_ID: node-b
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_a_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_a_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
       UCX_TLS: ${UCX_TLS:-tcp,self}
       TELEMETRY_HOST: ${TELEMETRY_HOST:-telemetry-web}
       TELEMETRY_PORT: ${TELEMETRY_PORT:-9900}
-      SAMPLE_INTERVAL: ${SAMPLE_INTERVAL:-100}
     depends_on:
       - telemetry-web
 
-  worker-alpha:
-    container_name: worker-alpha
-    build:
-      context: .
-      dockerfile: workspace/examples/signalsource/Dockerfile
-      args:
-        BASE_IMAGE: ${BASE_IMAGE:-registry.chengyistudio.com/cxx/ubuntu:24.04}
-    image: ${WORKER_IMAGE:-registry.chengyistudio.com/cxx/ring-worker:0.1.0}
-    entrypoint: ["/app/signalsource"]
-    ipc: service:sidecar-alpha
-    init: true
-    environment:
-      WORKER_BLOCK_BYTES: ${WORKER_BLOCK_BYTES:-262144}
-    depends_on:
-      - sidecar-alpha
-
-  sidecar-beta:
-    container_name: sidecar-beta
+  worker-a:
+    container_name: worker-a
     build:
       context: .
       dockerfile: workspace/sidecar/Dockerfile
-      args:
-        BASE_IMAGE: ${BASE_IMAGE:-registry.chengyistudio.com/cxx/ubuntu:24.04}
-    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/ring-sidecar:0.1.0}
-    ipc: shareable
-    shm_size: ${BETA_SHM_SIZE:-64m}
+      target: cascade-worker
+    image: ${CASCADE_IMAGE:-uestcradar-cascade-worker:0.1.0}
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - source
+      - --test
+      - benchmark
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-1000000}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-86400}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-100}
+    ipc: service:sidecar-a
     init: true
     environment:
-      NODE_ID: Radar-Beta
-      SIDECAR_UPSTREAM_ROLE: connect
-      SIDECAR_UPSTREAM_PEER_HOST: sidecar-alpha
-      SIDECAR_UPSTREAM_PORT: ${SIDECAR_LINK_PORT:-13337}
-      SIDECAR_UPSTREAM_DATA_PATH: ${SIDECAR_DATA_PATH:-functional}
-      SIDECAR_DOWNSTREAM_ROLE: disabled
-      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${FORWARDER_MAX_TRANSFER_BYTES:-262144}
-      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${FORWARDER_MAX_TRANSFER_BYTES:-262144}
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_a_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_a_downstream
+    depends_on:
+      - sidecar-a
+
+  sidecar-b:
+    container_name: sidecar-b
+    build:
+      context: .
+      dockerfile: workspace/sidecar/Dockerfile
+      target: runtime
+    image: ${SIDECAR_IMAGE:-uestcradar-sidecar:0.1.0}
+    ipc: shareable
+    shm_size: ${SHM_SIZE:-256m}
+    init: true
+    environment:
+      NODE_ID: node-b
+      SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
+      SIDECAR_UPSTREAM_PORT: 23337
+      SIDECAR_UPSTREAM_PEER_NODE_ID: node-a
+      SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_HOST: sidecar-c
+      SIDECAR_DOWNSTREAM_PORT: 23338
+      SIDECAR_DOWNSTREAM_PEER_NODE_ID: node-c
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_b_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_b_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
       UCX_TLS: ${UCX_TLS:-tcp,self}
       TELEMETRY_HOST: ${TELEMETRY_HOST:-telemetry-web}
       TELEMETRY_PORT: ${TELEMETRY_PORT:-9900}
-      SAMPLE_INTERVAL: ${SAMPLE_INTERVAL:-100}
     depends_on:
       - telemetry-web
-      - sidecar-alpha
+      - sidecar-a
 
-  worker-beta:
-    container_name: worker-beta
+  worker-b:
+    container_name: worker-b
     build:
       context: .
-      dockerfile: workspace/examples/algorithm/Dockerfile
-      args:
-        BASE_IMAGE: ${BASE_IMAGE:-registry.chengyistudio.com/cxx/ubuntu:24.04}
-    image: ${WORKER_IMAGE:-registry.chengyistudio.com/cxx/ring-worker:0.1.0}
-    entrypoint: ["/app/algorithm"]
-    volumes:
-      - ./output:/output
-    ipc: service:sidecar-beta
+      dockerfile: workspace/sidecar/Dockerfile
+      target: cascade-worker
+    image: ${CASCADE_IMAGE:-uestcradar-cascade-worker:0.1.0}
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - operator
+      - --test
+      - benchmark
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-1000000}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-86400}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-0}
+    ipc: service:sidecar-b
     init: true
     environment:
-      WORKER_BLOCK_BYTES: ${WORKER_BLOCK_BYTES:-262144}
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_b_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_b_downstream
     depends_on:
-      - sidecar-beta
+      - sidecar-b
+
+  sidecar-c:
+    container_name: sidecar-c
+    build:
+      context: .
+      dockerfile: workspace/sidecar/Dockerfile
+      target: runtime
+    image: ${SIDECAR_IMAGE:-uestcradar-sidecar:0.1.0}
+    ipc: shareable
+    shm_size: ${SHM_SIZE:-256m}
+    init: true
+    environment:
+      NODE_ID: node-c
+      SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
+      SIDECAR_UPSTREAM_PORT: 23338
+      SIDECAR_UPSTREAM_PEER_NODE_ID: node-b
+      SIDECAR_DOWNSTREAM_ROLE: disabled
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_c_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_c_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      UCX_TLS: ${UCX_TLS:-tcp,self}
+      TELEMETRY_HOST: ${TELEMETRY_HOST:-telemetry-web}
+      TELEMETRY_PORT: ${TELEMETRY_PORT:-9900}
+    depends_on:
+      - telemetry-web
+      - sidecar-b
+
+  worker-c:
+    container_name: worker-c
+    build:
+      context: .
+      dockerfile: workspace/sidecar/Dockerfile
+      target: cascade-worker
+    image: ${CASCADE_IMAGE:-uestcradar-cascade-worker:0.1.0}
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - sink
+      - --test
+      - benchmark
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-1000000}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-86400}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-0}
+    ipc: service:sidecar-c
+    init: true
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_c_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_c_downstream
+    depends_on:
+      - sidecar-c
 
   telemetry-web:
     container_name: telemetry-web
