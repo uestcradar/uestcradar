@@ -1,0 +1,12 @@
+ARG WEB_PLATFORM=linux/arm64
+ARG GO_VERSION=1.24-bookworm
+FROM --platform=${WEB_PLATFORM} golang:${GO_VERSION}
+
+# 安装 Protobuf 编译器
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置 Go 代理并预装 Go Protobuf 生成插件
+ENV GOPROXY=https://goproxy.cn,direct
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
