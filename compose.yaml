@@ -1,11 +1,7 @@
 services:
   sidecar-a:
     container_name: sidecar-a
-    build:
-      context: .
-      dockerfile: workspace/sidecar/Dockerfile
-      target: runtime
-    image: ${SIDECAR_IMAGE:-uestcradar-sidecar:0.1.0}
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
     ipc: shareable
     shm_size: ${SHM_SIZE:-256m}
     init: true
@@ -30,11 +26,7 @@ services:
 
   worker-a:
     container_name: worker-a
-    build:
-      context: .
-      dockerfile: workspace/sidecar/Dockerfile
-      target: cascade-worker
-    image: ${CASCADE_IMAGE:-uestcradar-cascade-worker:0.1.0}
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/cascade-worker:latest}
     entrypoint: ["/app/cascade-worker"]
     command:
       - --role
@@ -59,11 +51,7 @@ services:
 
   sidecar-b:
     container_name: sidecar-b
-    build:
-      context: .
-      dockerfile: workspace/sidecar/Dockerfile
-      target: runtime
-    image: ${SIDECAR_IMAGE:-uestcradar-sidecar:0.1.0}
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
     ipc: shareable
     shm_size: ${SHM_SIZE:-256m}
     init: true
@@ -92,11 +80,7 @@ services:
 
   worker-b:
     container_name: worker-b
-    build:
-      context: .
-      dockerfile: workspace/sidecar/Dockerfile
-      target: cascade-worker
-    image: ${CASCADE_IMAGE:-uestcradar-cascade-worker:0.1.0}
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/cascade-worker:latest}
     entrypoint: ["/app/cascade-worker"]
     command:
       - --role
@@ -121,11 +105,7 @@ services:
 
   sidecar-c:
     container_name: sidecar-c
-    build:
-      context: .
-      dockerfile: workspace/sidecar/Dockerfile
-      target: runtime
-    image: ${SIDECAR_IMAGE:-uestcradar-sidecar:0.1.0}
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
     ipc: shareable
     shm_size: ${SHM_SIZE:-256m}
     init: true
@@ -151,11 +131,7 @@ services:
 
   worker-c:
     container_name: worker-c
-    build:
-      context: .
-      dockerfile: workspace/sidecar/Dockerfile
-      target: cascade-worker
-    image: ${CASCADE_IMAGE:-uestcradar-cascade-worker:0.1.0}
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/cascade-worker:latest}
     entrypoint: ["/app/cascade-worker"]
     command:
       - --role
@@ -180,10 +156,7 @@ services:
 
   telemetry-web:
     container_name: telemetry-web
-    build:
-      context: .
-      dockerfile: workspace/web/Dockerfile
-    image: ${TELEMETRY_IMAGE:-uestcradar-telemetry:0.1.0}
+    image: ${TELEMETRY_IMAGE:-registry.chengyistudio.com/cxx/telemetry-web:latest}
     ports:
       - "8081:8080"
       - "9900:9900/udp"
