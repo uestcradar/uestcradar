@@ -93,8 +93,47 @@ run_local() {
         "cd $quoted_dir && .agents/skills/docker-release/scripts/release.sh --remote-run --remote-dir $quoted_dir --component $(printf '%q' "$component") --expected-sha $(printf '%q' "$sha")"
 }
 
-manifest_exists() {
-    docker manifest inspect "$1" >/dev/null 2>&1
+log() {
+    printf '[release] %s\n' "$*"
+}
+
+# Docker 19.03 requires experimental CLI support for `docker manifest inspect`.
+# Use pull as the common read/auth/existence check so the ARM release host works
+# without changing its daemon or CLI configuration.
+pull_remote_tag() {
+    local image=$1 output status
+    if output=$(docker pull "$image" 2>&1); then
+        printf '%s\n' "$output"
+        return 0
+    else
+        status=$?
+    fi
+
+    if grep -Eqi \
+        'manifest unknown|manifest.*not found|not found: manifest|repository .* not found' \
+        <<<"$output"; then
+        return 10
+    fi
+
+    printf '%s\n' "$output" >&2
+    return "$status"
+}
+
+assert_remote_tag_absent() {
+    local image=$1 status
+    log "checking immutable Tag is unused: $image"
+    if pull_remote_tag "$image"; then
+        echo "immutable Tag already exists: $image" >&2
+        return 1
+    else
+        status=$?
+    fi
+    if (( status == 10 )); then
+        log "immutable Tag is available: $image"
+        return 0
+    fi
+    echo "failed to inspect immutable Tag: $image" >&2
+    return "$status"
 }
 
 verify_remote_image() {
@@ -103,13 +142,17 @@ verify_remote_image() {
 
 ensure_web_build_base() {
     local destination="$registry/web:build-base"
-    if manifest_exists "$destination"; then
-        docker pull "$destination"
+    local status
+    log "checking Web build base: $destination"
+    if pull_remote_tag "$destination"; then
         return
+    else
+        status=$?
     fi
+    (( status == 10 )) || return "$status"
 
     local legacy="$registry/telemetry-web:build-base"
-    echo "initializing $destination from $legacy"
+    log "initializing $destination from $legacy"
     docker pull "$legacy"
     docker tag "$legacy" "$destination"
     docker push "$destination"
@@ -222,10 +265,13 @@ smoke_test() {
 
 publish_image() {
     local version_image=$1 moving_image=$2 kind=$3
+    log "pushing immutable image: $version_image"
     docker push "$version_image"
+    log "pulling immutable image for contract verification: $version_image"
     docker pull "$version_image"
     verify_remote_image "$version_image" "$kind"
 
+    log "updating moving Tag: $moving_image"
     docker tag "$version_image" "$moving_image"
     docker push "$moving_image"
     docker pull "$moving_image"
@@ -243,6 +289,8 @@ publish_image() {
 
 run_remote() {
     cd "$repo_root"
+    log "remote host=$(hostname) arch=$(uname -m) component=$component"
+    log "validating release checkout"
     [[ -n "$expected_sha" ]] || { echo "missing --expected-sha" >&2; exit 2; }
     [[ "$(uname -m)" == "aarch64" ]] || {
         echo "release host must be aarch64" >&2
@@ -256,11 +304,13 @@ run_remote() {
         echo "remote HEAD does not match local release commit" >&2
         exit 1
     }
-    docker info >/dev/null
-    manifest_exists "$registry/sidecar:latest" || {
-        echo "registry authentication/preflight failed" >&2
+    log "checking Docker engine"
+    docker info --format 'Docker server={{.ServerVersion}} storage={{.Driver}}'
+    log "checking Registry read access with $registry/sidecar:latest"
+    if ! pull_remote_tag "$registry/sidecar:latest"; then
+        echo "Registry read preflight failed for $registry/sidecar:latest" >&2
         exit 1
-    }
+    fi
 
     local sha12=${expected_sha:0:12}
     local sidecar_version="$registry/sidecar:sha-${sha12}-arm64"
@@ -279,30 +329,34 @@ run_remote() {
     esac
     local image
     for image in "${versions[@]}"; do
-        manifest_exists "$image" && {
-            echo "immutable Tag already exists: $image" >&2
-            exit 1
-        }
+        assert_remote_tag_absent "$image"
     done
 
     if [[ "$component" == "sidecar" || "$component" == "all" ]]; then
+        log "building Sidecar: $sidecar_version"
         docker build --target runtime -f workspace/sidecar/Dockerfile \
             -t "$sidecar_version" .
+        log "verifying Sidecar image contract"
         verify_remote_image "$sidecar_version" sidecar
     fi
     if [[ "$component" == "worker" || "$component" == "all" ]]; then
+        log "building Worker: $worker_version"
         docker build -f workspace/examples/cascade_worker/Dockerfile \
             -t "$worker_version" workspace/examples/cascade_worker
+        log "verifying Worker image contract"
         verify_remote_image "$worker_version" worker
     fi
     if [[ "$component" == "web" || "$component" == "all" ]]; then
         ensure_web_build_base
+        log "building Web: $web_version"
         docker build --build-arg GO_BASE="$registry/web:build-base" \
             -f workspace/web/Dockerfile -t "$web_version" .
+        log "verifying Web image contract"
         verify_remote_image "$web_version" web
     fi
 
     if [[ "$component" == "all" ]]; then
+        log "running ARM cascade smoke test"
         smoke_test "$sidecar_version" "$worker_version" "$web_version" "$sha12"
     fi
 
