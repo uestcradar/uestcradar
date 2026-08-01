@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -14,27 +15,21 @@
 
 namespace {
 
-using uestcradar::Envelope;
-using uestcradar::RawFrame;
-using uestcradar::ComplexInt16;
-using uestcradar::IQFrameView;
-using uestcradar::IQMetadata;
-using uestcradar::PulseCompressionFrameView;
-using uestcradar::PulseCompressionMetadata;
-using uestcradar::RDFrameView;
-using uestcradar::RDMetadata;
+constexpr std::uint64_t kIQTypeId = 1;
+constexpr std::uint64_t kPulseCompressionTypeId = 2;
+constexpr std::uint64_t kRDTypeId = 3;
+constexpr std::uint32_t kContractVersion = 2;
 
 class OwnedRing {
 public:
     OwnedRing(
         std::string name,
         std::uint64_t type_id,
-        std::uint32_t type_version = 2,
+        std::uint32_t type_version = kContractVersion,
         std::uint32_t slots = 2)
         : name_(std::move(name)),
           ring_(ringbuf_create(
-              name_.c_str(),
-              {slots, 4096, type_id, type_version})) {}
+              name_.c_str(), {slots, 4096, type_id, type_version})) {}
 
     ~OwnedRing() {
         ringbuf_shutdown(ring_);
@@ -56,22 +51,31 @@ void require(bool condition, const char* message) {
     }
 }
 
-void seed_iq(RingBuffer* ring, std::uint64_t frame_id) {
-    const IQMetadata metadata{2, 3, 2.5e6, 1.2e9};
+std::uint32_t iq_payload_bytes(const uestcradar::IQMetadata& metadata) {
+    return static_cast<std::uint32_t>(
+        sizeof(metadata) + metadata.channel_count *
+            metadata.samples_per_channel *
+            sizeof(uestcradar::ComplexInt16));
+}
+
+void seed_iq(
+    RingBuffer* ring,
+    std::uint64_t frame_id,
+    std::uint64_t timestamp = 123456) {
+    const uestcradar::IQMetadata metadata{2, 3, 2.5e6, 1.2e9};
     RingWriteLease lease;
     require(
         ringbuf_reserve(ring, lease) == RingResult::ok,
         "could not reserve IQ frame");
-    lease.envelope() = {
+    lease.envelope() = uestcradar::Envelope{
         .frame_id = frame_id,
-        .timestamp = 123456,
-        .type_id = IQFrameView::type_id,
-        .type_version = IQFrameView::type_version,
-        .payload_length = static_cast<std::uint32_t>(
-            IQFrameView::payload_bytes(metadata)),
+        .timestamp = timestamp,
+        .type_id = kIQTypeId,
+        .type_version = kContractVersion,
+        .payload_length = iq_payload_bytes(metadata),
     };
-    ::new (lease.payload().data()) IQMetadata{metadata};
-    auto* samples = reinterpret_cast<ComplexInt16*>(
+    std::memcpy(lease.payload().data(), &metadata, sizeof(metadata));
+    auto* samples = reinterpret_cast<uestcradar::ComplexInt16*>(
         lease.payload().data() + sizeof(metadata));
     for (std::size_t index = 0; index < 6; ++index) {
         samples[index] = {
@@ -84,182 +88,192 @@ void seed_iq(RingBuffer* ring, std::uint64_t frame_id) {
         "could not commit IQ frame");
 }
 
-void test_input_and_view_lifetime(const std::string& prefix) {
-    OwnedRing upstream{prefix + "_iq_up", IQFrameView::type_id};
+void test_typed_input_and_lifetime(const std::string& prefix) {
+    OwnedRing upstream{prefix + "_iq_up", kIQTypeId};
     ::setenv(
         "UESTCRADAR_UPSTREAM_SHM_NAME", upstream.name().c_str(), 1);
     seed_iq(upstream.get(), 42);
     seed_iq(upstream.get(), 43);
 
-    uestcradar::Input<RawFrame> input;
+    uestcradar::Input<uestcradar::IQFrame> input;
     {
-        RawFrame raw = input.read();
-        auto view = IQFrameView::from(raw);
+        auto iq = input.read();
+        const auto metadata = iq.metadata();
         require(
-            raw.envelope().frame_id == 42 &&
-                view.metadata().channel_count == 2 &&
-                view.data().rows() == 2 &&
-                view.data().columns() == 3 &&
-                view.data()[1][2].i == 6,
-            "IQ Contract View mapping is incorrect");
-        const auto payload = raw.payload_span();
-        const auto* values = reinterpret_cast<const std::byte*>(
-            view.data().values().data());
-        require(
-            values >= payload.data() &&
-                values < payload.data() + payload.size(),
-            "IQ Contract View copied the sample payload");
+            metadata.channel_count == 2 &&
+                metadata.samples_per_channel == 3 &&
+                iq.data().rows() == 2 &&
+                iq.data().columns() == 3 &&
+                iq.data()[1][2].i == 6,
+            "typed IQ mapping is incorrect");
 
         RingWriteLease blocked;
         require(
             ringbuf_reserve(upstream.get(), blocked) ==
                 RingResult::would_block,
-            "input Slot was reused while RawFrame was alive");
+            "input Slot was reused while IQFrame was alive");
     }
 
     RingWriteLease reusable;
     require(
         ringbuf_reserve(upstream.get(), reusable) == RingResult::ok,
-        "input Slot was not released by RawFrame destructor");
+        "input Slot was not released by IQFrame destructor");
     ringbuf_cancel(reusable);
 }
 
-void test_output_commit_and_cancel(const std::string& prefix) {
+void test_operator_inherits_trace(const std::string& prefix) {
+    OwnedRing upstream{prefix + "_parent_up", kIQTypeId};
     OwnedRing downstream{
-        prefix + "_pc_down", PulseCompressionFrameView::type_id};
+        prefix + "_pulse_down", kPulseCompressionTypeId};
+    ::setenv(
+        "UESTCRADAR_UPSTREAM_SHM_NAME", upstream.name().c_str(), 1);
     ::setenv(
         "UESTCRADAR_DOWNSTREAM_SHM_NAME",
         downstream.name().c_str(),
         1);
-    uestcradar::Output<RawFrame> output;
-    const PulseCompressionMetadata metadata{2, 3, 7, 128, 1.5};
-    const Envelope envelope{
-        .frame_id = 9,
-        .timestamp = 987654,
-        .type_id = PulseCompressionFrameView::type_id,
-        .type_version = PulseCompressionFrameView::type_version,
-        .payload_length = static_cast<std::uint32_t>(
-            PulseCompressionFrameView::payload_bytes(metadata)),
+    seed_iq(upstream.get(), 88, 987654321);
+
+    uestcradar::Input<uestcradar::IQFrame> input;
+    uestcradar::Output<uestcradar::PulseCompressionFrame> output;
+    auto iq = input.read();
+    const uestcradar::PulseCompressionMetadata metadata{
+        .channel_count = 2,
+        .range_bin_count = 3,
+        .pulse_index = 7,
+        .pulses_per_cpi = 128,
+        .range_resolution_m = 1.5,
     };
-    {
-        RawFrame raw = output.create(envelope);
-        auto view = PulseCompressionFrameView::initialize(raw, metadata);
-        const auto payload = raw.payload_span();
-        const auto* values = reinterpret_cast<const std::byte*>(
-            view.data().values().data());
-        require(
-            values >= payload.data() &&
-                values < payload.data() + payload.size(),
-            "pulse compression View copied the sample payload");
-        std::fill(
-            view.data().values().begin(),
-            view.data().values().end(),
-            uestcradar::ComplexFloat32{3.0F, 4.0F});
-        output.write(std::move(raw));
-    }
+    auto pulse = output.create(metadata, iq);
+    std::fill(
+        pulse.data().values().begin(),
+        pulse.data().values().end(),
+        uestcradar::ComplexFloat32{3.0F, 4.0F});
+    output.write(std::move(pulse));
 
     RingReadLease committed;
     require(
-        ringbuf_acquire(downstream.get(), committed) == RingResult::ok &&
-            committed.envelope().frame_id == 9 &&
-            committed.payload().size() == envelope.payload_length,
-        "output RawFrame was not committed");
+        ringbuf_acquire(downstream.get(), committed) == RingResult::ok,
+        "typed output was not committed");
+    require(
+        committed.envelope().frame_id == 88 &&
+            committed.envelope().timestamp == 987654321 &&
+            committed.envelope().type_id == kPulseCompressionTypeId &&
+            committed.envelope().type_version == kContractVersion &&
+            committed.payload().size() ==
+                sizeof(metadata) + 6 *
+                    sizeof(uestcradar::ComplexFloat32),
+        "SDK did not generate the expected hidden Envelope");
+    require(
+        std::all_of(
+            std::begin(committed.envelope().reserved),
+            std::end(committed.envelope().reserved),
+            [](std::byte value) { return value == std::byte{}; }),
+        "SDK did not clear the Envelope reserved area");
     require(
         ringbuf_release(committed) == RingResult::ok,
-        "could not release output RawFrame");
+        "could not release typed output");
 
     {
-        RawFrame abandoned = output.create(envelope);
-        auto view = PulseCompressionFrameView::initialize(
-            abandoned, metadata);
-        view.data()[0][0] = {7.0F, 8.0F};
+        auto abandoned = output.create(metadata, iq);
+        abandoned.data()[0][0] = {7.0F, 8.0F};
     }
     RingWriteLease reusable;
     require(
         ringbuf_reserve(downstream.get(), reusable) == RingResult::ok,
-        "abandoned RawFrame did not cancel its Slot");
+        "abandoned typed frame did not cancel its Slot");
     ringbuf_cancel(reusable);
 }
 
-void test_contract_rejection(const std::string& prefix) {
-    OwnedRing rd_ring{prefix + "_rd_up", RDFrameView::type_id};
+void test_source_generates_trace(const std::string& prefix) {
+    OwnedRing downstream{prefix + "_rd_down", kRDTypeId};
     ::setenv(
-        "UESTCRADAR_UPSTREAM_SHM_NAME", rd_ring.name().c_str(), 1);
-    const RDMetadata metadata{0, 3, 4, 0, 1.0, 2.0};
+        "UESTCRADAR_DOWNSTREAM_SHM_NAME",
+        downstream.name().c_str(),
+        1);
+    uestcradar::Output<uestcradar::RDFrame> output;
+    const uestcradar::RDMetadata metadata{
+        .channel_index = 0,
+        .range_bin_count = 3,
+        .doppler_bin_count = 4,
+        .range_resolution_m = 1.0,
+        .velocity_resolution_mps = 2.0,
+    };
+
+    std::uint64_t previous_timestamp = 0;
+    for (std::uint64_t expected_id = 1; expected_id <= 2; ++expected_id) {
+        auto rd = output.create(metadata);
+        std::fill(rd.data().values().begin(), rd.data().values().end(), 2.0F);
+        output.write(std::move(rd));
+
+        RingReadLease lease;
+        require(
+            ringbuf_acquire(downstream.get(), lease) == RingResult::ok,
+            "could not read generated RD frame");
+        require(
+            lease.envelope().frame_id == expected_id &&
+                lease.envelope().timestamp >= previous_timestamp,
+            "source trace was not generated monotonically");
+        previous_timestamp = lease.envelope().timestamp;
+        require(
+            ringbuf_release(lease) == RingResult::ok,
+            "could not release generated RD frame");
+    }
+}
+
+void test_contract_rejection(const std::string& prefix) {
+    OwnedRing wrong_port{prefix + "_wrong_port", kRDTypeId};
+    ::setenv(
+        "UESTCRADAR_UPSTREAM_SHM_NAME", wrong_port.name().c_str(), 1);
+    bool port_rejected = false;
+    try {
+        uestcradar::Input<uestcradar::IQFrame> input;
+    } catch (const std::invalid_argument&) {
+        port_rejected = true;
+    }
+    require(port_rejected, "typed Input accepted a different contract");
+
+    OwnedRing malformed{prefix + "_malformed", kIQTypeId};
+    ::setenv(
+        "UESTCRADAR_UPSTREAM_SHM_NAME", malformed.name().c_str(), 1);
     RingWriteLease lease;
     require(
-        ringbuf_reserve(rd_ring.get(), lease) == RingResult::ok,
-        "could not reserve RD frame");
-    lease.envelope() = {
+        ringbuf_reserve(malformed.get(), lease) == RingResult::ok,
+        "could not reserve malformed frame");
+    lease.envelope() = uestcradar::Envelope{
         .frame_id = 1,
-        .type_id = RDFrameView::type_id,
-        .type_version = RDFrameView::type_version,
-        .payload_length = static_cast<std::uint32_t>(
-            RDFrameView::payload_bytes(metadata)),
+        .type_id = kIQTypeId,
+        .type_version = 1,
+        .payload_length = 1,
     };
-    ::new (lease.payload().data()) RDMetadata{metadata};
-    require(ringbuf_commit(lease) == RingResult::ok, "could not seed RD");
-
-    uestcradar::Input<RawFrame> input;
-    RawFrame raw = input.read();
-    auto valid_view = RDFrameView::from(raw);
-    const auto payload = raw.payload_span();
-    const auto* values = reinterpret_cast<const std::byte*>(
-        valid_view.data().values().data());
     require(
-        values >= payload.data() &&
-            values < payload.data() + payload.size(),
-        "RD View copied the sample payload");
-
-    raw.envelope().type_id = IQFrameView::type_id;
-    bool type_rejected = false;
+        ringbuf_commit(lease) == RingResult::ok,
+        "could not commit malformed frame");
+    uestcradar::Input<uestcradar::IQFrame> input;
+    bool frame_rejected = false;
     try {
-        static_cast<void>(RDFrameView::from(raw));
+        static_cast<void>(input.read());
     } catch (const std::invalid_argument&) {
-        type_rejected = true;
+        frame_rejected = true;
     }
-    require(type_rejected, "Contract View accepted wrong type");
+    require(frame_rejected, "typed Input accepted malformed data");
 
-    raw.envelope().type_id = RDFrameView::type_id;
-    raw.envelope().type_version = 1;
-    bool version_rejected = false;
+    OwnedRing rd_output{prefix + "_bad_metadata", kRDTypeId};
+    ::setenv(
+        "UESTCRADAR_DOWNSTREAM_SHM_NAME", rd_output.name().c_str(), 1);
+    uestcradar::Output<uestcradar::RDFrame> output;
+    bool metadata_rejected = false;
     try {
-        static_cast<void>(RDFrameView::from(raw));
+        static_cast<void>(output.create({
+            .channel_index = 0,
+            .range_bin_count = 0,
+            .doppler_bin_count = 4,
+            .range_resolution_m = 1.0,
+            .velocity_resolution_mps = 2.0,
+        }));
     } catch (const std::invalid_argument&) {
-        version_rejected = true;
+        metadata_rejected = true;
     }
-    require(version_rejected, "Contract View accepted wrong version");
-
-    raw.envelope().type_version = RDFrameView::type_version;
-    raw.envelope().payload_length -= 1;
-    bool length_rejected = false;
-    try {
-        static_cast<void>(RDFrameView::from(raw));
-    } catch (const std::invalid_argument&) {
-        length_rejected = true;
-    }
-    require(length_rejected, "Contract View accepted truncated payload");
-
-    raw.envelope().payload_length += 1;
-    auto* stored_metadata = reinterpret_cast<RDMetadata*>(
-        raw.payload_span().data());
-    stored_metadata->reserved = 1;
-    bool reserved_rejected = false;
-    try {
-        static_cast<void>(RDFrameView::from(raw));
-    } catch (const std::invalid_argument&) {
-        reserved_rejected = true;
-    }
-    require(reserved_rejected, "RD View accepted non-zero reserved data");
-
-    bool dimensions_rejected = false;
-    try {
-        static_cast<void>(RDFrameView::payload_bytes(
-            RDMetadata{0, 0, 4, 0, 1.0, 2.0}));
-    } catch (const std::invalid_argument&) {
-        dimensions_rejected = true;
-    }
-    require(dimensions_rejected, "RD View accepted empty dimensions");
+    require(metadata_rejected, "typed Output accepted empty dimensions");
 }
 
 }  // namespace
@@ -267,9 +281,10 @@ void test_contract_rejection(const std::string& prefix) {
 int main() {
     try {
         const std::string prefix =
-            "/uestcradar_sdk_v4_test_" + std::to_string(::getpid());
-        test_input_and_view_lifetime(prefix);
-        test_output_commit_and_cancel(prefix);
+            "/uestcradar_sdk_v5_test_" + std::to_string(::getpid());
+        test_typed_input_and_lifetime(prefix);
+        test_operator_inherits_trace(prefix);
+        test_source_generates_trace(prefix);
         test_contract_rejection(prefix);
         return 0;
     } catch (const std::exception& error) {

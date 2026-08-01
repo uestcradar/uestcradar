@@ -2,14 +2,11 @@
 
 #include <sdk.h>
 
-#include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
-#include <new>
+#include <memory>
 #include <span>
 #include <stdexcept>
-#include <type_traits>
 
 namespace uestcradar {
 
@@ -32,13 +29,7 @@ public:
     [[nodiscard]] std::size_t rows() const noexcept { return rows_; }
     [[nodiscard]] std::size_t columns() const noexcept { return columns_; }
 
-    [[nodiscard]] std::span<T> operator[](std::size_t row) const {
-        if (row >= rows_) {
-            throw std::out_of_range("data row is out of range");
-        }
-        return {values_ + row * columns_, columns_};
-    }
-
+    [[nodiscard]] std::span<T> operator[](std::size_t row) const;
     [[nodiscard]] std::span<T> values() const noexcept {
         return {values_, rows_ * columns_};
     }
@@ -68,281 +59,118 @@ struct RDMetadata {
     std::uint32_t channel_index{};
     std::uint32_t range_bin_count{};
     std::uint32_t doppler_bin_count{};
-    std::uint32_t reserved{};
     double range_resolution_m{};
     double velocity_resolution_mps{};
 };
 
-class IQFrameView {
+class CYCOMM_SDK_API IQFrame final : public Frame {
 public:
-    static constexpr std::uint64_t type_id = 1;
-    static constexpr std::uint32_t type_version = 2;
+    IQFrame(IQFrame&& other) noexcept;
+    IQFrame& operator=(IQFrame&& other) noexcept;
+    ~IQFrame();
 
-    [[nodiscard]] static std::size_t payload_bytes(
-        const IQMetadata& metadata) {
-        return checked_payload_bytes(
-            metadata.channel_count, metadata.samples_per_channel);
-    }
-
-    [[nodiscard]] static IQFrameView from(RawFrame& frame) {
-        validate(frame, sizeof(IQMetadata));
-        const IQMetadata& metadata = metadata_of(frame);
-        if (payload_bytes(metadata) != frame.payload_span().size()) {
-            throw std::invalid_argument("IQ data length is invalid");
-        }
-        return IQFrameView{frame};
-    }
-
-    [[nodiscard]] static IQFrameView initialize(
-        RawFrame& frame,
-        const IQMetadata& metadata) {
-        validate(frame, sizeof(IQMetadata));
-        if (payload_bytes(metadata) != frame.payload_span().size()) {
-            throw std::invalid_argument("IQ data capacity is invalid");
-        }
-        ::new (frame.payload_span().data()) IQMetadata{metadata};
-        return IQFrameView{frame};
-    }
-
-    [[nodiscard]] IQMetadata& metadata() const noexcept {
-        return metadata_of(*frame_);
-    }
-
-    [[nodiscard]] Array2D<ComplexInt16> data() const noexcept {
-        return {
-            reinterpret_cast<ComplexInt16*>(
-                frame_->payload_span().data() + sizeof(IQMetadata)),
-            metadata().channel_count,
-            metadata().samples_per_channel};
-    }
+    [[nodiscard]] IQMetadata metadata() const;
+    [[nodiscard]] Array2D<ComplexInt16> data();
+    [[nodiscard]] Array2D<const ComplexInt16> data() const;
 
 private:
-    explicit IQFrameView(RawFrame& frame) noexcept : frame_(&frame) {}
-
-    static std::size_t checked_payload_bytes(
-        std::size_t rows,
-        std::size_t columns) {
-        if (rows == 0 || columns == 0 ||
-            rows > std::numeric_limits<std::size_t>::max() / columns) {
-            throw std::invalid_argument("IQ data dimensions are invalid");
-        }
-        const std::size_t elements = rows * columns;
-        if (elements >
-            (std::numeric_limits<std::size_t>::max() -
-             sizeof(IQMetadata)) /
-                sizeof(ComplexInt16)) {
-            throw std::invalid_argument("IQ data size overflows");
-        }
-        return sizeof(IQMetadata) + elements * sizeof(ComplexInt16);
-    }
-
-    static void validate(RawFrame& frame, std::size_t minimum_payload) {
-        const Envelope& envelope = frame.envelope();
-        if (envelope.type_id != type_id ||
-            envelope.type_version != type_version) {
-            throw std::invalid_argument("RawFrame does not contain IQ data");
-        }
-        if (envelope.payload_length != frame.payload_span().size() ||
-            envelope.payload_length < minimum_payload) {
-            throw std::invalid_argument("IQ payload is truncated");
-        }
-    }
-
-    static IQMetadata& metadata_of(RawFrame& frame) noexcept {
-        return *reinterpret_cast<IQMetadata*>(frame.payload_span().data());
-    }
-
-    RawFrame* frame_;
+    explicit IQFrame(std::unique_ptr<Frame::Impl> impl) noexcept;
+    friend class Input<IQFrame>;
+    friend class Output<IQFrame>;
+    template <class>
+    friend class Output;
 };
 
-class PulseCompressionFrameView {
+class CYCOMM_SDK_API PulseCompressionFrame final : public Frame {
 public:
-    static constexpr std::uint64_t type_id = 2;
-    static constexpr std::uint32_t type_version = 2;
+    PulseCompressionFrame(PulseCompressionFrame&& other) noexcept;
+    PulseCompressionFrame& operator=(PulseCompressionFrame&& other) noexcept;
+    ~PulseCompressionFrame();
 
-    [[nodiscard]] static std::size_t payload_bytes(
-        const PulseCompressionMetadata& metadata) {
-        return checked_payload_bytes(
-            metadata.channel_count, metadata.range_bin_count);
-    }
-
-    [[nodiscard]] static PulseCompressionFrameView from(RawFrame& frame) {
-        validate(frame, sizeof(PulseCompressionMetadata));
-        const auto& metadata = metadata_of(frame);
-        if (payload_bytes(metadata) != frame.payload_span().size()) {
-            throw std::invalid_argument(
-                "pulse compression data length is invalid");
-        }
-        return PulseCompressionFrameView{frame};
-    }
-
-    [[nodiscard]] static PulseCompressionFrameView initialize(
-        RawFrame& frame,
-        const PulseCompressionMetadata& metadata) {
-        validate(frame, sizeof(PulseCompressionMetadata));
-        if (payload_bytes(metadata) != frame.payload_span().size()) {
-            throw std::invalid_argument(
-                "pulse compression data capacity is invalid");
-        }
-        ::new (frame.payload_span().data())
-            PulseCompressionMetadata{metadata};
-        return PulseCompressionFrameView{frame};
-    }
-
-    [[nodiscard]] PulseCompressionMetadata& metadata() const noexcept {
-        return metadata_of(*frame_);
-    }
-
-    [[nodiscard]] Array2D<ComplexFloat32> data() const noexcept {
-        return {
-            reinterpret_cast<ComplexFloat32*>(
-                frame_->payload_span().data() +
-                sizeof(PulseCompressionMetadata)),
-            metadata().channel_count,
-            metadata().range_bin_count};
-    }
+    [[nodiscard]] PulseCompressionMetadata metadata() const;
+    [[nodiscard]] Array2D<ComplexFloat32> data();
+    [[nodiscard]] Array2D<const ComplexFloat32> data() const;
 
 private:
-    explicit PulseCompressionFrameView(RawFrame& frame) noexcept
-        : frame_(&frame) {}
-
-    static std::size_t checked_payload_bytes(
-        std::size_t rows,
-        std::size_t columns) {
-        if (rows == 0 || columns == 0 ||
-            rows > std::numeric_limits<std::size_t>::max() / columns) {
-            throw std::invalid_argument(
-                "pulse compression data dimensions are invalid");
-        }
-        const std::size_t elements = rows * columns;
-        if (elements >
-            (std::numeric_limits<std::size_t>::max() -
-             sizeof(PulseCompressionMetadata)) /
-                sizeof(ComplexFloat32)) {
-            throw std::invalid_argument(
-                "pulse compression data size overflows");
-        }
-        return sizeof(PulseCompressionMetadata) +
-               elements * sizeof(ComplexFloat32);
-    }
-
-    static void validate(RawFrame& frame, std::size_t minimum_payload) {
-        const Envelope& envelope = frame.envelope();
-        if (envelope.type_id != type_id ||
-            envelope.type_version != type_version) {
-            throw std::invalid_argument(
-                "RawFrame does not contain pulse compression data");
-        }
-        if (envelope.payload_length != frame.payload_span().size() ||
-            envelope.payload_length < minimum_payload) {
-            throw std::invalid_argument(
-                "pulse compression payload is truncated");
-        }
-    }
-
-    static PulseCompressionMetadata& metadata_of(
-        RawFrame& frame) noexcept {
-        return *reinterpret_cast<PulseCompressionMetadata*>(
-            frame.payload_span().data());
-    }
-
-    RawFrame* frame_;
+    explicit PulseCompressionFrame(
+        std::unique_ptr<Frame::Impl> impl) noexcept;
+    friend class Input<PulseCompressionFrame>;
+    friend class Output<PulseCompressionFrame>;
+    template <class>
+    friend class Output;
 };
 
-class RDFrameView {
+class CYCOMM_SDK_API RDFrame final : public Frame {
 public:
-    static constexpr std::uint64_t type_id = 3;
-    static constexpr std::uint32_t type_version = 2;
+    RDFrame(RDFrame&& other) noexcept;
+    RDFrame& operator=(RDFrame&& other) noexcept;
+    ~RDFrame();
 
-    [[nodiscard]] static std::size_t payload_bytes(
-        const RDMetadata& metadata) {
-        return checked_payload_bytes(
-            metadata.range_bin_count, metadata.doppler_bin_count);
-    }
-
-    [[nodiscard]] static RDFrameView from(RawFrame& frame) {
-        validate(frame, sizeof(RDMetadata));
-        const RDMetadata& metadata = metadata_of(frame);
-        if (metadata.reserved != 0 ||
-            payload_bytes(metadata) != frame.payload_span().size()) {
-            throw std::invalid_argument("RD data length is invalid");
-        }
-        return RDFrameView{frame};
-    }
-
-    [[nodiscard]] static RDFrameView initialize(
-        RawFrame& frame,
-        const RDMetadata& metadata) {
-        validate(frame, sizeof(RDMetadata));
-        if (metadata.reserved != 0 ||
-            payload_bytes(metadata) != frame.payload_span().size()) {
-            throw std::invalid_argument("RD data capacity is invalid");
-        }
-        ::new (frame.payload_span().data()) RDMetadata{metadata};
-        return RDFrameView{frame};
-    }
-
-    [[nodiscard]] RDMetadata& metadata() const noexcept {
-        return metadata_of(*frame_);
-    }
-
-    [[nodiscard]] Array2D<float> data() const noexcept {
-        return {
-            reinterpret_cast<float*>(
-                frame_->payload_span().data() + sizeof(RDMetadata)),
-            metadata().range_bin_count,
-            metadata().doppler_bin_count};
-    }
+    [[nodiscard]] RDMetadata metadata() const;
+    [[nodiscard]] Array2D<float> data();
+    [[nodiscard]] Array2D<const float> data() const;
 
 private:
-    explicit RDFrameView(RawFrame& frame) noexcept : frame_(&frame) {}
-
-    static std::size_t checked_payload_bytes(
-        std::size_t rows,
-        std::size_t columns) {
-        if (rows == 0 || columns == 0 ||
-            rows > std::numeric_limits<std::size_t>::max() / columns) {
-            throw std::invalid_argument("RD data dimensions are invalid");
-        }
-        const std::size_t elements = rows * columns;
-        if (elements >
-            (std::numeric_limits<std::size_t>::max() -
-             sizeof(RDMetadata)) /
-                sizeof(float)) {
-            throw std::invalid_argument("RD data size overflows");
-        }
-        return sizeof(RDMetadata) + elements * sizeof(float);
-    }
-
-    static void validate(RawFrame& frame, std::size_t minimum_payload) {
-        const Envelope& envelope = frame.envelope();
-        if (envelope.type_id != type_id ||
-            envelope.type_version != type_version) {
-            throw std::invalid_argument("RawFrame does not contain RD data");
-        }
-        if (envelope.payload_length != frame.payload_span().size() ||
-            envelope.payload_length < minimum_payload) {
-            throw std::invalid_argument("RD payload is truncated");
-        }
-    }
-
-    static RDMetadata& metadata_of(RawFrame& frame) noexcept {
-        return *reinterpret_cast<RDMetadata*>(frame.payload_span().data());
-    }
-
-    RawFrame* frame_;
+    explicit RDFrame(std::unique_ptr<Frame::Impl> impl) noexcept;
+    friend class Input<RDFrame>;
+    friend class Output<RDFrame>;
+    template <class>
+    friend class Output;
 };
 
-static_assert(std::endian::native == std::endian::little);
-static_assert(std::numeric_limits<float>::is_iec559);
-static_assert(std::numeric_limits<double>::is_iec559);
-static_assert(sizeof(ComplexInt16) == 4);
-static_assert(sizeof(ComplexFloat32) == 8);
-static_assert(sizeof(IQMetadata) == 24);
-static_assert(sizeof(PulseCompressionMetadata) == 24);
-static_assert(sizeof(RDMetadata) == 32);
-static_assert(std::is_trivially_copyable_v<IQMetadata>);
-static_assert(std::is_trivially_copyable_v<PulseCompressionMetadata>);
-static_assert(std::is_trivially_copyable_v<RDMetadata>);
+#define UESTCRADAR_DECLARE_INPUT(FrameType)                            \
+    template <>                                                       \
+    class CYCOMM_SDK_API Input<FrameType> final {                     \
+    public:                                                           \
+        Input();                                                      \
+        Input(Input&& other) noexcept;                                \
+        Input& operator=(Input&& other) noexcept;                     \
+        Input(const Input&) = delete;                                 \
+        Input& operator=(const Input&) = delete;                      \
+        ~Input();                                                     \
+        [[nodiscard]] FrameType read();                               \
+    private:                                                          \
+        struct Impl;                                                  \
+        std::unique_ptr<Impl> impl_;                                  \
+    }
+
+#define UESTCRADAR_DECLARE_OUTPUT(FrameType, MetadataType)            \
+    template <>                                                       \
+    class CYCOMM_SDK_API Output<FrameType> final {                    \
+    public:                                                           \
+        Output();                                                     \
+        Output(Output&& other) noexcept;                              \
+        Output& operator=(Output&& other) noexcept;                   \
+        Output(const Output&) = delete;                               \
+        Output& operator=(const Output&) = delete;                    \
+        ~Output();                                                    \
+        [[nodiscard]] FrameType create(const MetadataType& metadata); \
+        [[nodiscard]] FrameType create(                               \
+            const MetadataType& metadata, const Frame& parent);       \
+        void write(FrameType&& frame);                                \
+    private:                                                          \
+        struct Impl;                                                  \
+        std::unique_ptr<Impl> impl_;                                  \
+    }
+
+UESTCRADAR_DECLARE_INPUT(IQFrame);
+UESTCRADAR_DECLARE_INPUT(PulseCompressionFrame);
+UESTCRADAR_DECLARE_INPUT(RDFrame);
+
+UESTCRADAR_DECLARE_OUTPUT(IQFrame, IQMetadata);
+UESTCRADAR_DECLARE_OUTPUT(
+    PulseCompressionFrame, PulseCompressionMetadata);
+UESTCRADAR_DECLARE_OUTPUT(RDFrame, RDMetadata);
+
+#undef UESTCRADAR_DECLARE_INPUT
+#undef UESTCRADAR_DECLARE_OUTPUT
+
+template <class T>
+std::span<T> Array2D<T>::operator[](std::size_t row) const {
+    if (row >= rows_) {
+        throw std::out_of_range("data row is out of range");
+    }
+    return {values_ + row * columns_, columns_};
+}
 
 }  // namespace uestcradar
