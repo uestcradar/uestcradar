@@ -107,338 +107,410 @@ Arguments parse_arguments(int argc, char* argv[]) {
         } else if (option == "--frames") {
             result.frames = parse_unsigned(next(), "--frames");
         } else if (option == "--seed") {
-            result.seed = static_cast<std::uint32_t>(
-                parse_unsigned(next(), "--seed"));
+            const std::uint64_t seed = parse_unsigned(next(), "--seed");
+            if (seed > UINT32_MAX) {
+                throw std::invalid_argument("--seed is out of range");
+            }
+            result.seed = static_cast<std::uint32_t>(seed);
         } else if (option == "--warmup-seconds") {
-            result.warmup_seconds = parse_double(next(), "--warmup-seconds");
+            result.warmup_seconds =
+                parse_double(next(), "--warmup-seconds");
         } else if (option == "--duration-seconds") {
-            result.duration_seconds = parse_double(next(), "--duration-seconds");
+            result.duration_seconds =
+                parse_double(next(), "--duration-seconds");
         } else if (option == "--rate-mib-s") {
             result.rate_mib_s = parse_double(next(), "--rate-mib-s");
         } else {
             throw std::invalid_argument(
-                std::string{"unknown option "} + std::string{option});
+                "usage: cascade-worker --role source|operator|sink "
+                "[--test correctness|benchmark] [--payload-bytes N] "
+                "[--frames N] [--seed N] [--warmup-seconds N] "
+                "[--duration-seconds N] [--rate-mib-s N]");
         }
     }
 
     if (result.role != "source" && result.role != "operator" &&
         result.role != "sink") {
         throw std::invalid_argument(
-            "--role must be 'source', 'operator', or 'sink'");
+            "--role must be source, operator, or sink");
     }
-
     if (result.test != "correctness" && result.test != "benchmark") {
         throw std::invalid_argument(
-            "--test must be 'correctness' or 'benchmark'");
+            "--test must be correctness or benchmark");
     }
-
-    if (result.payload_bytes < 16) {
-        throw std::invalid_argument("--payload-bytes must be >= 16");
+    constexpr std::size_t minimum =
+        sizeof(uestcradar::IQMetadata) +
+        sizeof(uestcradar::ComplexInt16);
+    if (result.payload_bytes < minimum ||
+        result.payload_bytes > INT32_MAX || result.frames == 0 ||
+        result.duration_seconds <= 0.0) {
+        throw std::invalid_argument("cascade-worker arguments are invalid");
     }
-
     return result;
 }
 
-std::uint32_t mix_u32(std::uint32_t value) {
+std::uint64_t encode_frame_id(
+    std::uint64_t sequence,
+    std::uint64_t phase) {
+    return (phase << kPhaseShift) | (sequence & kSequenceMask);
+}
+
+std::uint64_t phase_from(std::uint64_t frame_id) {
+    return frame_id >> kPhaseShift;
+}
+
+std::uint64_t sequence_from(std::uint64_t frame_id) {
+    return frame_id & kSequenceMask;
+}
+
+std::size_t samples_for_payload(std::size_t requested_bytes) {
+    return (requested_bytes - sizeof(uestcradar::IQMetadata)) /
+           sizeof(uestcradar::ComplexInt16);
+}
+
+std::size_t actual_payload_bytes(std::size_t samples) {
+    return sizeof(uestcradar::IQMetadata) +
+           samples * sizeof(uestcradar::ComplexInt16);
+}
+
+std::uint32_t mix(std::uint32_t value) noexcept {
     value ^= value >> 16;
     value *= 0x7feb352dU;
     value ^= value >> 15;
     value *= 0x846ca68bU;
-    value ^= value >> 16;
-    return value;
+    return value ^ (value >> 16);
 }
 
-std::uint8_t generate_byte(
+uestcradar::ComplexInt16 expected_sample(
     std::uint32_t seed,
     std::uint64_t sequence,
-    std::size_t offset) {
-    const std::uint32_t key =
-        seed ^
-        mix_u32(static_cast<std::uint32_t>(sequence)) ^
-        mix_u32(static_cast<std::uint32_t>(offset));
-    return static_cast<std::uint8_t>(key & 0xffU);
-}
-
-void write_u64_le(std::uint8_t* buffer, std::uint64_t value) {
-    for (std::size_t index = 0; index < 8; ++index) {
-        buffer[index] = static_cast<std::uint8_t>((value >> (index * 8)) & 0xffU);
-    }
-}
-
-std::uint64_t read_u64_le(const std::uint8_t* buffer) {
-    std::uint64_t value = 0;
-    for (std::size_t index = 0; index < 8; ++index) {
-        value |= static_cast<std::uint64_t>(buffer[index]) << (index * 8);
-    }
-    return value;
+    std::size_t index) noexcept {
+    const std::uint32_t value = mix(
+        seed ^ static_cast<std::uint32_t>(sequence) ^
+        static_cast<std::uint32_t>(sequence >> 32) ^
+        static_cast<std::uint32_t>(index * 0x9e3779b1U));
+    return {
+        static_cast<std::int16_t>(value & 0xffffU),
+        static_cast<std::int16_t>(value >> 16),
+    };
 }
 
 void fill_payload(
-    std::uint8_t* buffer,
-    std::size_t size,
+    uestcradar::IQFrame& frame,
     std::uint32_t seed,
-    std::uint64_t header_bits) {
-    write_u64_le(buffer, header_bits);
-    write_u64_le(buffer + 8, unix_ns());
-    const std::uint64_t sequence = header_bits & kSequenceMask;
-    for (std::size_t index = 16; index < size; ++index) {
-        buffer[index] = generate_byte(seed, sequence, index);
+    std::uint64_t sequence,
+    bool correctness) {
+    auto values = frame.data.values();
+    if (!correctness) {
+        std::fill(values.begin(), values.end(), uestcradar::ComplexInt16{});
+        return;
+    }
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        values[index] = expected_sample(seed, sequence, index);
     }
 }
 
-void verify_payload(
-    const std::uint8_t* buffer,
-    std::size_t size,
-    std::uint32_t seed,
-    std::uint64_t sequence) {
-    for (std::size_t index = 16; index < size; ++index) {
-        const std::uint8_t expected = generate_byte(seed, sequence, index);
-        if (buffer[index] != expected) {
-            throw std::runtime_error(
-                "payload corruption at index " + std::to_string(index) +
-                ": expected " + std::to_string(static_cast<int>(expected)) +
-                ", got " + std::to_string(static_cast<int>(buffer[index])));
-        }
-    }
+void write_frame(
+    uestcradar::Output<uestcradar::IQFrame>& output,
+    std::size_t samples,
+    std::uint64_t sequence,
+    std::uint64_t phase,
+    const Arguments& arguments) {
+    auto frame = output.create({
+        .frame_id = encode_frame_id(sequence, phase),
+        .timestamp_unix_ns = unix_ns(),
+        .channel_count = 1,
+        .samples_per_channel = static_cast<std::uint32_t>(samples),
+        .sample_rate_hz = 1.0,
+        .center_frequency_hz = 0.0,
+    });
+    fill_payload(
+        frame,
+        arguments.seed,
+        sequence,
+        arguments.test == "correctness");
+    output.write(frame);
 }
 
-void pacing_sleep(std::uint64_t start_ns, std::uint64_t sent_bytes, double rate_mib_s) {
+void pace(
+    double rate_mib_s,
+    std::uint64_t bytes_sent,
+    std::uint64_t started_ns) {
     if (rate_mib_s <= 0.0) {
         return;
     }
-
-    const double target_seconds =
-        static_cast<double>(sent_bytes) / (rate_mib_s * 1024.0 * 1024.0);
-    const std::uint64_t target_ns =
-        start_ns + static_cast<std::uint64_t>(target_seconds * 1e9);
-    const std::uint64_t now_ns = monotonic_ns();
-
-    if (now_ns < target_ns) {
-        const std::uint64_t sleep_ns = target_ns - now_ns;
-        if (sleep_ns > 50'000) {
-            std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_ns - 20'000));
-        }
-        while (monotonic_ns() < target_ns) {
-            std::this_thread::yield();
-        }
+    const double seconds =
+        static_cast<double>(bytes_sent) /
+        (rate_mib_s * 1024.0 * 1024.0);
+    const std::uint64_t target = started_ns +
+        static_cast<std::uint64_t>(seconds * 1e9);
+    const std::uint64_t now = monotonic_ns();
+    if (target > now) {
+        std::this_thread::sleep_for(
+            std::chrono::nanoseconds{target - now});
     }
 }
 
-void run_source(const Arguments& args) {
-    const char* shm_name = std::getenv("UESTCRADAR_DOWNSTREAM_SHM_NAME");
-    shm_name = (shm_name != nullptr && shm_name[0] != '\0')
-                   ? shm_name
-                   : "/uestcradar_cascade_a_downstream";
+struct Statistics {
+    std::uint64_t frames{0};
+    std::uint64_t bytes{0};
+    std::uint64_t corrupted{0};
+    std::uint64_t missing{0};
+    std::uint64_t duplicate{0};
+    std::uint64_t reordered{0};
+    std::uint64_t last_sequence{0};
+    std::uint64_t first_ns{0};
+    std::uint64_t last_ns{0};
+    std::uint64_t latency_total_ns{0};
+    std::vector<std::uint64_t> latency_us;
 
-    std::cout << "[source] attaching to downstream SHM: " << shm_name
-              << std::endl;
+    explicit Statistics(bool latency)
+        : latency_us(latency ? kHistogramBuckets : 0) {}
 
-    uestcradar_shm_t* shm = uestcradar_shm_attach_downstream(shm_name);
-    if (shm == nullptr) {
-        throw std::runtime_error("failed to attach downstream SHM");
+    bool ok(std::uint64_t expected_frames, bool correctness) const {
+        return !correctness ||
+               (frames == expected_frames && corrupted == 0 &&
+                missing == 0 && duplicate == 0 && reordered == 0);
+    }
+};
+
+bool validate_frame(
+    const uestcradar::IQFrame& frame,
+    const Arguments& arguments,
+    std::size_t samples,
+    Statistics& stats) {
+    const std::uint64_t sequence = sequence_from(frame.metadata.frame_id);
+    if (stats.last_sequence != 0) {
+        if (sequence == stats.last_sequence) {
+            ++stats.duplicate;
+        } else if (sequence < stats.last_sequence) {
+            ++stats.reordered;
+        } else if (sequence > stats.last_sequence + 1) {
+            stats.missing += sequence - stats.last_sequence - 1;
+        }
+    } else if (sequence > 1) {
+        stats.missing += sequence - 1;
+    }
+    if (sequence > stats.last_sequence) {
+        stats.last_sequence = sequence;
     }
 
-    struct Cleanup {
-        uestcradar_shm_t* handle;
-        ~Cleanup() { uestcradar_shm_detach(handle); }
-    } cleanup{shm};
-
-    const std::uint64_t start_time_ns = monotonic_ns();
-    std::uint64_t sent_bytes = 0;
-
-    if (args.test == "correctness") {
-        for (std::uint64_t seq = 0; seq < args.frames; ++seq) {
-            const std::uint64_t header = (kMeasure << kPhaseShift) | seq;
-            void* slot_ptr = nullptr;
-            const int rc = uestcradar_shm_acquire_output(shm, &slot_ptr, args.payload_bytes);
-            if (rc != 0) {
-                throw std::runtime_error("failed to acquire output slot");
+    bool valid =
+        frame.metadata.channel_count == 1 &&
+        frame.metadata.samples_per_channel == samples &&
+        frame.data.rows() == 1 && frame.data.columns() == samples;
+    if (valid) {
+        const auto values = frame.data.values();
+        for (std::size_t index = 0; index < values.size(); ++index) {
+            const auto expected = expected_sample(
+                arguments.seed, sequence, index);
+            if (values[index].i != expected.i ||
+                values[index].q != expected.q) {
+                valid = false;
+                break;
             }
-            fill_payload(
-                static_cast<std::uint8_t*>(slot_ptr),
-                args.payload_bytes,
-                args.seed,
-                header);
-            uestcradar_shm_commit_output(shm, args.payload_bytes);
-            sent_bytes += args.payload_bytes;
-            pacing_sleep(start_time_ns, sent_bytes, args.rate_mib_s);
         }
-        std::cout << "[source] successfully sent " << args.frames << " frames" << std::endl;
+    }
+    if (!valid) {
+        ++stats.corrupted;
+    }
+    return valid;
+}
+
+std::uint64_t percentile(
+    const std::vector<std::uint64_t>& histogram,
+    std::uint64_t samples,
+    double fraction) {
+    if (histogram.empty() || samples == 0) {
+        return 0;
+    }
+    const std::uint64_t target = static_cast<std::uint64_t>(
+        std::ceil(static_cast<double>(samples) * fraction));
+    std::uint64_t accumulated = 0;
+    for (std::size_t index = 0; index < histogram.size(); ++index) {
+        accumulated += histogram[index];
+        if (accumulated >= target) {
+            return index;
+        }
+    }
+    return histogram.size() - 1;
+}
+
+void observe(
+    const uestcradar::IQFrame& frame,
+    std::size_t payload_bytes,
+    bool measure_latency,
+    Statistics& stats) {
+    const std::uint64_t now = monotonic_ns();
+    if (stats.frames == 0) {
+        stats.first_ns = now;
+    }
+    stats.last_ns = now;
+    ++stats.frames;
+    stats.bytes += payload_bytes;
+    if (measure_latency) {
+        const std::uint64_t wall_now = unix_ns();
+        const std::uint64_t latency =
+            wall_now >= frame.metadata.timestamp_unix_ns
+                ? wall_now - frame.metadata.timestamp_unix_ns
+                : 0;
+        stats.latency_total_ns += latency;
+        ++stats.latency_us[std::min<std::size_t>(
+            latency / 1000, stats.latency_us.size() - 1)];
+    }
+}
+
+void print_statistics(
+    const Arguments& arguments,
+    const Statistics& stats,
+    double cpu_seconds) {
+    const double wall = stats.frames > 1
+        ? std::max(
+              1e-9,
+              static_cast<double>(stats.last_ns - stats.first_ns) / 1e9)
+        : 1e-9;
+    const double mib =
+        static_cast<double>(stats.bytes) / (1024.0 * 1024.0);
+    std::cout << "{\"benchmark\":\"cascade-" << arguments.test
+              << "\",\"role\":\"" << arguments.role
+              << "\",\"window\":1"
+              << ",\"frames\":" << stats.frames
+              << ",\"bytes\":" << stats.bytes
+              << ",\"duration_s\":" << wall
+              << ",\"mib_s\":" << mib / wall
+              << ",\"messages_s\":" << stats.frames / wall
+              << ",\"cpu_pct\":" << cpu_seconds / wall * 100.0
+              << ",\"corrupted\":" << stats.corrupted
+              << ",\"missing\":" << stats.missing
+              << ",\"duplicate\":" << stats.duplicate
+              << ",\"reordered\":" << stats.reordered;
+    if (!stats.latency_us.empty() && stats.frames != 0) {
+        std::cout << ",\"latency_us_mean\":"
+                  << static_cast<double>(stats.latency_total_ns) /
+                         stats.frames / 1000.0
+                  << ",\"latency_us_p50\":"
+                  << percentile(stats.latency_us, stats.frames, 0.50)
+                  << ",\"latency_us_p99\":"
+                  << percentile(stats.latency_us, stats.frames, 0.99);
+    }
+    std::cout << "}\n";
+}
+
+int run_source(const Arguments& arguments) {
+    uestcradar::Output<uestcradar::IQFrame> output;
+    const std::size_t samples = samples_for_payload(arguments.payload_bytes);
+    const std::size_t bytes = actual_payload_bytes(samples);
+    std::uint64_t sequence = 0;
+    Statistics stats{false};
+
+    if (arguments.test == "benchmark") {
+        const std::uint64_t warmup_end = monotonic_ns() +
+            static_cast<std::uint64_t>(arguments.warmup_seconds * 1e9);
+        while (monotonic_ns() < warmup_end) {
+            write_frame(output, samples, ++sequence, kWarmup, arguments);
+        }
+    }
+
+    const double cpu_started = process_cpu_seconds();
+    const std::uint64_t started = monotonic_ns();
+    const std::uint64_t deadline = started +
+        static_cast<std::uint64_t>(arguments.duration_seconds * 1e9);
+    while ((arguments.test == "correctness" &&
+            stats.frames < arguments.frames) ||
+           (arguments.test == "benchmark" &&
+            monotonic_ns() < deadline)) {
+        write_frame(output, samples, ++sequence, kMeasure, arguments);
+        if (stats.frames == 0) {
+            stats.first_ns = monotonic_ns();
+        }
+        stats.last_ns = monotonic_ns();
+        ++stats.frames;
+        stats.bytes += bytes;
+        pace(arguments.rate_mib_s, stats.bytes, started);
+    }
+    const double cpu = process_cpu_seconds() - cpu_started;
+    write_frame(output, samples, ++sequence, kEnd, arguments);
+    print_statistics(arguments, stats, cpu);
+    return 0;
+}
+
+int run_receiver(const Arguments& arguments) {
+    uestcradar::Input<uestcradar::IQFrame> input;
+    const bool is_operator = arguments.role == "operator";
+    const bool correctness = arguments.test == "correctness";
+    const std::size_t samples = samples_for_payload(arguments.payload_bytes);
+    const std::size_t bytes = actual_payload_bytes(samples);
+    Statistics stats{arguments.role == "sink"};
+    double cpu_started = 0.0;
+    bool measurement_started = false;
+
+    if (is_operator) {
+        uestcradar::Output<uestcradar::IQFrame> output;
+        for (;;) {
+            auto input_frame = input.read();
+            const std::uint64_t phase =
+                phase_from(input_frame.metadata.frame_id);
+            if (phase == kMeasure) {
+                if (!measurement_started) {
+                    cpu_started = process_cpu_seconds();
+                    measurement_started = true;
+                }
+                if (correctness) {
+                    static_cast<void>(validate_frame(
+                        input_frame, arguments, samples, stats));
+                }
+                observe(input_frame, bytes, false, stats);
+            }
+
+            auto output_frame = output.create(input_frame.metadata);
+            std::copy(
+                input_frame.data.values().begin(),
+                input_frame.data.values().end(),
+                output_frame.data.values().begin());
+            output.write(output_frame);
+            if (phase == kEnd) {
+                break;
+            }
+        }
     } else {
-        // benchmark mode
-        const std::uint64_t warmup_ns = static_cast<std::uint64_t>(args.warmup_seconds * 1e9);
-        const std::uint64_t duration_ns = static_cast<std::uint64_t>(args.duration_seconds * 1e9);
-        const std::uint64_t end_ns = start_time_ns + warmup_ns + duration_ns;
-
-        std::uint64_t seq = 0;
-        while (monotonic_ns() < end_ns) {
-            const std::uint64_t now_ns = monotonic_ns();
-            std::uint64_t phase = kMeasure;
-            if (now_ns < start_time_ns + warmup_ns) {
-                phase = kWarmup;
+        for (;;) {
+            auto frame = input.read();
+            const std::uint64_t phase = phase_from(frame.metadata.frame_id);
+            if (phase == kEnd) {
+                break;
             }
-
-            const std::uint64_t header = (phase << kPhaseShift) | (seq & kSequenceMask);
-            void* slot_ptr = nullptr;
-            const int rc = uestcradar_shm_acquire_output(shm, &slot_ptr, args.payload_bytes);
-            if (rc != 0) {
-                throw std::runtime_error("failed to acquire output slot");
+            if (phase != kMeasure) {
+                continue;
             }
-            fill_payload(
-                static_cast<std::uint8_t*>(slot_ptr),
-                args.payload_bytes,
-                args.seed,
-                header);
-            uestcradar_shm_commit_output(shm, args.payload_bytes);
-            sent_bytes += args.payload_bytes;
-            pacing_sleep(start_time_ns, sent_bytes, args.rate_mib_s);
-            seq++;
+            if (!measurement_started) {
+                cpu_started = process_cpu_seconds();
+                measurement_started = true;
+            }
+            if (correctness) {
+                static_cast<void>(validate_frame(
+                    frame, arguments, samples, stats));
+            }
+            observe(frame, bytes, true, stats);
         }
-
-        // send end frame
-        const std::uint64_t end_header = (kEnd << kPhaseShift) | (seq & kSequenceMask);
-        void* slot_ptr = nullptr;
-        if (uestcradar_shm_acquire_output(shm, &slot_ptr, args.payload_bytes) == 0) {
-            fill_payload(static_cast<std::uint8_t*>(slot_ptr), args.payload_bytes, args.seed, end_header);
-            uestcradar_shm_commit_output(shm, args.payload_bytes);
-        }
-        std::cout << "[source] benchmark finished, sent " << seq << " frames" << std::endl;
     }
+
+    const double cpu = measurement_started
+        ? process_cpu_seconds() - cpu_started
+        : 0.0;
+    print_statistics(arguments, stats, cpu);
+    return stats.ok(arguments.frames, correctness) ? 0 : 1;
 }
 
-void run_operator(const Arguments& args) {
-    const char* up_shm = std::getenv("UESTCRADAR_UPSTREAM_SHM_NAME");
-    up_shm = (up_shm != nullptr && up_shm[0] != '\0') ? up_shm : "/uestcradar_cascade_b_upstream";
-
-    const char* down_shm = std::getenv("UESTCRADAR_DOWNSTREAM_SHM_NAME");
-    down_shm = (down_shm != nullptr && down_shm[0] != '\0') ? down_shm : "/uestcradar_cascade_b_downstream";
-
-    std::cout << "[operator] upstream: " << up_shm << ", downstream: " << down_shm << std::endl;
-
-    uestcradar_shm_t* in_shm = uestcradar_shm_attach_upstream(up_shm);
-    if (in_shm == nullptr) {
-        throw std::runtime_error("failed to attach upstream SHM");
-    }
-
-    uestcradar_shm_t* out_shm = uestcradar_shm_attach_downstream(down_shm);
-    if (out_shm == nullptr) {
-        uestcradar_shm_detach(in_shm);
-        throw std::runtime_error("failed to attach downstream SHM");
-    }
-
-    struct Cleanup {
-        uestcradar_shm_t* in;
-        uestcradar_shm_t* out;
-        ~Cleanup() {
-            uestcradar_shm_detach(in);
-            uestcradar_shm_detach(out);
-        }
-    } cleanup{in_shm, out_shm};
-
-    std::uint64_t forwarded_count = 0;
-    for (;;) {
-        const void* in_ptr = nullptr;
-        std::size_t in_len = 0;
-        const int rc = uestcradar_shm_read_input(in_shm, &in_ptr, &in_len);
-        if (rc != 0) {
-            break;
-        }
-
-        const auto* buf = static_cast<const std::uint8_t*>(in_ptr);
-        const std::uint64_t header = read_u64_le(buf);
-        const std::uint64_t phase = header >> kPhaseShift;
-        const std::uint64_t seq = header & kSequenceMask;
-
-        if (args.test == "correctness") {
-            verify_payload(buf, in_len, args.seed, seq);
-        }
-
-        void* out_ptr = nullptr;
-        if (uestcradar_shm_acquire_output(out_shm, &out_ptr, in_len) != 0) {
-            uestcradar_shm_release_input(in_shm);
-            throw std::runtime_error("operator failed to acquire output slot");
-        }
-
-        std::copy_n(buf, in_len, static_cast<std::uint8_t*>(out_ptr));
-        uestcradar_shm_commit_output(out_shm, in_len);
-        uestcradar_shm_release_input(in_shm);
-
-        forwarded_count++;
-
-        if (args.test == "correctness" && forwarded_count >= args.frames) {
-            break;
-        }
-        if (args.test == "benchmark" && phase == kEnd) {
-            break;
-        }
-    }
-
-    std::cout << "[operator] finished forwarding " << forwarded_count << " frames" << std::endl;
-}
-
-void run_sink(const Arguments& args) {
-    const char* up_shm = std::getenv("UESTCRADAR_UPSTREAM_SHM_NAME");
-    up_shm = (up_shm != nullptr && up_shm[0] != '\0') ? up_shm : "/uestcradar_cascade_c_upstream";
-
-    std::cout << "[sink] attaching to upstream SHM: " << up_shm << std::endl;
-
-    uestcradar_shm_t* shm = uestcradar_shm_attach_upstream(up_shm);
-    if (shm == nullptr) {
-        throw std::runtime_error("failed to attach upstream SHM");
-    }
-
-    struct Cleanup {
-        uestcradar_shm_t* handle;
-        ~Cleanup() { uestcradar_shm_detach(handle); }
-    } cleanup{shm};
-
-    std::uint64_t received_count = 0;
-    for (;;) {
-        const void* in_ptr = nullptr;
-        std::size_t in_len = 0;
-        const int rc = uestcradar_shm_read_input(shm, &in_ptr, &in_len);
-        if (rc != 0) {
-            break;
-        }
-
-        const auto* buf = static_cast<const std::uint8_t*>(in_ptr);
-        const std::uint64_t header = read_u64_le(buf);
-        const std::uint64_t phase = header >> kPhaseShift;
-        const std::uint64_t seq = header & kSequenceMask;
-
-        if (args.test == "correctness") {
-            verify_payload(buf, in_len, args.seed, seq);
-        }
-
-        uestcradar_shm_release_input(shm);
-        received_count++;
-
-        if (args.test == "correctness" && received_count >= args.frames) {
-            break;
-        }
-        if (args.test == "benchmark" && phase == kEnd) {
-            break;
-        }
-    }
-
-    std::cout << "[sink] finished receiving " << received_count << " frames" << std::endl;
-}
-
-} // namespace
+}  // namespace
 
 int main(int argc, char* argv[]) {
     try {
-        const Arguments args = parse_arguments(argc, argv);
-        if (args.role == "source") {
-            run_source(args);
-        } else if (args.role == "operator") {
-            run_operator(args);
-        } else if (args.role == "sink") {
-            run_sink(args);
-        }
-        return 0;
-    } catch (const std::exception& ex) {
-        std::cerr << "error: " << ex.what() << std::endl;
+        const Arguments arguments = parse_arguments(argc, argv);
+        return arguments.role == "source"
+                   ? run_source(arguments)
+                   : run_receiver(arguments);
+    } catch (const std::exception& error) {
+        std::cerr << "cascade-worker: " << error.what() << '\n';
         return 1;
     }
 }
