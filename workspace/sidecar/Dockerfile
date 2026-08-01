@@ -42,6 +42,8 @@ RUN mkdir -p /out \
 
 FROM --platform=${SIDECAR_PLATFORM} ${RUNTIME_BASE} AS runtime
 
+LABEL io.uestcradar.contract="sidecar/v1"
+
 RUN test "$(uname -m)" = "aarch64"
 WORKDIR /app
 COPY --from=build /out/sidecar /app/sidecar

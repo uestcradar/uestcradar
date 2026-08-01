@@ -1,5 +1,5 @@
 ARG WEB_PLATFORM=linux/arm64
-ARG GO_BASE=registry.chengyistudio.com/cxx/telemetry-web:build-base
+ARG GO_BASE=registry.chengyistudio.com/cxx/web:build-base
 FROM --platform=${WEB_PLATFORM} ${GO_BASE} AS builder
 
 WORKDIR /src/web
@@ -21,6 +21,8 @@ RUN protoc \
        -o /out/telemetry ./cmd/telemetry
 
 FROM --platform=${WEB_PLATFORM} scratch
+
+LABEL io.uestcradar.contract="web/v1"
 
 COPY --from=builder /out/telemetry /telemetry
 

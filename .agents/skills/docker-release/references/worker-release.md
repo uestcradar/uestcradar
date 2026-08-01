@@ -1,50 +1,31 @@
-# Cascade Worker 算子双 Tag 镜像发布指南
+# Worker 发布
 
-本文档详细说明如何编译、打标并发布版本 Tag 与 `:latest` 覆盖 Tag 的 `cascade-worker` 镜像。
+Worker 开发者可以自由选择构建工具、目录和 Entrypoint。正式发布 Dockerfile 必须位于
+`workspace/examples/<worker-name>/`；当前唯一权威入口为：
 
----
-
-## 1. 核心规则
-
-- **服务器固定配置**：`CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker:latest`
-- **双 Tag 原则**：
-  - `dual-leg-${GIT_SHA}-arm64`：版本备份 Tag。
-  - `latest`：生产最新部署 Tag。
-
----
-
-## 2. 标准构建、双 Tag 打标与推送指令
-
-在项目根目录执行：
-
-```bash
-# 环境变量设置
-export REGISTRY="registry.chengyistudio.com/cxx"
-export GIT_SHA="$(git rev-parse --short=12 HEAD)"
-export VERSION_IMAGE="${REGISTRY}/cascade-worker:dual-leg-${GIT_SHA}-arm64"
-export LATEST_IMAGE="${REGISTRY}/cascade-worker:latest"
-
-# 1. 编译版本镜像
-# 方法 A：支持 buildx 的环境
-docker buildx build --platform linux/arm64 --target cascade-worker -t "$VERSION_IMAGE" --load -f workspace/sidecar/Dockerfile .
-
-# 方法 B：物理 ARM64 目标服务器原生构建 (无 buildx 插件)
-docker build --target cascade-worker -t "$VERSION_IMAGE" -f workspace/sidecar/Dockerfile .
-
-# 2. 关联打标为 :latest
-docker tag "$VERSION_IMAGE" "$LATEST_IMAGE"
-
-# 3. 登录并推送
-docker login registry.chengyistudio.com
-docker push "$VERSION_IMAGE"
-docker push "$LATEST_IMAGE"
+```text
+workspace/examples/cascade_worker/Dockerfile
 ```
 
----
+基础镜像保持为：
 
-## 3. 服务器拉取与无缝部署
+```text
+registry.chengyistudio.com/cxx/algo-base:latest
+```
+
+发布 Tags：
+
+```text
+registry.chengyistudio.com/cxx/worker:cascade-sha-<gitsha12>-arm64
+registry.chengyistudio.com/cxx/worker:cascade-latest
+```
+
+发布命令：
 
 ```bash
-docker pull registry.chengyistudio.com/cxx/cascade-worker:latest
-docker-compose up -d --force-recreate worker-node
+./.agents/skills/docker-release/scripts/release.sh \
+  --remote-dir /root/workspace/uestcradar \
+  --component worker
 ```
+
+禁止使用 `workspace/sidecar/Dockerfile --target cascade-worker` 发布正式 Worker。
