@@ -1,9 +1,9 @@
 #pragma once
 
-#include <data.h>
+#include <raw_frame.hpp>
 
-#include <cstddef>
-#include <utility>
+#include <memory>
+#include <span>
 
 #if defined(_WIN32)
 #  if defined(CYCOMM_SDK_BUILD)
@@ -13,75 +13,47 @@
 #  endif
 #else
 #  define CYCOMM_SDK_API __attribute__((visibility("default")))
+#  define CYCOMM_SDK_LOCAL __attribute__((visibility("hidden")))
+#endif
+
+#if defined(_WIN32)
+#  define CYCOMM_SDK_LOCAL
 #endif
 
 namespace uestcradar {
 
 template <class Frame>
-class FrameHandle;
-
-namespace detail {
-
-struct PortState;
-struct FrameAccess {
-    template <class Frame>
-    static FrameHandle<Frame> make(
-        Frame frame,
-        PortState* state) noexcept;
-
-    template <class Frame>
-    static PortState* state(FrameHandle<Frame>& frame) noexcept;
-
-    template <class Frame>
-    static void finish(FrameHandle<Frame>& frame) noexcept;
-};
-
-CYCOMM_SDK_API void retain(PortState* state) noexcept;
-CYCOMM_SDK_API void abandon(PortState* state) noexcept;
-CYCOMM_SDK_API void release(PortState* state) noexcept;
-
-}  // namespace detail
+class Input;
 
 template <class Frame>
-class FrameHandle final : public Frame {
+class Output;
+
+class CYCOMM_SDK_API RawFrame final {
 public:
-    FrameHandle(FrameHandle&& other) noexcept
-        : Frame(std::move(other)),
-          state_(std::exchange(other.state_, nullptr)) {}
+    RawFrame(RawFrame&& other) noexcept;
+    RawFrame& operator=(RawFrame&& other) noexcept;
+    RawFrame(const RawFrame&) = delete;
+    RawFrame& operator=(const RawFrame&) = delete;
+    ~RawFrame();
 
-    FrameHandle& operator=(FrameHandle&&) = delete;
-    FrameHandle(const FrameHandle&) = delete;
-    FrameHandle& operator=(const FrameHandle&) = delete;
-
-    ~FrameHandle() {
-        if (state_ != nullptr) {
-            detail::abandon(state_);
-            detail::release(state_);
-        }
-    }
+    [[nodiscard]] Envelope& envelope();
+    [[nodiscard]] const Envelope& envelope() const;
+    [[nodiscard]] std::span<std::byte> payload_span();
+    [[nodiscard]] std::span<const std::byte> payload_span() const;
 
 private:
-    FrameHandle(Frame frame, detail::PortState* state) noexcept
-        : Frame(std::move(frame)), state_(state) {
-        detail::retain(state_);
-    }
+    struct Impl;
+    explicit CYCOMM_SDK_LOCAL RawFrame(
+        std::unique_ptr<Impl> impl) noexcept;
 
-    void finish() noexcept {
-        detail::release(state_);
-        state_ = nullptr;
-    }
+    std::unique_ptr<Impl> impl_;
 
-    detail::PortState* state_{nullptr};
-
-    friend struct detail::FrameAccess;
-    template <class>
-    friend class Input;
-    template <class>
-    friend class Output;
+    friend class Input<RawFrame>;
+    friend class Output<RawFrame>;
 };
 
-template <class Frame>
-class CYCOMM_SDK_API Input {
+template <>
+class CYCOMM_SDK_API Input<RawFrame> final {
 public:
     Input();
     Input(Input&& other) noexcept;
@@ -90,14 +62,15 @@ public:
     Input& operator=(const Input&) = delete;
     ~Input();
 
-    [[nodiscard]] FrameHandle<Frame> read();
+    [[nodiscard]] RawFrame read();
 
 private:
-    detail::PortState* state_{nullptr};
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
-template <class Frame>
-class CYCOMM_SDK_API Output {
+template <>
+class CYCOMM_SDK_API Output<RawFrame> final {
 public:
     Output();
     Output(Output&& other) noexcept;
@@ -106,19 +79,12 @@ public:
     Output& operator=(const Output&) = delete;
     ~Output();
 
-    [[nodiscard]] FrameHandle<Frame> create(
-        const typename Frame::Metadata& metadata);
-    void write(FrameHandle<Frame>& frame);
+    [[nodiscard]] RawFrame create(const Envelope& envelope);
+    void write(RawFrame&& frame);
 
 private:
-    detail::PortState* state_{nullptr};
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
-
-extern template class Input<IQFrame>;
-extern template class Input<PulseCompressionFrame>;
-extern template class Input<RDFrame>;
-extern template class Output<IQFrame>;
-extern template class Output<PulseCompressionFrame>;
-extern template class Output<RDFrame>;
 
 }  // namespace uestcradar

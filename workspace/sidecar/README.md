@@ -109,9 +109,9 @@ workspace/sidecar/tools/run_cascade_test.sh benchmark
 ## Ubuntu ARM64 镜像发布
 
 生产测试使用仓库中已经固定 Digest 的 Ubuntu `build-base` 和 `runtime-base`。
-普通 Sidecar 代码修改只需要重建并推送最终 Sidecar 镜像；只有基础依赖、UCX、
-编译器或系统包发生变化时，才需要更新两个基础镜像。Worker/SDK 源码没有变化时，
-不需要重新推送 `cascade-worker`。
+只有基础依赖、UCX、编译器或系统包发生变化时，才需要更新两个基础镜像。本次
+RawFrame ABI 升级同时修改了 Sidecar、SDK 和 cascade-worker，二者必须使用同一
+提交重新构建并成对发布。
 
 每次发布同时维护两个 Tag：
 
@@ -125,6 +125,9 @@ GIT_SHA="$(git rev-parse --short HEAD)"
 SIDECAR_REPO=registry.chengyistudio.com/cxx/sidecar
 VERSION_IMAGE="${SIDECAR_REPO}:dual-leg-${GIT_SHA}-arm64"
 LATEST_IMAGE="${SIDECAR_REPO}:latest"
+CASCADE_REPO=registry.chengyistudio.com/cxx/cascade-worker
+CASCADE_VERSION_IMAGE="${CASCADE_REPO}:raw-frame-${GIT_SHA}-arm64"
+CASCADE_LATEST_IMAGE="${CASCADE_REPO}:latest"
 
 docker buildx build \
   --builder default \
@@ -142,9 +145,21 @@ docker run --rm --platform linux/arm64 \
   --entrypoint sh "${VERSION_IMAGE}" \
   -c 'test "$(uname -m)" = aarch64 && ucx_info -v && ldd /app/sidecar'
 
+docker buildx build \
+  --builder default \
+  --platform linux/arm64 \
+  --target cascade-worker \
+  -f workspace/sidecar/Dockerfile \
+  -t "${CASCADE_VERSION_IMAGE}" \
+  --load \
+  .
+
 docker tag "${VERSION_IMAGE}" "${LATEST_IMAGE}"
+docker tag "${CASCADE_VERSION_IMAGE}" "${CASCADE_LATEST_IMAGE}"
 docker push "${VERSION_IMAGE}"
 docker push "${LATEST_IMAGE}"
+docker push "${CASCADE_VERSION_IMAGE}"
+docker push "${CASCADE_LATEST_IMAGE}"
 ```
 
 推送日志会返回 Registry Digest。可用以下命令回读确认：
@@ -163,6 +178,9 @@ docker buildx imagetools inspect "${LATEST_IMAGE}"
 
 ```env
 SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
+CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker:latest
+TYPE_ID=1
+TYPE_VERSION=2
 ```
 
 以后发布新版本不再修改 env。Docker 18.09 不会因为远端 Tag 变化自动替换本地镜像，
@@ -170,9 +188,10 @@ SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
 
 ```bash
 docker pull "$SIDECAR_IMAGE"
+docker pull "$CASCADE_IMAGE"
 
 docker-compose --env-file "$ENV_FILE" -p "$PROJECT" \
-  -f "$COMPOSE" up -d --no-build --force-recreate sidecar-node
+  -f "$COMPOSE" up -d --no-build --force-recreate sidecar-node worker-node
 
 docker-compose --env-file "$ENV_FILE" -p "$PROJECT" \
   -f "$COMPOSE" logs --no-color sidecar-node

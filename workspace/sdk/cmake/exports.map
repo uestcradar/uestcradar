@@ -1,6 +1,7 @@
-CYCOMM_SDK_3.0 {
+CYCOMM_SDK_4.0 {
     global:
-        _ZN10uestcradar6detail*;
+        _ZN10uestcradar8RawFrame*;
+        _ZNK10uestcradar8RawFrame*;
         _ZN10uestcradar5Input*;
         _ZN10uestcradar6Output*;
     local:

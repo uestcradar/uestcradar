@@ -1,31 +1,20 @@
 cmake_minimum_required(VERSION 3.16)
-project(qt5-algorithm-example LANGUAGES CXX)
+project(qt5_algorithm_example LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# 自动处理 Qt 的 MOC, UIC, RCC
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
-
-# 寻找 Qt5 Core 模块
+include(CTest)
 find_package(Qt5 COMPONENTS Core REQUIRED)
+find_package(cycomm_sdk CONFIG REQUIRED)
 
-# 寻找我们自研的通信基座 SDK
-find_package(cycomm_sdk REQUIRED)
+add_executable(qt5-algorithm src/main.cpp)
+target_link_libraries(qt5-algorithm PRIVATE Qt5::Core cycomm::sdk)
+target_compile_features(qt5-algorithm PRIVATE cxx_std_20)
+target_compile_options(qt5-algorithm PRIVATE -Wall -Wextra -Wpedantic)
 
-# 添加可执行文件
-add_executable(qt5_algo
-    src/main.cpp
-    src/radar_reader.cpp
-    src/radar_reader.hpp
-    src/channel_processor.cpp
-    src/channel_processor.hpp
-)
-
-# 链接库
-target_link_libraries(qt5_algo PRIVATE
-    Qt5::Core
-    cycomm::sdk
-)
+if(BUILD_TESTING)
+    add_executable(rd-algorithm-test src/rd_algorithm_test.cpp)
+    target_link_libraries(rd-algorithm-test PRIVATE cycomm::sdk)
+    target_compile_features(rd-algorithm-test PRIVATE cxx_std_20)
+    target_compile_options(
+        rd-algorithm-test PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME rd-algorithm-test COMMAND rd-algorithm-test)
+endif()

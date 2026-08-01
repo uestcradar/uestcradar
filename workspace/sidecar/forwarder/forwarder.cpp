@@ -123,13 +123,21 @@ public:
         }
         if (read_lease_.active() && credit_available_ &&
             !payload_send_active_) {
-            if (read_lease_.payload().size() > credit_) {
+            const auto frame = read_lease_.frame();
+            const auto& envelope = read_lease_.envelope();
+            if (!frame_contract_is_valid(
+                    ring_, envelope, frame.size())) {
                 throw std::runtime_error(
-                    "record exceeds peer receive slot");
+                    "egress RawFrame contract is invalid");
             }
-            payload_length_ = read_lease_.payload().size();
+            if (frame.size() > credit_) {
+                throw std::runtime_error(
+                    "RawFrame exceeds peer receive slot");
+            }
+            payload_length_ = envelope.payload_length;
+            frame_length_ = frame.size();
             payload_send_ = transport_.send(
-                read_lease_.payload(),
+                frame,
                 protocol::kPayloadTag,
                 &memory_);
             payload_send_active_ = true;
@@ -137,9 +145,9 @@ public:
         }
         if (payload_send_active_ && payload_send_.completed()) {
             transport_.wait(payload_send_);
-            if (payload_send_.bytes_transferred() != payload_length_) {
+            if (payload_send_.bytes_transferred() != frame_length_) {
                 throw std::runtime_error(
-                    "egress payload length mismatch");
+                    "egress RawFrame length mismatch");
             }
             if (ringbuf_release(read_lease_) != RingResult::ok) {
                 throw std::runtime_error(
@@ -151,6 +159,7 @@ public:
             credit_available_ = false;
             credit_ = 0;
             payload_length_ = 0;
+            frame_length_ = 0;
             activity = true;
         }
         return activity;
@@ -167,6 +176,7 @@ private:
     UCXRequest payload_send_;
     std::size_t credit_{0};
     std::size_t payload_length_{0};
+    std::size_t frame_length_{0};
     bool credit_receive_active_{false};
     bool credit_available_{false};
     bool payload_send_active_{false};
@@ -194,14 +204,13 @@ public:
             const RingResult result =
                 ringbuf_reserve(ring_, write_lease_);
             if (result == RingResult::ok) {
-                const std::size_t capacity =
-                    write_lease_.payload().size();
+                const auto capacity = write_lease_.frame_capacity();
                 payload_receive_ = transport_.receive(
-                    write_lease_.payload(),
+                    capacity,
                     protocol::kPayloadTag,
                     UINT64_MAX,
                     &memory_);
-                credit_bytes_ = protocol::encode_credit(capacity);
+                credit_bytes_ = protocol::encode_credit(capacity.size());
                 credit_send_ = transport_.send(
                     credit_bytes_, protocol::kCreditTag);
                 active_ = true;
@@ -218,15 +227,19 @@ public:
                 transport_.wait(payload_receive_);
                 const std::size_t received =
                     payload_receive_.bytes_transferred();
-                if (received == 0 ||
-                    received > write_lease_.payload().size() ||
-                    ringbuf_commit(write_lease_, received) !=
+                const auto& envelope = write_lease_.envelope();
+                const std::size_t payload_length =
+                    envelope.payload_length;
+                const bool valid = frame_contract_is_valid(
+                    ring_, envelope, received);
+                if (!valid ||
+                    ringbuf_commit(write_lease_) !=
                         RingResult::ok) {
                     throw std::runtime_error(
-                        "ingress received invalid record length");
+                        "ingress received invalid RawFrame");
                 }
                 metrics_.payload_bytes_total.fetch_add(
-                    received, std::memory_order_relaxed);
+                    payload_length, std::memory_order_relaxed);
             } catch (...) {
                 ringbuf_cancel(write_lease_);
                 throw;
@@ -318,6 +331,18 @@ private:
 };
 
 }  // namespace
+
+bool frame_contract_is_valid(
+    const RingBuffer* ring,
+    const uestcradar::Envelope& envelope,
+    std::size_t frame_length) noexcept {
+    return ring != nullptr && ring->header != nullptr &&
+           envelope.type_id == ring->header->type_id &&
+           envelope.type_version == ring->header->type_version &&
+           envelope.payload_length != 0 &&
+           envelope.payload_length <= ring->header->max_payload_bytes &&
+           frame_length == kSlotHeaderSize + envelope.payload_length;
+}
 
 void run_ingress_session(
     volatile std::sig_atomic_t& running,

@@ -1,5 +1,6 @@
 #include "forwarder/forwarder_protocol.hpp"
 #include "network/ucx_transport.hpp"
+#include "raw_frame.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -7,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -215,7 +217,7 @@ void exchange_and_validate_contract(
     }
     const protocol::PortContract port{
         iq_frame_type_id,
-        1,
+        2,
         static_cast<std::uint32_t>(chunk_bytes),
     };
     protocol::HelloBytes incoming{};
@@ -256,8 +258,10 @@ public:
         UCXTransport& transport,
         std::size_t chunk_bytes)
         : transport_(transport),
-          send_buffer_(chunk_bytes, std::byte{0}),
-          receive_buffer_(chunk_bytes, std::byte{0}),
+          chunk_bytes_(chunk_bytes),
+          send_buffer_(uestcradar::kEnvelopeSize + chunk_bytes, std::byte{0}),
+          receive_buffer_(
+              uestcradar::kEnvelopeSize + chunk_bytes, std::byte{0}),
           send_memory_(transport.register_memory(send_buffer_)),
           receive_memory_(transport.register_memory(receive_buffer_)) {}
 
@@ -317,11 +321,24 @@ private:
         }
         if (credit_available_ && !payload_send_active_ &&
             now >= next_send_ && rate > 0.0) {
+            if (peer_credit_ <= uestcradar::kEnvelopeSize) {
+                throw std::runtime_error("peer credit cannot hold Envelope");
+            }
             payload_length_ = std::min(
-                peer_credit_, send_buffer_.size());
+                chunk_bytes_, peer_credit_ - uestcradar::kEnvelopeSize);
+            const uestcradar::Envelope envelope{
+                .frame_id = ++sequence_,
+                .type_id = 1,
+                .type_version = 2,
+                .payload_length =
+                    static_cast<std::uint32_t>(payload_length_),
+            };
+            std::memcpy(
+                send_buffer_.data(), &envelope, sizeof(envelope));
+            frame_length_ = uestcradar::kEnvelopeSize + payload_length_;
             payload_send_ = transport_.send(
                 std::span<const std::byte>{
-                    send_buffer_.data(), payload_length_},
+                    send_buffer_.data(), frame_length_},
                 protocol::kPayloadTag,
                 &send_memory_);
             payload_send_active_ = true;
@@ -337,6 +354,7 @@ private:
             credit_available_ = false;
             peer_credit_ = 0;
             payload_length_ = 0;
+            frame_length_ = 0;
             activity = true;
         }
         return activity;
@@ -365,9 +383,20 @@ private:
             transport_.wait(payload_receive_);
             const std::size_t received =
                 payload_receive_.bytes_transferred();
-            if (received == 0 ||
+            uestcradar::Envelope envelope{};
+            if (received >= sizeof(envelope)) {
+                std::memcpy(&envelope, receive_buffer_.data(), sizeof(envelope));
+            }
+            const bool valid =
+                received >= sizeof(envelope) &&
+                envelope.type_id == 1 &&
+                envelope.type_version == 2 &&
+                envelope.payload_length <= chunk_bytes_ &&
+                received == sizeof(envelope) + envelope.payload_length;
+            if (!valid ||
                 !std::all_of(
-                    receive_buffer_.begin(),
+                    receive_buffer_.begin() +
+                        static_cast<std::ptrdiff_t>(sizeof(envelope)),
                     receive_buffer_.begin() +
                         static_cast<std::ptrdiff_t>(received),
                     [](std::byte value) {
@@ -376,10 +405,10 @@ private:
                 throw std::runtime_error(
                     "received payload failed validation");
             }
-            interval_received_ += received;
-            total_received_ += received;
+            interval_received_ += envelope.payload_length;
+            total_received_ += envelope.payload_length;
             next_receive_ = std::max(next_receive_, now) +
-                            pacing_delay(received, rate);
+                            pacing_delay(envelope.payload_length, rate);
             payload_completed_ = true;
             activity = true;
         }
@@ -400,6 +429,7 @@ private:
     }
 
     UCXTransport& transport_;
+    std::size_t chunk_bytes_;
     std::vector<std::byte> send_buffer_;
     std::vector<std::byte> receive_buffer_;
     UCXMemoryRegion send_memory_;
@@ -416,6 +446,8 @@ private:
     Clock::time_point next_receive_{Clock::now()};
     std::size_t peer_credit_{0};
     std::size_t payload_length_{0};
+    std::size_t frame_length_{0};
+    std::uint64_t sequence_{0};
     bool credit_receive_active_{false};
     bool credit_available_{false};
     bool payload_send_active_{false};

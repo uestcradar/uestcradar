@@ -1,21 +1,70 @@
 #pragma once
 
-#include <vector>
-#include <complex>
+#include <data.h>
+
 #include <cmath>
-#include <iostream>
+#include <cstddef>
+#include <cstdint>
+#include <numbers>
 
-namespace RadarSource {
+namespace radar_example {
 
-    // 内部隐藏的波形生成逻辑 (100Hz 正弦波)
-    inline void generate_sine_wave(std::vector<std::complex<float>>& frame) {
-        const float fs = 1000.0f; // 采样率
-        const float f0 = 100.0f;  // 正弦波频率
-        const size_t N = frame.size();
+inline constexpr std::uint32_t kIqSamples = 128;
+inline constexpr std::uint32_t kRangeBins = 64;
+inline constexpr std::uint32_t kPulsesPerCpi = 8;
+inline constexpr std::uint32_t kTargetRangeBin = 17;
+inline constexpr std::uint32_t kTargetDopplerBin = 2;
 
-        for (size_t i = 0; i < N; ++i) {
-            float t = static_cast<float>(i) / fs;
-            frame[i] = std::polar(1.0f, 2.0f * static_cast<float>(M_PI) * f0 * t);
-        }
+inline uestcradar::IQMetadata iq_metadata() {
+    return {
+        .channel_count = 1,
+        .samples_per_channel = kIqSamples,
+        .sample_rate_hz = 1.0e6,
+        .center_frequency_hz = 10.0e9,
+    };
+}
+
+inline uestcradar::PulseCompressionMetadata pulse_metadata(
+    std::uint64_t frame_id) {
+    return {
+        .channel_count = 1,
+        .range_bin_count = kRangeBins,
+        .pulse_index = static_cast<std::uint32_t>(
+            (frame_id - 1) % kPulsesPerCpi),
+        .pulses_per_cpi = kPulsesPerCpi,
+        .range_resolution_m = 1.5,
+    };
+}
+
+inline void fill_iq(uestcradar::IQFrameView& frame) {
+    auto samples = frame.data()[0];
+    for (std::size_t index = 0; index < samples.size(); ++index) {
+        const double position =
+            static_cast<double>(index) / static_cast<double>(samples.size());
+        const double phase = std::numbers::pi * 16.0 * position * position;
+        samples[index] = {
+            static_cast<std::int16_t>(std::cos(phase) * 20'000.0),
+            static_cast<std::int16_t>(std::sin(phase) * 20'000.0),
+        };
     }
 }
+
+inline void fill_pulse(
+    uestcradar::PulseCompressionFrameView& frame) {
+    auto bins = frame.data()[0];
+    for (auto& value : bins) {
+        value = {};
+    }
+
+    const auto pulse_index = frame.metadata().pulse_index;
+    const double phase =
+        2.0 * std::numbers::pi *
+        static_cast<double>(kTargetDopplerBin * pulse_index) /
+        static_cast<double>(kPulsesPerCpi);
+    bins[kTargetRangeBin] = {
+        static_cast<float>(100.0 * std::cos(phase)),
+        static_cast<float>(100.0 * std::sin(phase)),
+    };
+}
+
+}  // namespace radar_example

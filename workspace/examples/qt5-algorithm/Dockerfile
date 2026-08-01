@@ -14,9 +14,8 @@ COPY . .
 
 WORKDIR /build
 # 使用 CMake 编译 Qt5 工程
-RUN cmake /src \
-    -DCMAKE_BUILD_TYPE=Release \
-    && make -j$(nproc)
+RUN cmake -S /src -B /build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /build --parallel
 
 # ==============================================================================
 # 第二阶段：运行阶段 (Runtime)
@@ -30,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /build/qt5_algo .
+COPY --from=builder /build/qt5-algorithm .
 
 # 设定程序的入口点
-ENTRYPOINT ["/app/qt5_algo"]
+ENTRYPOINT ["/app/qt5-algorithm"]

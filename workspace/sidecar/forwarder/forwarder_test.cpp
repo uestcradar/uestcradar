@@ -48,7 +48,14 @@ bool write_record(RingBuffer* ring, const std::vector<std::byte>& data) {
         const RingResult result = ringbuf_reserve(ring, lease);
         if (result == RingResult::ok) {
             std::copy(data.begin(), data.end(), lease.payload().begin());
-            return ringbuf_commit(lease, data.size()) == RingResult::ok;
+            lease.envelope() = {
+                .frame_id = 1,
+                .timestamp = 2,
+                .type_id = ring->header->type_id,
+                .type_version = ring->header->type_version,
+                .payload_length = static_cast<std::uint32_t>(data.size()),
+            };
+            return ringbuf_commit(lease) == RingResult::ok;
         }
         if (result != RingResult::would_block) {
             return false;

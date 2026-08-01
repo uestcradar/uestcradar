@@ -1,50 +1,118 @@
+#include <data.h>
+
+#include "my_rd_algorithm.hpp"
+
 #include <QCoreApplication>
 #include <QDebug>
-#include <QObject>
-#include <csignal>
 
-#include "radar_reader.hpp"
-#include "channel_processor.hpp"
+#include <cstdint>
+#include <cstdlib>
+#include <stdexcept>
+#include <string_view>
+#include <utility>
 
 namespace {
-    QCoreApplication* appInstance = nullptr;
-    void handleSignal(int) {
-        if (appInstance) {
-            qInfo() << "Stop signal received, shutting down gracefully...";
-            appInstance->quit();
-        }
+
+struct Options {
+    std::uint64_t frames{0};
+    std::uint64_t log_every{1};
+};
+
+std::uint64_t parse_uint64(const char* value) {
+    char* end = nullptr;
+    const auto result = std::strtoull(value, &end, 10);
+    if (end == value || *end != '\0') {
+        throw std::invalid_argument("invalid integer option");
     }
+    return result;
 }
 
-int main(int argc, char *argv[]) {
-    QCoreApplication app(argc, argv);
-    appInstance = &app;
-    
-    std::signal(SIGINT, handleSignal);
-    std::signal(SIGTERM, handleSignal);
+Options parse_options(int argc, char** argv) {
+    Options options;
+    for (int index = 1; index < argc; ++index) {
+        const std::string_view argument{argv[index]};
+        if (argument == "--frames" && index + 1 < argc) {
+            options.frames = parse_uint64(argv[++index]);
+        } else if (argument == "--log-every" && index + 1 < argc) {
+            options.log_every = parse_uint64(argv[++index]);
+        } else {
+            throw std::invalid_argument("unknown or incomplete option");
+        }
+    }
+    if (options.log_every == 0) {
+        throw std::invalid_argument("log interval must be positive");
+    }
+    return options;
+}
 
-    qInfo() << "启动 Qt5 多通道并行雷达算法基座 (版本: " << qVersion() << ")";
+}  // namespace
 
-    // 1. 启动雷达数据源采集 (自动在后台无阻塞循环读取 SDK，并进行通道解包)
-    RadarReader reader;
+int main(int argc, char** argv) {
+    QCoreApplication application(argc, argv);
+    try {
+        const Options options = parse_options(argc, argv);
+        uestcradar::Input<uestcradar::RawFrame> input;
+        uestcradar::Output<uestcradar::RawFrame> output;
+        radar_qt_example::CpiBuffer cpi;
 
-    // 2. 初始化多通道并行处理器 (各自运行在独立的 QThread)
-    ChannelProcessor channel1("Channel_1_FFT");
-    ChannelProcessor channel2("Channel_2_CFAR");
+        qInfo() << "[qt-algorithm] pulse compression -> RD ready"
+                << "frames=" << options.frames;
 
-    // 3. 将雷达数据分发给不同的通道进行异步处理 (跨线程信号槽)
-    QObject::connect(&reader, &RadarReader::channel1DataReceived, 
-                     &channel1, &ChannelProcessor::processData, Qt::QueuedConnection);
-    QObject::connect(&reader, &RadarReader::channel2DataReceived, 
-                     &channel2, &ChannelProcessor::processData, Qt::QueuedConnection);
+        std::uint64_t produced = 0;
+        while (options.frames == 0 || produced < options.frames) {
+            uestcradar::RawFrame input_frame = input.read();
+            auto pulse =
+                uestcradar::PulseCompressionFrameView::from(input_frame);
+            cpi.push(
+                pulse.metadata().pulse_index,
+                pulse.metadata().pulses_per_cpi,
+                pulse.data()[0]);
 
-    // 4. 开始运行
-    reader.start();
-    int ret = app.exec();
+            if (!cpi.ready()) {
+                continue;
+            }
 
-    // 退出清理
-    reader.stop();
-    reader.wait();
-    
-    return ret;
+            const uestcradar::RDMetadata metadata{
+                .channel_index = 0,
+                .range_bin_count = static_cast<std::uint32_t>(
+                    cpi.range_bin_count()),
+                .doppler_bin_count = radar_qt_example::kPulsesPerCpi,
+                .reserved = 0,
+                .range_resolution_m =
+                    pulse.metadata().range_resolution_m,
+                .velocity_resolution_mps = 0.5,
+            };
+            uestcradar::RawFrame output_frame = output.create({
+                .frame_id = input_frame.envelope().frame_id,
+                .timestamp = input_frame.envelope().timestamp,
+                .type_id = uestcradar::RDFrameView::type_id,
+                .type_version = uestcradar::RDFrameView::type_version,
+                .payload_length = static_cast<std::uint32_t>(
+                    uestcradar::RDFrameView::payload_bytes(metadata)),
+            });
+            auto rd = uestcradar::RDFrameView::initialize(
+                output_frame, metadata);
+            const auto result =
+                radar_qt_example::compute_rd(cpi, rd.data());
+
+            ++produced;
+            if (produced == 1 || produced % options.log_every == 0) {
+                qInfo() << "[qt-algorithm] produced=" << produced
+                        << "frame=" << input_frame.envelope().frame_id
+                        << "RD=" << rd.data().rows() << "x"
+                        << rd.data().columns()
+                        << "peak=" << result.peak_range_bin << ","
+                        << result.peak_doppler_bin;
+            }
+
+            output.write(std::move(output_frame));
+            cpi.clear();
+        }
+
+        qInfo() << "[qt-algorithm] completed frames=" << produced;
+        return 0;
+    } catch (const std::exception& error) {
+        qCritical() << "[qt-algorithm] error=" << error.what();
+        return 1;
+    }
 }

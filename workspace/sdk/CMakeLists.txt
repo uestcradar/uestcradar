@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(cycomm_sdk VERSION 3.0.0 LANGUAGES CXX)
+project(cycomm_sdk VERSION 4.0.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -35,6 +35,7 @@ target_link_libraries(uestcradar_sdk PRIVATE uestcradar::ringbuf)
 target_include_directories(uestcradar_sdk
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../common>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -75,7 +76,10 @@ install(TARGETS uestcradar_sdk
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 )
-install(FILES include/sdk.h include/data.h
+install(FILES
+    include/sdk.h
+    include/data.h
+    ../common/raw_frame.hpp
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(EXPORT cycomm_sdkTargets
     FILE cycomm_sdkTargets.cmake
