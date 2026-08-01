@@ -214,7 +214,7 @@ pull_remote_tag() {
     fi
 
     if grep -Eqi \
-        'manifest unknown|manifest.*not found|not found: manifest|repository .* not found' \
+        'manifest unknown|manifest.*not found|not found: manifest|repository .* not found|artifact.*not found|unknown: artifact' \
         <<<"$output"; then
         return 10
     fi
