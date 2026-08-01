@@ -20,18 +20,15 @@
 # 环境变量设置
 export REGISTRY="registry.chengyistudio.com/cxx"
 export GIT_SHA="$(git rev-parse --short=12 HEAD)"
-export PLATFORM="linux/arm64"
-
 export VERSION_IMAGE="${REGISTRY}/sidecar:dual-leg-${GIT_SHA}-arm64"
 export LATEST_IMAGE="${REGISTRY}/sidecar:latest"
 
 # 1. 编译版本镜像
-docker buildx build \
-  --platform "$PLATFORM" \
-  --target runtime \
-  -t "$VERSION_IMAGE" \
-  --load \
-  -f workspace/sidecar/Dockerfile .
+# 方法 A：在支持 buildx 插件的编译机上执行 (跨平台/支持 --platform)
+docker buildx build --platform linux/arm64 --target runtime -t "$VERSION_IMAGE" --load -f workspace/sidecar/Dockerfile .
+
+# 方法 B：在物理 ARM64 目标服务器上执行原生构建 (适用于旧版 Docker 18.09 / 无 buildx 插件)
+docker build --target runtime -t "$VERSION_IMAGE" -f workspace/sidecar/Dockerfile .
 
 # 2. 关联打标为 :latest
 docker tag "$VERSION_IMAGE" "$LATEST_IMAGE"

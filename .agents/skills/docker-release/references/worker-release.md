@@ -21,18 +21,15 @@
 # 环境变量设置
 export REGISTRY="registry.chengyistudio.com/cxx"
 export GIT_SHA="$(git rev-parse --short=12 HEAD)"
-export PLATFORM="linux/arm64"
-
 export VERSION_IMAGE="${REGISTRY}/cascade-worker:dual-leg-${GIT_SHA}-arm64"
 export LATEST_IMAGE="${REGISTRY}/cascade-worker:latest"
 
 # 1. 编译版本镜像
-docker buildx build \
-  --platform "$PLATFORM" \
-  --target cascade-worker \
-  -t "$VERSION_IMAGE" \
-  --load \
-  -f workspace/sidecar/Dockerfile .
+# 方法 A：支持 buildx 的环境
+docker buildx build --platform linux/arm64 --target cascade-worker -t "$VERSION_IMAGE" --load -f workspace/sidecar/Dockerfile .
+
+# 方法 B：物理 ARM64 目标服务器原生构建 (无 buildx 插件)
+docker build --target cascade-worker -t "$VERSION_IMAGE" -f workspace/sidecar/Dockerfile .
 
 # 2. 关联打标为 :latest
 docker tag "$VERSION_IMAGE" "$LATEST_IMAGE"

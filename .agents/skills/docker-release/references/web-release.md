@@ -20,17 +20,15 @@
 # 环境变量设置
 export REGISTRY="registry.chengyistudio.com/cxx"
 export GIT_SHA="$(git rev-parse --short=12 HEAD)"
-export PLATFORM="linux/arm64"
-
 export VERSION_IMAGE="${REGISTRY}/telemetry-web:dual-leg-${GIT_SHA}-arm64"
 export LATEST_IMAGE="${REGISTRY}/telemetry-web:latest"
 
 # 1. 编译版本镜像
-docker buildx build \
-  --platform "$PLATFORM" \
-  -t "$VERSION_IMAGE" \
-  --load \
-  -f workspace/web/Dockerfile .
+# 方法 A：支持 buildx 的环境
+docker buildx build --platform linux/arm64 -t "$VERSION_IMAGE" --load -f workspace/web/Dockerfile .
+
+# 方法 B：物理 ARM64 目标服务器原生构建 (无 buildx 插件)
+docker build -t "$VERSION_IMAGE" -f workspace/web/Dockerfile .
 
 # 2. 关联打标为 :latest
 docker tag "$VERSION_IMAGE" "$LATEST_IMAGE"
@@ -44,8 +42,6 @@ docker push "$LATEST_IMAGE"
 ---
 
 ## 3. 服务器端原生 `docker run` 完整安全参数运行
-
-为了 100% 对齐 `compose.yaml` 中配置的只读文件系统、权限剥离与 CPU/内存资源限制，在服务器端使用以下完整的 `docker run` 命令：
 
 ```bash
 # 1. 拉取最新的 web 镜像
@@ -70,17 +66,3 @@ docker run -d \
 # 4. 查看运行日志确认
 docker logs -f telemetry-web
 ```
-
----
-
-## 4. `docker run` 与 `compose.yaml` 参数对齐表
-
-| Compose 参数 | `docker run` 对应 Flag | 说明 |
-| :--- | :--- | :--- |
-| `ports: "8081:8080"` | `-p 8081:8080` | Web 界面端口映射 |
-| `ports: "9900:9900/udp"` | `-p 9900:9900/udp` | UDP 遥测数据包接收端口 |
-| `read_only: true` | `--read-only` | 锁定容器根文件系统为只读 |
-| `cap_drop: - ALL` | `--cap-drop=ALL` | 剥离所有 Linux 特权 Capabilities |
-| `security_opt: - no-new-privileges:true` | `--security-opt no-new-privileges:true` | 防止容器内进程提升权限 |
-| `mem_limit: 128m` | `--memory 128m` | 内存硬上限限制为 128MB |
-| `cpus: 0.50` | `--cpus 0.50` | CPU 硬限制为 0.5 核 |
