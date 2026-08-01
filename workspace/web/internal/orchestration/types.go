@@ -47,10 +47,19 @@ type NodeInspection struct {
 	SidecarContract    string          `json:"sidecar_contract,omitempty"`
 	Workers            []ImageInfo     `json:"workers"`
 	ExistingDeployment bool            `json:"existing_deployment"`
+	DeploymentState    string          `json:"deployment_state,omitempty"`
 	HostKeyFingerprint string          `json:"host_key_fingerprint,omitempty"`
 	HostKeyRequired    bool            `json:"host_key_required,omitempty"`
 	Error              string          `json:"error,omitempty"`
 	InspectedAt        time.Time       `json:"inspected_at,omitempty"`
+}
+
+type TaskOutputChunk struct {
+	Sequence uint64    `json:"sequence"`
+	At       time.Time `json:"at"`
+	IP       string    `json:"ip,omitempty"`
+	Stream   string    `json:"stream"`
+	Text     string    `json:"text"`
 }
 
 type ChainEntry struct {
@@ -91,12 +100,16 @@ type DeploymentPlan struct {
 }
 
 type Task struct {
-	ID        string    `json:"id"`
-	Kind      string    `json:"kind"`
-	Status    string    `json:"status"`
-	Message   string    `json:"message,omitempty"`
-	CurrentIP string    `json:"current_ip,omitempty"`
-	Completed []string  `json:"completed,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                 string            `json:"id"`
+	Kind               string            `json:"kind"`
+	Status             string            `json:"status"`
+	Message            string            `json:"message,omitempty"`
+	CurrentIP          string            `json:"current_ip,omitempty"`
+	Completed          []string          `json:"completed,omitempty"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
+	Output             []TaskOutputChunk `json:"output,omitempty"`
+	OutputTruncated    bool              `json:"output_truncated,omitempty"`
+	outputBytes        int
+	nextOutputSequence uint64
 }

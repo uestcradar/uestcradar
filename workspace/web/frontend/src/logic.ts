@@ -3,6 +3,7 @@ import type { ChainEntry, NodeInspection, Role, TelemetryNode } from './types';
 export const roleAt = (index: number, total: number): Role => index === 0 ? 'source' : index === total - 1 ? 'sink' : 'operator';
 
 export function validateChain(chain: ChainEntry[], nodes: NodeInspection[]): string {
+	if (chain.length < 2) return '至少需要一个 Source 节点和一个 Sink 节点';
   if (chain.some(entry => !entry.ip || !entry.rdma_device || !entry.worker_image)) return '请完整选择每个节点、RDMA 端口和 Worker';
   if (new Set(chain.map(entry => entry.ip)).size !== chain.length) return '同一物理节点不能重复出现在链路中';
   for (let index = 0; index < chain.length - 1; index++) {
@@ -13,6 +14,21 @@ export function validateChain(chain: ChainEntry[], nodes: NodeInspection[]): str
     if (current && next && current.contract.output !== next.contract.input) return `类型不兼容：${current.contract.output} → ${next.contract.input}`;
   }
   return '';
+}
+
+export function workerSupportsRole(node: NodeInspection | undefined, reference: string, role: Role): boolean {
+  return Boolean(node?.workers?.find(image => image.reference === reference && image.contract.roles.includes(role)));
+}
+
+export function reconcileRoles(chain: ChainEntry[], nodes: NodeInspection[]): ChainEntry[] {
+  return chain.map((entry, index) => {
+    const node = nodes.find(item => item.ip === entry.ip);
+    return workerSupportsRole(node, entry.worker_image, roleAt(index, chain.length)) ? entry : {...entry, worker_image: ''};
+  });
+}
+
+export function telemetryForEntry(index: number, nodes: TelemetryNode[]): TelemetryNode | undefined {
+  return nodes.find(node => node.node_id === `node-${index + 1}`);
 }
 
 export interface TopologyEdge {

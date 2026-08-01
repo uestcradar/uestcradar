@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/sftp"
@@ -33,11 +35,15 @@ type HostKeyError struct {
 
 func (e *HostKeyError) Error() string { return "SSH host key confirmation required" }
 
+type CommandOutput func(stream, text string)
+
 type RemoteBackend interface {
-	Inspect(*Session, string) (NodeInspection, error)
-	PullWorker(*Session, string, string) error
-	UploadAndValidate(*Session, PlannedNode) (bool, error)
-	Start(*Session, PlannedNode) error
+	Inspect(*Session, string, CommandOutput) (NodeInspection, error)
+	PullWorker(*Session, string, string, CommandOutput) error
+	PullSidecar(*Session, string, CommandOutput) error
+	UploadAndValidate(*Session, PlannedNode, CommandOutput) (bool, error)
+	Start(*Session, PlannedNode, CommandOutput) error
+	Down(*Session, string, CommandOutput) error
 }
 
 type SSHBackend struct{}
@@ -100,16 +106,65 @@ func (b *SSHBackend) client(session *Session, ip string) (*ssh.Client, error) {
 }
 
 func runSSH(client *ssh.Client, command string) (string, error) {
+	return runSSHOutput(client, command, nil)
+}
+
+func runSSHOutput(client *ssh.Client, command string, output CommandOutput) (string, error) {
 	remoteSession, err := client.NewSession()
 	if err != nil {
 		return "", err
 	}
 	defer remoteSession.Close()
-	output, err := remoteSession.CombinedOutput(command)
-	if err != nil {
-		return "", fmt.Errorf("remote command failed: %s", strings.TrimSpace(string(output)))
+	if output == nil {
+		combined, runErr := remoteSession.CombinedOutput(command)
+		if runErr != nil {
+			return "", fmt.Errorf("remote command failed: %s", strings.TrimSpace(string(combined)))
+		}
+		return strings.TrimSpace(string(combined)), nil
 	}
-	return strings.TrimSpace(string(output)), nil
+	output("system", "$ "+command+"\n")
+	stdoutPipe, err := remoteSession.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	stderrPipe, err := remoteSession.StderrPipe()
+	if err != nil {
+		return "", err
+	}
+	if err := remoteSession.Start(command); err != nil {
+		return "", err
+	}
+	var stdoutBuffer, stderrBuffer bytes.Buffer
+	var group sync.WaitGroup
+	group.Add(2)
+	go copyCommandOutput(&group, stdoutPipe, &stdoutBuffer, "stdout", output)
+	go copyCommandOutput(&group, stderrPipe, &stderrBuffer, "stderr", output)
+	runErr := remoteSession.Wait()
+	group.Wait()
+	if runErr != nil {
+		message := strings.TrimSpace(stderrBuffer.String())
+		if message == "" {
+			message = strings.TrimSpace(stdoutBuffer.String())
+		}
+		return "", fmt.Errorf("remote command failed: %s", message)
+	}
+	return strings.TrimSpace(stdoutBuffer.String()), nil
+}
+
+func copyCommandOutput(group *sync.WaitGroup, source io.Reader, destination *bytes.Buffer, stream string, output CommandOutput) {
+	defer group.Done()
+	buffer := make([]byte, 4096)
+	for {
+		size, err := source.Read(buffer)
+		if size > 0 {
+			chunk := append([]byte(nil), buffer[:size]...)
+			_, _ = destination.Write(chunk)
+			output(stream, string(chunk))
+		}
+		if err != nil {
+			return
+		}
+	}
 }
 
 type dockerInspect struct {
@@ -122,8 +177,8 @@ type dockerInspect struct {
 	} `json:"Config"`
 }
 
-func inspectImage(client *ssh.Client, reference string) (dockerInspect, error) {
-	output, err := runSSH(client, "docker image inspect "+shellQuote(reference))
+func inspectImage(client *ssh.Client, reference string, sink CommandOutput) (dockerInspect, error) {
+	output, err := runSSHOutput(client, "docker image inspect "+shellQuote(reference), sink)
 	if err != nil {
 		return dockerInspect{}, err
 	}
@@ -134,7 +189,7 @@ func inspectImage(client *ssh.Client, reference string) (dockerInspect, error) {
 	return values[0], nil
 }
 
-func (b *SSHBackend) Inspect(session *Session, ip string) (NodeInspection, error) {
+func (b *SSHBackend) Inspect(session *Session, ip string, output CommandOutput) (NodeInspection, error) {
 	result := NodeInspection{IP: ip, Reachable: true, InspectedAt: time.Now()}
 	client, err := b.client(session, ip)
 	if err != nil {
@@ -142,37 +197,37 @@ func (b *SSHBackend) Inspect(session *Session, ip string) (NodeInspection, error
 	}
 	defer client.Close()
 
-	if result.Hostname, err = runSSH(client, "hostname"); err != nil {
+	if result.Hostname, err = runSSHOutput(client, "hostname", output); err != nil {
 		return result, err
 	}
-	if result.Architecture, err = runSSH(client, "uname -m"); err != nil {
+	if result.Architecture, err = runSSHOutput(client, "uname -m", output); err != nil {
 		return result, err
 	}
-	result.DockerVersion, err = runSSH(client, "docker version --format '{{.Server.Version}}'")
+	result.DockerVersion, err = runSSHOutput(client, "docker version --format '{{.Server.Version}}'", output)
 	if err != nil {
 		return result, fmt.Errorf("Docker unavailable: %w", err)
 	}
-	result.ComposeCLI = detectCompose(client)
-	result.CPUs, _ = runSSH(client, "docker info --format '{{.NCPU}}'")
-	result.MemoryBytes, _ = runSSH(client, "docker info --format '{{.MemTotal}}'")
-	result.DockerDisk, _ = runSSH(client, "df -B1 --output=avail /var/lib/docker 2>/dev/null | tail -n 1 | tr -d ' '")
-	rdmaText, _ := runSSH(client, "rdma link show 2>/dev/null || true")
-	ipText, _ := runSSH(client, "ip -o -4 addr show 2>/dev/null || true")
+	result.ComposeCLI = detectCompose(client, output)
+	result.CPUs, _ = runSSHOutput(client, "docker info --format '{{.NCPU}}'", output)
+	result.MemoryBytes, _ = runSSHOutput(client, "docker info --format '{{.MemTotal}}'", output)
+	result.DockerDisk, _ = runSSHOutput(client, "df -B1 --output=avail /var/lib/docker 2>/dev/null | tail -n 1 | tr -d ' '", output)
+	rdmaText, _ := runSSHOutput(client, "rdma link show 2>/dev/null || true", output)
+	ipText, _ := runSSHOutput(client, "ip -o -4 addr show 2>/dev/null || true", output)
 	result.RDMA = parseRDMA(rdmaText, ipText)
 
-	sidecar, err := inspectImage(client, sidecarReference)
+	sidecar, err := inspectImage(client, sidecarReference, output)
 	if err == nil {
 		result.SidecarImageID = sidecar.ID
 		result.SidecarContract = sidecar.Config.Labels["io.uestcradar.contract"]
 	}
-	refs, _ := runSSH(client, "docker image ls --filter label=io.uestcradar.contract=worker/v1 --format '{{.Repository}}:{{.Tag}}'")
+	refs, _ := runSSHOutput(client, "docker image ls --filter label=io.uestcradar.contract=worker/v1 --format '{{.Repository}}:{{.Tag}}'", output)
 	seen := map[string]bool{}
 	for _, reference := range strings.Fields(refs) {
 		if !strings.HasPrefix(reference, workerRepository) || strings.HasSuffix(reference, ":<none>") || seen[reference] {
 			continue
 		}
 		seen[reference] = true
-		image, inspectErr := inspectImage(client, reference)
+		image, inspectErr := inspectImage(client, reference, output)
 		if inspectErr != nil {
 			continue
 		}
@@ -183,19 +238,45 @@ func (b *SSHBackend) Inspect(session *Session, ip string) (NodeInspection, error
 		result.Workers = append(result.Workers, ImageInfo{Reference: reference, ID: image.ID, Architecture: image.Architecture, Entrypoint: image.Config.Entrypoint, Command: image.Config.Cmd, Contract: contract})
 	}
 	sort.Slice(result.Workers, func(i, j int) bool { return result.Workers[i].Reference < result.Workers[j].Reference })
-	existing, _ := runSSH(client, "docker ps -a --filter label=com.docker.compose.project=uestcradar-cascade --format '{{.ID}}' | head -n 1")
-	result.ExistingDeployment = existing != ""
+	deployment, _ := runSSHOutput(client, "docker ps -a --filter label=com.docker.compose.project=uestcradar-cascade --format '{{.Label \"com.docker.compose.service\"}}|{{.State}}'", output)
+	result.ExistingDeployment, result.DeploymentState = deploymentStatus(deployment)
 	return result, nil
 }
 
-func detectCompose(client *ssh.Client) string {
-	if _, err := runSSH(client, "docker-compose version --short"); err == nil {
+func detectCompose(client *ssh.Client, output CommandOutput) string {
+	if _, err := runSSHOutput(client, "docker-compose version --short", output); err == nil {
 		return "v1"
 	}
-	if _, err := runSSH(client, "docker compose version --short"); err == nil {
+	if _, err := runSSHOutput(client, "docker compose version --short", output); err == nil {
 		return "v2"
 	}
 	return ""
+}
+
+func deploymentStatus(text string) (bool, string) {
+	services := map[string]string{}
+	for _, line := range strings.Split(text, "\n") {
+		parts := strings.SplitN(strings.TrimSpace(line), "|", 2)
+		if len(parts) == 2 && parts[0] != "" {
+			services[parts[0]] = parts[1]
+		}
+	}
+	if len(services) == 0 {
+		return false, "absent"
+	}
+	running := 0
+	for _, service := range []string{"sidecar-node", "worker-node"} {
+		if services[service] == "running" {
+			running++
+		}
+	}
+	if running == 2 {
+		return true, "running"
+	}
+	if running == 0 {
+		return true, "stopped"
+	}
+	return true, "partial"
 }
 
 func parseRDMA(rdmaText, ipText string) []RDMAInterface {
@@ -233,7 +314,7 @@ func parseRDMA(rdmaText, ipText string) []RDMAInterface {
 	return result
 }
 
-func (b *SSHBackend) PullWorker(session *Session, ip, reference string) error {
+func (b *SSHBackend) PullWorker(session *Session, ip, reference string, output CommandOutput) error {
 	if !safeImageReference.MatchString(reference) {
 		return fmt.Errorf("image reference is not allowed")
 	}
@@ -242,18 +323,28 @@ func (b *SSHBackend) PullWorker(session *Session, ip, reference string) error {
 		return err
 	}
 	defer client.Close()
-	_, err = runSSH(client, "docker pull "+shellQuote(reference))
+	_, err = runSSHOutput(client, "docker pull "+shellQuote(reference), output)
 	return err
 }
 
-func (b *SSHBackend) UploadAndValidate(session *Session, node PlannedNode) (bool, error) {
+func (b *SSHBackend) PullSidecar(session *Session, ip string, output CommandOutput) error {
+	client, err := b.client(session, ip)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	_, err = runSSHOutput(client, "docker pull "+shellQuote(sidecarReference), output)
+	return err
+}
+
+func (b *SSHBackend) UploadAndValidate(session *Session, node PlannedNode, output CommandOutput) (bool, error) {
 	client, err := b.client(session, node.IP)
 	if err != nil {
 		return false, err
 	}
 	defer client.Close()
-	existing, _ := runSSH(client, "docker ps -a --filter label=com.docker.compose.project=uestcradar-cascade --format '{{.ID}}' | head -n 1")
-	if _, err := runSSH(client, "mkdir -p "+shellQuote(remoteDirectory)); err != nil {
+	existing, _ := runSSHOutput(client, "docker ps -a --filter label=com.docker.compose.project=uestcradar-cascade --format '{{.ID}}' | head -n 1", output)
+	if _, err := runSSHOutput(client, "mkdir -p "+shellQuote(remoteDirectory), output); err != nil {
 		return existing != "", err
 	}
 	sftpClient, err := sftp.NewClient(client)
@@ -270,7 +361,7 @@ func (b *SSHBackend) UploadAndValidate(session *Session, node PlannedNode) (bool
 		return existing != "", err
 	}
 	compose := composeCommandFor(node, composeTemp, envTemp, "config")
-	if _, err := runSSH(client, compose); err != nil {
+	if _, err := runSSHOutput(client, compose, output); err != nil {
 		return existing != "", err
 	}
 	if err := sftpClient.PosixRename(composeTemp, remoteDirectory+"/"+composeFilename); err != nil {
@@ -298,14 +389,25 @@ func writeRemoteFile(client *sftp.Client, path string, content []byte, mode uint
 	return file.Close()
 }
 
-func (b *SSHBackend) Start(session *Session, node PlannedNode) error {
+func (b *SSHBackend) Start(session *Session, node PlannedNode, output CommandOutput) error {
 	client, err := b.client(session, node.IP)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 	command := composeCommandFor(node, remoteDirectory+"/"+composeFilename, remoteDirectory+"/"+envFilename, "up -d --no-build")
-	_, err = runSSH(client, command)
+	_, err = runSSHOutput(client, command, output)
+	return err
+}
+
+func (b *SSHBackend) Down(session *Session, ip string, output CommandOutput) error {
+	client, err := b.client(session, ip)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	command := composeCommandFor(PlannedNode{}, remoteDirectory+"/"+composeFilename, remoteDirectory+"/"+envFilename, "down --remove-orphans")
+	_, err = runSSHOutput(client, command, output)
 	return err
 }
 

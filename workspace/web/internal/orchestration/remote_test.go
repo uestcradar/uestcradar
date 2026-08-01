@@ -18,3 +18,22 @@ func TestComposeCommandPrefersV1AndNeverPulls(t *testing.T) {
 		t.Fatalf("unexpected command: %s", command)
 	}
 }
+
+func TestDeploymentStatus(t *testing.T) {
+	tests := []struct {
+		input  string
+		exists bool
+		status string
+	}{
+		{"", false, "absent"},
+		{"sidecar-node|exited\nworker-node|exited", true, "stopped"},
+		{"sidecar-node|running\nworker-node|running", true, "running"},
+		{"sidecar-node|running\nworker-node|exited", true, "partial"},
+	}
+	for _, test := range tests {
+		exists, status := deploymentStatus(test.input)
+		if exists != test.exists || status != test.status {
+			t.Fatalf("deploymentStatus(%q) = %v, %q", test.input, exists, status)
+		}
+	}
+}

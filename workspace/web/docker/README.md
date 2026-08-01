@@ -38,3 +38,22 @@ docker buildx build \
 ```
 
 交互菜单选择 `Web`。发布脚本会检查 Node、npm 和离线前端依赖目录。
+
+## 拉取与运行最新 Web 运行镜像
+
+使用以下命令从私有镜像仓库拉取最新的 Web 控制面镜像并启动容器（请将 `TELEMETRY_ADVERTISE_HOST` 替换为 Web 服务器在局域网中的真实物理 IP）：
+
+```bash
+# 1. 登录私有镜像仓库（如尚未登录）
+docker login registry.chengyistudio.com
+
+# 2. 强制拉取最新 Web 运行镜像
+docker pull registry.chengyistudio.com/cxx/web:latest
+
+# 3. 后台启动 Web 容器（共享宿主机物理网络，直通 8080/HTTP 与 9900/UDP）
+docker run -d \
+  --name uestcradar-web \
+  --network host \
+  -e TELEMETRY_ADVERTISE_HOST=192.162.2.64 \
+  registry.chengyistudio.com/cxx/web:latest
+```

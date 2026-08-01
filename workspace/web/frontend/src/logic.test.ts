@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTopology, roleAt, validateChain } from './logic';
+import { buildTopology, reconcileRoles, roleAt, validateChain } from './logic';
 import type { ChainEntry, ImageInfo, NodeInspection, TelemetryNode } from './types';
 
 const image = (reference: string, input: string, output: string): ImageInfo => ({ reference, id: `sha256:${reference}`, architecture: 'arm64', contract: { roles: ['source', 'operator', 'sink'], input, output } });
@@ -18,6 +18,12 @@ describe('cascade planning', () => {
     const source = image('worker:source', 'none', '1:1');
     const sink = image('worker:sink', '2:1', 'none');
     expect(validateChain([entry('10.0.0.1', source.reference), entry('10.0.0.2', sink.reference)], [node('10.0.0.1', source), node('10.0.0.2', sink)])).toContain('类型不兼容');
+  });
+  it('clears a Worker that no longer supports its reordered role', () => {
+    const sourceOnly = {...image('worker:source', 'none', '1:1'), contract: {roles: ['source'], input: 'none', output: '1:1'}};
+    const sinkOnly = {...image('worker:sink', '1:1', 'none'), contract: {roles: ['sink'], input: '1:1', output: 'none'}};
+    const values = [entry('10.0.0.2', sinkOnly.reference), entry('10.0.0.1', sourceOnly.reference)];
+    expect(reconcileRoles(values, [node('10.0.0.1', sourceOnly), node('10.0.0.2', sinkOnly)]).map(item => item.worker_image)).toEqual(['', '']);
   });
   it('orders nodes and merges both Leg observations', () => {
     const ring = {capacity_slots: 64, used_slots: 0, write_position: 0, read_position: 0, watermark_pct: 0, shutdown: false};
