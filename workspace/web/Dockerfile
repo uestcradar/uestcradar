@@ -3,6 +3,10 @@ ARG GO_BASE=registry.chengyistudio.com/cxx/telemetry-web:build-base
 FROM --platform=${WEB_PLATFORM} ${GO_BASE} AS builder
 
 WORKDIR /src/web
+
+# 配置国内 GOPROXY 代理，解决下载依赖包超时问题
+ENV GOPROXY=https://goproxy.cn,direct
+
 COPY workspace/web/go.mod workspace/web/go.sum ./
 RUN go mod download
 

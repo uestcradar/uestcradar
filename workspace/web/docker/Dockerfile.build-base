@@ -1,12 +1,36 @@
-ARG WEB_PLATFORM=linux/arm64
-ARG GO_VERSION=1.24-bookworm
-FROM --platform=${WEB_PLATFORM} golang:${GO_VERSION}
+# syntax=docker/dockerfile:1.7
 
-# 安装 Protobuf 编译器
+ARG GO_VERSION=1.24
+
+# 这个阶段始终运行在真实构建主机架构 (如 AMD64)，进行零 QEMU 开销的纯 Go 原生交叉编译
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS tool-builder
+
+ARG TARGETOS
+ARG TARGETARCH
+
+# 配置国内 GOPROXY 镜像代理
+ENV GOPROXY=https://goproxy.cn,direct
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /out \
+    && CGO_ENABLED=0 \
+       GOOS="${TARGETOS}" \
+       GOARCH="${TARGETARCH}" \
+       go install \
+       google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6 \
+    && (cp /go/bin/${TARGETOS}_${TARGETARCH}/protoc-gen-go /out/protoc-gen-go 2>/dev/null \
+        || cp /go/bin/protoc-gen-go /out/protoc-gen-go)
+
+# 最终的目标平台镜像 (如 ARM64)
+FROM --platform=$TARGETPLATFORM golang:${GO_VERSION}-bookworm
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
-# 设置 Go 代理并预装 Go Protobuf 生成插件
-ENV GOPROXY=https://goproxy.cn,direct
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
+COPY --from=tool-builder \
+    /out/protoc-gen-go \
+    /usr/local/bin/protoc-gen-go
+
+RUN protoc-gen-go --version
