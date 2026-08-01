@@ -124,7 +124,9 @@ select_release_target() {
         *) echo "无效选择: $choice" >&2; exit 2 ;;
     esac
 
-    [[ "$component" == "worker" ]] || return
+    if [[ "$component" != "worker" ]]; then
+        return 0
+    fi
 
     local -a worker_names=()
     local dockerfile
