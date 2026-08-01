@@ -9,13 +9,16 @@ release_host=${RELEASE_HOST:-192.162.2.64}
 release_user=${RELEASE_USER:-root}
 release_dir=${RELEASE_DIR:-}
 registry=${REGISTRY:-registry.chengyistudio.com/cxx}
-component=${RELEASE_COMPONENT:-all}
+component=
+worker_name=
 remote_run=0
 expected_sha=
 
 usage() {
     cat >&2 <<'USAGE'
-usage: release.sh --remote-dir ABSOLUTE_PATH [--component sidecar|worker|web|all]
+usage: release.sh --remote-dir ABSOLUTE_PATH
+
+The release target is selected from an interactive CLI menu.
 
 Environment overrides:
   RELEASE_HOST  default: 192.162.2.64
@@ -38,6 +41,11 @@ while [[ $# -gt 0 ]]; do
             component=$2
             shift 2
             ;;
+        --worker-name)
+            [[ $# -ge 2 ]] || usage
+            worker_name=$2
+            shift 2
+            ;;
         --remote-run)
             remote_run=1
             shift
@@ -57,40 +65,134 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-case "$component" in
-    sidecar|worker|web|all) ;;
-    *) echo "invalid component: $component" >&2; exit 2 ;;
-esac
-
 [[ "$release_dir" =~ ^/[A-Za-z0-9._/-]+$ ]] || {
     echo "--remote-dir must be an absolute path containing safe characters" >&2
     exit 2
 }
 
-scoped_paths=(
-    workspace/sidecar/Dockerfile
-    workspace/examples/cascade_worker/Dockerfile
-    workspace/web/Dockerfile
-    .agents/skills/docker-release
-)
+validate_worker_dockerfile() {
+    local name=$1
+    [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+        echo "invalid Worker directory name: $name" >&2
+        return 1
+    }
+
+    local worker_dir="$repo_root/workspace/examples/$name"
+    local dockerfile="$worker_dir/Dockerfile"
+    [[ -d "$worker_dir" && -f "$dockerfile" && -r "$dockerfile" && -s "$dockerfile" ]] || {
+        echo "invalid Worker Dockerfile: workspace/examples/$name/Dockerfile" >&2
+        return 1
+    }
+
+    grep -Eq '^[[:space:]]*FROM[[:space:]]+' "$dockerfile" || {
+        echo "invalid Worker Dockerfile: missing FROM instruction: $dockerfile" >&2
+        return 1
+    }
+
+    local label
+    for label in \
+        io.uestcradar.contract \
+        io.uestcradar.roles \
+        io.uestcradar.input \
+        io.uestcradar.output; do
+        grep -Fq "$label" "$dockerfile" || {
+            echo "invalid Worker Dockerfile: missing Label $label: $dockerfile" >&2
+            return 1
+        }
+    done
+}
+
+select_release_target() {
+    local choice
+    component=
+    worker_name=
+    printf '%s\n' \
+        '请选择要发布的镜像：' \
+        '  1) Sidecar' \
+        '  2) Web' \
+        '  3) Worker' \
+        '  0) 退出'
+    read -r -p '请输入序号: ' choice || {
+        echo "未读取到选择，退出" >&2
+        exit 1
+    }
+    case "$choice" in
+        1) component=sidecar ;;
+        2) component=web ;;
+        3) component=worker ;;
+        0) echo "已取消发布"; exit 0 ;;
+        *) echo "无效选择: $choice" >&2; exit 2 ;;
+    esac
+
+    [[ "$component" == "worker" ]] || return
+
+    local -a worker_names=()
+    local dockerfile
+    for dockerfile in "$repo_root"/workspace/examples/*/Dockerfile; do
+        [[ -f "$dockerfile" ]] || continue
+        worker_names+=("$(basename "$(dirname "$dockerfile")")")
+    done
+    (( ${#worker_names[@]} > 0 )) || {
+        echo "workspace/examples 中没有可选的 Worker Dockerfile" >&2
+        exit 1
+    }
+
+    echo "请选择 Worker："
+    local index
+    for index in "${!worker_names[@]}"; do
+        printf '  %d) %s\n' "$((index + 1))" "${worker_names[$index]}"
+    done
+    echo '  0) 退出'
+    read -r -p '请输入序号: ' choice || {
+        echo "未读取到选择，退出" >&2
+        exit 1
+    }
+    [[ "$choice" =~ ^[0-9]+$ ]] || {
+        echo "无效 Worker 选择: $choice" >&2
+        exit 2
+    }
+    (( choice != 0 )) || { echo "已取消发布"; exit 0; }
+    (( choice >= 1 && choice <= ${#worker_names[@]} )) || {
+        echo "无效 Worker 选择: $choice" >&2
+        exit 2
+    }
+    worker_name=${worker_names[$((choice - 1))]}
+    validate_worker_dockerfile "$worker_name"
+}
 
 run_local() {
     cd "$repo_root"
+    select_release_target
+
+    local -a scoped_paths=(.agents/skills/docker-release)
+    case "$component" in
+        sidecar) scoped_paths+=(workspace/sidecar/Dockerfile) ;;
+        web) scoped_paths+=(workspace/web/Dockerfile) ;;
+        worker) scoped_paths+=("workspace/examples/$worker_name") ;;
+    esac
     if [[ -n "$(git status --porcelain -- "${scoped_paths[@]}")" ]]; then
         echo "release files contain uncommitted changes; create the release commit first" >&2
         exit 1
     fi
 
-    local sha quoted_dir
+    local sha quoted_dir remote_command
     sha=$(git rev-parse HEAD)
     printf -v quoted_dir '%q' "$release_dir"
-    echo "dispatching release to ${release_user}@${release_host}:${release_dir}"
+    remote_command="cd $quoted_dir && .agents/skills/docker-release/scripts/release.sh --remote-run --remote-dir $quoted_dir --component $(printf '%q' "$component") --expected-sha $(printf '%q' "$sha")"
+    if [[ "$component" == "worker" ]]; then
+        remote_command+=" --worker-name $(printf '%q' "$worker_name")"
+    fi
+    if [[ "$component" == "worker" ]]; then
+        echo "dispatching Worker '$worker_name' release to ${release_user}@${release_host}:${release_dir}"
+    else
+        echo "dispatching $component release to ${release_user}@${release_host}:${release_dir}"
+    fi
     ssh \
         -o BatchMode=yes \
         -o StrictHostKeyChecking=accept-new \
         -o ConnectTimeout=8 \
         "${release_user}@${release_host}" \
-        "cd $quoted_dir && .agents/skills/docker-release/scripts/release.sh --remote-run --remote-dir $quoted_dir --component $(printf '%q' "$component") --expected-sha $(printf '%q' "$sha")"
+        "$remote_command"
 }
 
 log() {
@@ -158,111 +260,6 @@ ensure_web_build_base() {
     docker push "$destination"
 }
 
-smoke_test() {
-    local sidecar_image=$1 worker_image=$2 web_image=$3 sha12=$4
-    local compose_file=workspace/sidecar/tools/compose.cascade.yaml
-    local project="uestcradar-release-${sha12}"
-    local web_container="${project}-web"
-
-    local -a compose
-    if command -v docker-compose >/dev/null 2>&1; then
-        compose=(docker-compose --project-name "$project" -f "$compose_file")
-    elif docker compose version >/dev/null 2>&1; then
-        compose=(docker compose --project-name "$project" -f "$compose_file")
-    else
-        echo "neither docker-compose nor docker compose is available" >&2
-        return 1
-    fi
-
-    cleanup_smoke() {
-        SIDECAR_IMAGE="$sidecar_image" \
-        CASCADE_IMAGE="$worker_image" \
-            "${compose[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
-        docker rm -f "$web_container" >/dev/null 2>&1 || true
-    }
-    trap cleanup_smoke RETURN
-    cleanup_smoke
-
-    docker run -d \
-        --name "$web_container" \
-        --network host \
-        --read-only \
-        --cap-drop ALL \
-        --security-opt no-new-privileges:true \
-        "$web_image" >/dev/null
-
-    SIDECAR_IMAGE="$sidecar_image" CASCADE_IMAGE="$worker_image" \
-        "${compose[@]}" up -d --no-build sidecar-c sidecar-b sidecar-a
-
-    local connected=0
-    for _ in $(seq 1 60); do
-        local a b c
-        a=$(SIDECAR_IMAGE="$sidecar_image" CASCADE_IMAGE="$worker_image" \
-            "${compose[@]}" logs --no-color sidecar-a 2>/dev/null | \
-            grep -c 'event=connected' || true)
-        b=$(SIDECAR_IMAGE="$sidecar_image" CASCADE_IMAGE="$worker_image" \
-            "${compose[@]}" logs --no-color sidecar-b 2>/dev/null | \
-            grep -c 'event=connected' || true)
-        c=$(SIDECAR_IMAGE="$sidecar_image" CASCADE_IMAGE="$worker_image" \
-            "${compose[@]}" logs --no-color sidecar-c 2>/dev/null | \
-            grep -c 'event=connected' || true)
-        if (( a >= 1 && b >= 2 && c >= 1 )); then
-            connected=1
-            break
-        fi
-        sleep 1
-    done
-    (( connected == 1 )) || {
-        echo "cascade links did not connect within 60 seconds" >&2
-        return 1
-    }
-
-    SIDECAR_IMAGE="$sidecar_image" CASCADE_IMAGE="$worker_image" \
-        TEST_MODE=correctness FRAMES=1000 \
-        "${compose[@]}" up -d --no-build worker-c worker-b worker-a
-
-    local workers_ok=0
-    for _ in $(seq 1 120); do
-        local all_done=1 all_ok=1 service container state exit_code
-        for service in worker-a worker-b worker-c; do
-            container=$(SIDECAR_IMAGE="$sidecar_image" CASCADE_IMAGE="$worker_image" \
-                "${compose[@]}" ps -q "$service")
-            [[ -n "$container" ]] || { all_done=0; all_ok=0; continue; }
-            state=$(docker inspect --format '{{.State.Status}}' "$container")
-            exit_code=$(docker inspect --format '{{.State.ExitCode}}' "$container")
-            [[ "$state" == "exited" ]] || all_done=0
-            [[ "$state" != "exited" || "$exit_code" == "0" ]] || all_ok=0
-        done
-        if (( all_done == 1 )); then
-            (( all_ok == 1 )) || return 1
-            workers_ok=1
-            break
-        fi
-        sleep 1
-    done
-    (( workers_ok == 1 )) || {
-        echo "cascade Workers did not finish successfully within 120 seconds" >&2
-        return 1
-    }
-
-    if command -v curl >/dev/null 2>&1; then
-        local snapshot=
-        for _ in $(seq 1 30); do
-            snapshot=$(curl -fsS http://127.0.0.1:8080/api/nodes 2>/dev/null || true)
-            [[ "$snapshot" == *"cascade-a"* && "$snapshot" == *"cascade-b"* && \
-               "$snapshot" == *"cascade-c"* ]] && break
-            sleep 1
-        done
-        [[ "$snapshot" == *"cascade-a"* && "$snapshot" == *"cascade-b"* && \
-           "$snapshot" == *"cascade-c"* ]] || {
-            echo "Web API did not report all cascade nodes" >&2
-            return 1
-        }
-    fi
-
-    echo "ARM smoke test passed"
-}
-
 publish_image() {
     local version_image=$1 moving_image=$2 kind=$3
     log "pushing immutable image: $version_image"
@@ -289,7 +286,22 @@ publish_image() {
 
 run_remote() {
     cd "$repo_root"
-    log "remote host=$(hostname) arch=$(uname -m) component=$component"
+    case "$component" in
+        sidecar|worker|web) ;;
+        *) echo "invalid remote component: $component" >&2; exit 2 ;;
+    esac
+    if [[ "$component" == "worker" ]]; then
+        [[ -n "$worker_name" ]] || {
+            echo "missing --worker-name for Worker release" >&2
+            exit 2
+        }
+        validate_worker_dockerfile "$worker_name"
+    elif [[ -n "$worker_name" ]]; then
+        echo "--worker-name is only valid for a Worker release" >&2
+        exit 2
+    fi
+
+    log "remote host=$(hostname) arch=$(uname -m) component=$component${worker_name:+ worker=$worker_name}"
     log "validating release checkout"
     [[ -n "$expected_sha" ]] || { echo "missing --expected-sha" >&2; exit 2; }
     [[ "$(uname -m)" == "aarch64" ]] || {
@@ -315,38 +327,49 @@ run_remote() {
     local sha12=${expected_sha:0:12}
     local sidecar_version="$registry/sidecar:sha-${sha12}-arm64"
     local sidecar_latest="$registry/sidecar:latest"
-    local worker_version="$registry/worker:cascade-sha-${sha12}-arm64"
-    local worker_latest="$registry/worker:cascade-latest"
     local web_version="$registry/web:sha-${sha12}-arm64"
     local web_latest="$registry/web:latest"
 
-    local -a versions=()
+    local worker_tag=${worker_name//_/-}
+    worker_tag=${worker_tag,,}
+    local worker_version="$registry/worker:${worker_tag:+${worker_tag}-}sha-${sha12}-arm64"
+    local worker_latest="$registry/worker:${worker_tag:+${worker_tag}-}latest"
+    local version_image moving_image kind
     case "$component" in
-        sidecar) versions=("$sidecar_version") ;;
-        worker) versions=("$worker_version") ;;
-        web) versions=("$web_version") ;;
-        all) versions=("$sidecar_version" "$worker_version" "$web_version") ;;
+        sidecar)
+            version_image=$sidecar_version
+            moving_image=$sidecar_latest
+            kind=sidecar
+            ;;
+        worker)
+            version_image=$worker_version
+            moving_image=$worker_latest
+            kind=worker
+            ;;
+        web)
+            version_image=$web_version
+            moving_image=$web_latest
+            kind=web
+            ;;
     esac
-    local image
-    for image in "${versions[@]}"; do
-        assert_remote_tag_absent "$image"
-    done
+    assert_remote_tag_absent "$version_image"
 
-    if [[ "$component" == "sidecar" || "$component" == "all" ]]; then
+    if [[ "$component" == "sidecar" ]]; then
         log "building Sidecar: $sidecar_version"
         docker build --target runtime -f workspace/sidecar/Dockerfile \
             -t "$sidecar_version" .
         log "verifying Sidecar image contract"
         verify_remote_image "$sidecar_version" sidecar
     fi
-    if [[ "$component" == "worker" || "$component" == "all" ]]; then
-        log "building Worker: $worker_version"
-        docker build -f workspace/examples/cascade_worker/Dockerfile \
-            -t "$worker_version" workspace/examples/cascade_worker
+    if [[ "$component" == "worker" ]]; then
+        local worker_dir="workspace/examples/$worker_name"
+        log "building Worker '$worker_name': $worker_version"
+        docker build -f "$worker_dir/Dockerfile" \
+            -t "$worker_version" "$worker_dir"
         log "verifying Worker image contract"
         verify_remote_image "$worker_version" worker
     fi
-    if [[ "$component" == "web" || "$component" == "all" ]]; then
+    if [[ "$component" == "web" ]]; then
         ensure_web_build_base
         log "building Web: $web_version"
         docker build --build-arg GO_BASE="$registry/web:build-base" \
@@ -355,20 +378,7 @@ run_remote() {
         verify_remote_image "$web_version" web
     fi
 
-    if [[ "$component" == "all" ]]; then
-        log "running ARM cascade smoke test"
-        smoke_test "$sidecar_version" "$worker_version" "$web_version" "$sha12"
-    fi
-
-    if [[ "$component" == "sidecar" || "$component" == "all" ]]; then
-        publish_image "$sidecar_version" "$sidecar_latest" sidecar
-    fi
-    if [[ "$component" == "worker" || "$component" == "all" ]]; then
-        publish_image "$worker_version" "$worker_latest" worker
-    fi
-    if [[ "$component" == "web" || "$component" == "all" ]]; then
-        publish_image "$web_version" "$web_latest" web
-    fi
+    publish_image "$version_image" "$moving_image" "$kind"
 }
 
 if (( remote_run == 1 )); then

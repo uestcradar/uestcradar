@@ -19,6 +19,7 @@ OS/Architecture=linux/arm64
 
 ```bash
 ./.agents/skills/docker-release/scripts/release.sh \
-  --remote-dir /root/workspace/uestcradar \
-  --component sidecar
+  --remote-dir /root/workspace/uestcradar
 ```
+
+在交互菜单中选择 `Sidecar`。

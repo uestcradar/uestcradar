@@ -20,6 +20,7 @@ Web 默认使用 `registry.chengyistudio.com/cxx/web:build-base`。若该 Tag �
 
 ```bash
 ./.agents/skills/docker-release/scripts/release.sh \
-  --remote-dir /root/workspace/uestcradar \
-  --component web
+  --remote-dir /root/workspace/uestcradar
 ```
+
+在交互菜单中选择 `Web`。
