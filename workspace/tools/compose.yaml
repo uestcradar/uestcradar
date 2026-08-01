@@ -26,7 +26,7 @@ services:
 
   worker-a:
     container_name: worker-a
-    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-latest}
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-worker-latest}
     entrypoint: ["/app/cascade-worker"]
     command:
       - --role
@@ -80,7 +80,7 @@ services:
 
   worker-b:
     container_name: worker-b
-    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-latest}
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-worker-latest}
     entrypoint: ["/app/cascade-worker"]
     command:
       - --role
@@ -131,7 +131,7 @@ services:
 
   worker-c:
     container_name: worker-c
-    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-latest}
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-worker-latest}
     entrypoint: ["/app/cascade-worker"]
     command:
       - --role
