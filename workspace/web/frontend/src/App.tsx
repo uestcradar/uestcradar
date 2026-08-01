@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
-import type { ChainEntry, ClusterSnapshot, LinkSnapshot, NodeInspection, Role, Task, TaskOutputChunk, TelemetryNode } from './types';
+import type { ChainEntry, ClusterSnapshot, LinkSnapshot, NodeInspection, Task, TaskOutputChunk, TelemetryNode } from './types';
 import { reconcileRoles, roleAt, telemetryForEntry, validateChain } from './logic';
 
 const newEntry = (ip: string): ChainEntry => ({ key: crypto.randomUUID(), ip, rdma_device: '', worker_image: '' });
@@ -12,7 +12,7 @@ interface ConsoleEntry { id: string; at: Date; stream: string; ip?: string; text
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(true);
   const pendingAction = useRef<null | (() => Promise<void>)>(null);
   const [nodes, setNodes] = useState<NodeInspection[]>([]);
   const [chain, setChain] = useState<ChainEntry[]>([]);
@@ -59,28 +59,35 @@ export default function App() {
     }
   }, [appendChunks, appendLog]);
 
-  const requireSession = useCallback((action: () => Promise<void>, alwaysPrompt = false) => {
-    if (authenticated && !alwaysPrompt) void action();
+  const openClusterLogin = useCallback(() => {
+    setAuthenticated(false);
+    setLoginOpen(true);
+  }, []);
+
+  const requireSession = useCallback((action: () => Promise<void>) => {
+    if (authenticated) void action();
     else {
       pendingAction.current = action;
       setLoginOpen(true);
     }
   }, [authenticated]);
 
-  const inspectIPs = useCallback(async (ips: string[]) => {
+  const inspectIPs = useCallback(async (ips: string[], showHostKey = false) => {
     if (!ips.length) return;
     try {
       const result = await runTask(await api.inspectNodes(ips), `探查 ${ips.length} 个节点`);
       await refreshNodes();
       const refreshed = await api.fetchNodes();
       setNodes(refreshed);
-      const hostKey = refreshed.find(node => ips.includes(node.ip) && node.host_key_required);
-      if (hostKey) setHostKeyNode(hostKey);
+      if (showHostKey) {
+        const hostKey = refreshed.find(node => ips.includes(node.ip) && node.host_key_required);
+        if (hostKey) setHostKeyNode(hostKey);
+      }
       if (result.status !== 'completed') appendLog('部分节点探查未完成，请检查远端输出。\n', 'stderr');
     } catch (error) {
-      handleError(error, appendLog, () => setLoginOpen(true));
+      handleError(error, appendLog, openClusterLogin);
     }
-  }, [appendLog, refreshNodes, runTask]);
+  }, [appendLog, openClusterLogin, refreshNodes, runTask]);
 
   useEffect(() => { refreshNodes().catch(error => appendLog(`${String(error)}\n`, 'stderr')); }, [appendLog, refreshNodes]);
   useEffect(() => {
@@ -109,6 +116,7 @@ export default function App() {
       setAuthenticated(true);
       setLoginOpen(false);
       appendLog(`SSH 凭证 Session 已建立，用户 ${credentials.username}。\n`);
+      await refreshNodes();
       const action = pendingAction.current;
       pendingAction.current = null;
       if (action) await action();
@@ -119,13 +127,13 @@ export default function App() {
   };
 
   const inspectAll = () => requireSession(() => inspectIPs(nodes.map(node => node.ip)));
-  const inspectOne = (node: NodeInspection) => requireSession(() => inspectIPs([node.ip]));
+  const inspectOne = (node: NodeInspection) => requireSession(() => inspectIPs([node.ip], true));
   const addCustomNode = (ip: string) => requireSession(async () => {
     try {
       appendLog(`添加自定义节点 ${ip}。\n`);
       await api.addNode(ip);
       await refreshNodes();
-    } catch (error) { handleError(error, appendLog, () => setLoginOpen(true)); }
+    } catch (error) { handleError(error, appendLog, openClusterLogin); }
   });
   const confirmHostKey = async (node: NodeInspection) => {
     try {
@@ -133,16 +141,16 @@ export default function App() {
       appendLog(`已确认 ${node.ip} 的 SSH Host Key：${node.host_key_fingerprint}\n`);
       setHostKeyNode(undefined);
       await inspectIPs([node.ip]);
-    } catch (error) { handleError(error, appendLog, () => setLoginOpen(true)); }
+    } catch (error) { handleError(error, appendLog, openClusterLogin); }
   };
   const updateSidecar = (node: NodeInspection) => requireSession(async () => {
     try { await runTask(await api.syncSidecar(node.ip), `更新 ${node.ip} Sidecar`); await refreshNodes(); }
-    catch (error) { handleError(error, appendLog, () => setLoginOpen(true)); }
+    catch (error) { handleError(error, appendLog, openClusterLogin); }
   });
   const updateWorker = async (node: NodeInspection, image: string) => {
     setWorkerNode(undefined);
     try { await runTask(await api.syncWorker(node.ip, image), `更新 ${node.ip} Worker`); await refreshNodes(); }
-    catch (error) { handleError(error, appendLog, () => setLoginOpen(true)); }
+    catch (error) { handleError(error, appendLog, openClusterLogin); }
   };
   const addToChain = (node: NodeInspection) => setChain(current => reconcileRoles([...current, newEntry(node.ip)], nodes));
   const updateEntry = (index: number, patch: Partial<ChainEntry>) => setChain(current => current.map((entry, position) => position === index ? {...entry, ...patch} : entry));
@@ -171,7 +179,7 @@ export default function App() {
       const result = await runTask(await api.deployPlan(plan.id, replace), '下发并启动数据流');
       setStreamRunning(result.status === 'completed' || result.status === 'partial');
       await refreshNodes();
-    } catch (error) { handleError(error, appendLog, () => setLoginOpen(true)); }
+    } catch (error) { handleError(error, appendLog, openClusterLogin); }
   });
   const stopStream = () => requireSession(async () => {
     if (!chain.length) return;
@@ -179,7 +187,7 @@ export default function App() {
       const result = await runTask(await api.stopDeployment(chain.map(entry => entry.ip)), '停止数据流');
       if (result.status === 'completed') setStreamRunning(false);
       await refreshNodes();
-    } catch (error) { handleError(error, appendLog, () => setLoginOpen(true)); }
+    } catch (error) { handleError(error, appendLog, openClusterLogin); }
   });
 
   return <div className="dashboard-shell">
@@ -197,7 +205,7 @@ export default function App() {
         <Console logs={logs} onClear={() => setLogs([])} />
       </section>
     </main>
-    {loginOpen && <LoginModal onClose={() => {pendingAction.current = null; setLoginOpen(false);}} onLogin={login} />}
+    {loginOpen && <LoginModal onLogin={login} />}
     {workerNode && <WorkerModal node={workerNode} onClose={() => setWorkerNode(undefined)} onSelect={image => updateWorker(workerNode, image)} />}
     {hostKeyNode && <HostKeyModal node={hostKeyNode} onClose={() => setHostKeyNode(undefined)} onConfirm={() => confirmHostKey(hostKeyNode)} />}
     {detail && <DetailDrawer entry={detail.entry} node={telemetryForEntry(detail.index, snapshot.nodes)} onClose={() => setDetail(undefined)} />}
@@ -289,10 +297,10 @@ function Console({logs, onClear}: {logs: ConsoleEntry[]; onClear: () => void}) {
   return <section className="console-panel panel-surface"><div className="console-heading"><div><span className="section-kicker">COMMAND OUTPUT</span><h2>实时控制台与执行日志</h2></div><button className="outline-button" onClick={onClear}>清空日志</button></div><div className="console-output">{!logs.length && <span className="console-placeholder">等待执行操作，远端 SSH、Docker 与 Compose 输出将在这里显示。</span>}{logs.map(item => <div className={`console-entry ${item.stream}`} key={item.id}><span className="console-meta">{item.at.toLocaleTimeString('zh-CN', {hour12: false})}{item.ip ? `  ${item.ip}` : ''}{`  ${item.stream}`}</span><pre>{item.text}</pre></div>)}<div ref={end} /></div></section>;
 }
 
-function LoginModal({onClose, onLogin}: {onClose: () => void; onLogin: (body: Parameters<typeof api.createSession>[0]) => Promise<void>}) {
+function LoginModal({onLogin}: {onLogin: (body: Parameters<typeof api.createSession>[0]) => Promise<void>}) {
   const [username, setUsername] = useState('root'); const [mode, setMode] = useState<'password'|'key'>('password');
   const [password, setPassword] = useState(''); const [key, setKey] = useState(''); const [passphrase, setPassphrase] = useState(''); const [error, setError] = useState(''); const [submitting, setSubmitting] = useState(false);
-  return <Modal title="SSH 安全登录" onClose={onClose}><form className="modal-form" onSubmit={async event => {event.preventDefault(); setSubmitting(true); setError(''); try {await onLogin(mode === 'password' ? {username, password} : {username, private_key: key, passphrase}); setPassword(''); setKey(''); setPassphrase('');} catch (value) {setError(errorMessage(value));} finally {setSubmitting(false);}}}><p>凭证仅保存在 Web 后端内存 Session 中，不会写入前端存储、日志或节点配置。</p><label>SSH User<input value={username} onChange={event => setUsername(event.target.value)} /></label><div className="segmented"><button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>Password</button><button type="button" className={mode === 'key' ? 'active' : ''} onClick={() => setMode('key')}>Private Key</button></div>{mode === 'password' ? <label>Password<input type="password" required value={password} onChange={event => setPassword(event.target.value)} /></label> : <><label>Private Key<textarea required rows={7} value={key} onChange={event => setKey(event.target.value)} /></label><label>Passphrase<input type="password" value={passphrase} onChange={event => setPassphrase(event.target.value)} /></label></>} {error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? '正在建立 Session' : '登录并继续'}</button></form></Modal>;
+  return <Modal title="集群 SSH 安全登录"><form className="modal-form" onSubmit={async event => {event.preventDefault(); setSubmitting(true); setError(''); try {await onLogin(mode === 'password' ? {username, password} : {username, private_key: key, passphrase}); setPassword(''); setKey(''); setPassphrase('');} catch (value) {setError(errorMessage(value));} finally {setSubmitting(false);}}}><p>该凭证统一用于所有物理节点，并且只保存在 Web 后端内存 Session 中。各节点的“登录节点”按钮仅负责确认 Host Key 和验证连接，不会再次要求输入凭证。</p><label>SSH User<input value={username} onChange={event => setUsername(event.target.value)} /></label><div className="segmented"><button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>Password</button><button type="button" className={mode === 'key' ? 'active' : ''} onClick={() => setMode('key')}>Private Key</button></div>{mode === 'password' ? <label>Password<input type="password" required value={password} onChange={event => setPassword(event.target.value)} /></label> : <><label>Private Key<textarea required rows={7} value={key} onChange={event => setKey(event.target.value)} /></label><label>Passphrase<input type="password" value={passphrase} onChange={event => setPassphrase(event.target.value)} /></label></>} {error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? '正在建立 Session' : '登录集群'}</button></form></Modal>;
 }
 
 function WorkerModal({node, onClose, onSelect}: {node: NodeInspection; onClose: () => void; onSelect: (image: string) => void}) {
@@ -308,7 +316,7 @@ function DetailDrawer({entry, node, onClose}: {entry: ChainEntry; node?: Telemet
   return <div className="drawer-backdrop" onMouseDown={event => {if (event.target === event.currentTarget) onClose();}}><aside className="detail-drawer"><div className="drawer-heading"><div><span className="section-kicker">TELEMETRY DETAIL</span><h2>{entry.ip}</h2></div><IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton></div><div className="drawer-summary"><span>节点状态</span><StatusLabel node={node} /><span>Goodput</span><strong>{(node?.goodput_gbps || 0).toFixed(3)} GB/s</strong><span>最后心跳</span><strong>{node?.last_seen ? new Date(node.last_seen).toLocaleString('zh-CN') : '未上报'}</strong></div>{(node?.links || []).map(link => <article className="link-detail" key={link.link_id}><div><strong>{link.link_id}</strong><span>{link.transport?.toUpperCase() || 'UNKNOWN'} · {link.status}</span></div><dl><dt>Peer</dt><dd>{link.peer_node_id || '无'}</dd><dt>Goodput</dt><dd>{(link.goodput_gbps || 0).toFixed(3)} GB/s</dd><dt>Capacity</dt><dd>{link.ring.capacity_slots}</dd><dt>Used</dt><dd>{link.ring.used_slots}</dd><dt>Write Position</dt><dd>{link.ring.write_position}</dd><dt>Read Position</dt><dd>{link.ring.read_position}</dd><dt>Watermark</dt><dd>{link.ring.watermark_pct.toFixed(1)}%</dd></dl></article>)}{!node?.links?.length && <p className="drawer-empty">当前节点尚无遥测明细。</p>}</aside></div>;
 }
 
-function Modal({title, onClose, children}: {title: string; onClose: () => void; children: React.ReactNode}) { return <div className="modal-backdrop" onMouseDown={event => {if (event.target === event.currentTarget) onClose();}}><section className="modal"><div className="modal-heading"><h2>{title}</h2><IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton></div>{children}</section></div>; }
+function Modal({title, onClose, children}: {title: string; onClose?: () => void; children: React.ReactNode}) { return <div className="modal-backdrop" onMouseDown={event => {if (onClose && event.target === event.currentTarget) onClose();}}><section className="modal"><div className="modal-heading"><h2>{title}</h2>{onClose && <IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton>}</div>{children}</section></div>; }
 function IconButton({label, disabled, onClick, children}: {label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode}) { return <button className="icon-button" aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</button>; }
 function StatusDot({node}: {node: NodeInspection}) { const state = node.error || !node.reachable ? 'offline' : node.hostname ? 'online' : 'unknown'; return <span className={`status-dot ${state}`} title={state} />; }
 function StatusLabel({node}: {node?: TelemetryNode}) { const status = node?.status || 'offline'; const disconnected = node?.links?.some(link => !link.stale && link.status !== 'connected' && link.status !== 'disabled'); const label = status === 'offline' ? 'Offline' : disconnected ? 'Link Disconnected' : status === 'warning' ? 'Warning' : 'Normal'; return <span className={`status-label ${status === 'offline' ? 'offline' : disconnected ? 'disconnected' : status}`}>{label}</span>; }
