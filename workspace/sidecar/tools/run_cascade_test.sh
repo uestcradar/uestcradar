@@ -50,7 +50,7 @@ run_once() {
     export PAYLOAD_BYTES="$payload"
 
     cleanup
-    "${compose[@]}" up --detach --force-recreate sidecar-c sidecar-b sidecar-a
+    "${compose[@]}" up --detach --force-recreate telemetry sidecar-c sidecar-b sidecar-a
     wait_for_connections
     "${compose[@]}" up --detach worker-c
     "${compose[@]}" up --detach worker-b
@@ -117,7 +117,7 @@ run_once() {
 }
 
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-    "${compose[@]}" build sidecar-a worker-a
+    "${compose[@]}" build sidecar-a worker-a telemetry
 fi
 
 if [[ "$mode" == "correctness" ]]; then

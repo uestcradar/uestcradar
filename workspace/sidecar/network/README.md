@@ -13,7 +13,7 @@ span、UCX endpoint、异步请求和内存注册，不依赖 RingBuffer。
 - `register_memory()` 使用 `ucp_mem_map` 注册任意 CPU 内存；
   `send/receive` 可携带对应的 `UCXMemoryRegion`，并拒绝越界 span。
 - tag `UINT64_MAX` 和 `UINT64_MAX - 1` 保留给内部建连握手，调用方不要使用。
-- `functional` 模式允许 UCX 自动选择协议，只用于功能验证。
+- `functional` 模式强制 TCP，只用于功能验证和明确的遥测标识。
 - `strict_rdma` 模式限定 RC，并强制 rendezvous/get_zcopy；它仍要求可用
   RDMA 设备、驱动、锁页权限和足够的 memlock。TCP 测试不构成 DMA
   零拷贝证明。

@@ -141,6 +141,10 @@ struct UCXTransport::Impl : std::enable_shared_from_this<Impl> {
                 configure(
                     "RNDV_SCHEME",
                     configured_value("UCX_RNDV_SCHEME", "put_zcopy"));
+            } else {
+                configure(
+                    "TLS",
+                    configured_value("UCX_TLS", "tcp,self"));
             }
         } catch (...) {
             ::ucp_config_release(config);

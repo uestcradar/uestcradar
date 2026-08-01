@@ -48,12 +48,13 @@ bool run_peer(
                 : sidecar::network::UCXTransport::connect(options);
         auto memory = transport.register_memory(ringbuf_storage(ring));
         volatile std::sig_atomic_t running = 1;
+        sidecar::forwarder::LegMetrics metrics;
         if (producer) {
             sidecar::forwarder::run_egress_session(
-                running, ring, transport, memory);
+                running, ring, transport, memory, metrics);
         } else {
             sidecar::forwarder::run_ingress_session(
-                running, ring, transport, memory);
+                running, ring, transport, memory, metrics);
         }
     } catch (const std::exception&) {
         return true;

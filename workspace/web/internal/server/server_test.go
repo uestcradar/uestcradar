@@ -4,47 +4,63 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
+	pb "uestcradar/telemetry/internal/telemetrypb"
 )
 
-func TestNodesAndMetricsEndpoints(t *testing.T) {
-	store := NewStore(2)
-	seenAt := time.Date(2026, time.July, 30, 12, 0, 0, 0, time.UTC)
-	store.Update(metric("node-a", "upstream", 7), seenAt)
-	handler := newHTTPHandler(store)
-
-	nodesResponse := httptest.NewRecorder()
-	handler.ServeHTTP(
-		nodesResponse,
-		httptest.NewRequest(http.MethodGet, "/api/nodes", nil),
+func TestSnapshotEndpointAndWebSocketInitialState(t *testing.T) {
+	store := NewStore()
+	seenAt := time.Now()
+	store.UpdateHeartbeat(
+		heartbeat(
+			"node-b",
+			"instance-1",
+			1,
+			0,
+			pb.LinkConnectionState_LINK_CONNECTION_STATE_DISCONNECTED,
+			0,
+		),
+		seenAt,
 	)
-	if nodesResponse.Code != http.StatusOK {
-		t.Fatalf("/api/nodes status = %d", nodesResponse.Code)
+	hub := NewHub(store)
+	handler := newHTTPHandler(store, hub)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodGet, "/api/snapshot", nil),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("snapshot status = %d", response.Code)
 	}
-	var nodes []NodeSnapshot
-	if err := json.NewDecoder(nodesResponse.Body).Decode(&nodes); err != nil {
-		t.Fatalf("decode /api/nodes: %v", err)
+	var snapshot ClusterSnapshot
+	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
+		t.Fatalf("decode snapshot: %v", err)
 	}
-	if len(nodes) != 1 || nodes[0].NodeID != "node-a" ||
-		nodes[0].Status != NodeOnline || len(nodes[0].Links) != 1 {
-		t.Fatalf("/api/nodes body = %#v", nodes)
+	if len(snapshot.Nodes) != 1 || snapshot.Nodes[0].Status != NodeNormal ||
+		snapshot.Nodes[0].Links[0].Status != LinkDisconnected {
+		t.Fatalf("snapshot = %#v", snapshot)
 	}
 
-	metricsResponse := httptest.NewRecorder()
-	handler.ServeHTTP(
-		metricsResponse,
-		httptest.NewRequest(http.MethodGet, "/api/metrics", nil),
-	)
-	if metricsResponse.Code != http.StatusOK {
-		t.Fatalf("/api/metrics status = %d", metricsResponse.Code)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	websocketURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	connection, _, err := websocket.DefaultDialer.Dial(websocketURL, nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
 	}
-	var series []Series
-	if err := json.NewDecoder(metricsResponse.Body).Decode(&series); err != nil {
-		t.Fatalf("decode /api/metrics: %v", err)
+	defer connection.Close()
+	if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
 	}
-	if len(series) != 1 || series[0].NodeID != "node-a" ||
-		series[0].LinkID != "upstream" {
-		t.Fatalf("/api/metrics body = %#v", series)
+	if err := connection.ReadJSON(&snapshot); err != nil {
+		t.Fatalf("read websocket snapshot: %v", err)
+	}
+	if len(snapshot.Nodes) != 1 || snapshot.Nodes[0].NodeID != "node-b" {
+		t.Fatalf("websocket snapshot = %#v", snapshot)
 	}
 }

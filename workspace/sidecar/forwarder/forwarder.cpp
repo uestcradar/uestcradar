@@ -72,8 +72,12 @@ public:
     EgressPump(
         RingBuffer* ring,
         UCXTransport& transport,
-        const UCXMemoryRegion& memory)
-        : ring_(ring), transport_(transport), memory_(memory) {}
+        const UCXMemoryRegion& memory,
+        LegMetrics& metrics)
+        : ring_(ring),
+          transport_(transport),
+          memory_(memory),
+          metrics_(metrics) {}
 
     ~EgressPump() {
         if (read_lease_.active()) {
@@ -133,11 +137,16 @@ public:
         }
         if (payload_send_active_ && payload_send_.completed()) {
             transport_.wait(payload_send_);
-            if (payload_send_.bytes_transferred() != payload_length_ ||
-                ringbuf_release(read_lease_) != RingResult::ok) {
+            if (payload_send_.bytes_transferred() != payload_length_) {
+                throw std::runtime_error(
+                    "egress payload length mismatch");
+            }
+            if (ringbuf_release(read_lease_) != RingResult::ok) {
                 throw std::runtime_error(
                     "egress could not release sent slot");
             }
+            metrics_.payload_bytes_total.fetch_add(
+                payload_length_, std::memory_order_relaxed);
             payload_send_active_ = false;
             credit_available_ = false;
             credit_ = 0;
@@ -151,6 +160,7 @@ private:
     RingBuffer* ring_;
     UCXTransport& transport_;
     const UCXMemoryRegion& memory_;
+    LegMetrics& metrics_;
     RingReadLease read_lease_;
     protocol::CreditBytes credit_bytes_{};
     UCXRequest credit_receive_;
@@ -167,8 +177,12 @@ public:
     IngressPump(
         RingBuffer* ring,
         UCXTransport& transport,
-        const UCXMemoryRegion& memory)
-        : ring_(ring), transport_(transport), memory_(memory) {}
+        const UCXMemoryRegion& memory,
+        LegMetrics& metrics)
+        : ring_(ring),
+          transport_(transport),
+          memory_(memory),
+          metrics_(metrics) {}
 
     ~IngressPump() {
         ringbuf_cancel(write_lease_);
@@ -211,6 +225,8 @@ public:
                     throw std::runtime_error(
                         "ingress received invalid record length");
                 }
+                metrics_.payload_bytes_total.fetch_add(
+                    received, std::memory_order_relaxed);
             } catch (...) {
                 ringbuf_cancel(write_lease_);
                 throw;
@@ -237,6 +253,7 @@ private:
     RingBuffer* ring_;
     UCXTransport& transport_;
     const UCXMemoryRegion& memory_;
+    LegMetrics& metrics_;
     RingWriteLease write_lease_;
     protocol::CreditBytes credit_bytes_{};
     UCXRequest credit_send_;
@@ -280,18 +297,42 @@ void run_session(
 
 }  // namespace
 
+namespace {
+
+class ConnectedSession {
+public:
+    explicit ConnectedSession(LegMetrics& metrics) noexcept
+        : metrics_(metrics) {
+        metrics_.connected.store(true, std::memory_order_release);
+    }
+
+    ConnectedSession(const ConnectedSession&) = delete;
+    ConnectedSession& operator=(const ConnectedSession&) = delete;
+
+    ~ConnectedSession() {
+        metrics_.connected.store(false, std::memory_order_release);
+    }
+
+private:
+    LegMetrics& metrics_;
+};
+
+}  // namespace
+
 void run_ingress_session(
     volatile std::sig_atomic_t& running,
     RingBuffer* input,
     UCXTransport& transport,
-    const UCXMemoryRegion& input_memory) {
+    const UCXMemoryRegion& input_memory,
+    LegMetrics& metrics) {
     if (input == nullptr || !input_memory.valid()) {
         throw std::invalid_argument(
             "ingress requires a ring and registered memory");
     }
     exchange_and_validate_contract(
         input, protocol::PortRole::consumer, transport);
-    IngressPump pump{input, transport, input_memory};
+    ConnectedSession connected{metrics};
+    IngressPump pump{input, transport, input_memory, metrics};
     run_session(running, input, transport, pump);
 }
 
@@ -299,14 +340,16 @@ void run_egress_session(
     volatile std::sig_atomic_t& running,
     RingBuffer* output,
     UCXTransport& transport,
-    const UCXMemoryRegion& output_memory) {
+    const UCXMemoryRegion& output_memory,
+    LegMetrics& metrics) {
     if (output == nullptr || !output_memory.valid()) {
         throw std::invalid_argument(
             "egress requires a ring and registered memory");
     }
     exchange_and_validate_contract(
         output, protocol::PortRole::producer, transport);
-    EgressPump pump{output, transport, output_memory};
+    ConnectedSession connected{metrics};
+    EgressPump pump{output, transport, output_memory, metrics};
     run_session(running, output, transport, pump);
 }
 

@@ -106,6 +106,7 @@ struct LegConfig {
     LegRole role;
     std::string bind_host;
     std::string peer_host;
+    std::string peer_node_id;
     std::uint16_t port;
     std::chrono::milliseconds connect_timeout;
     sidecar::network::DataPathMode data_path;
@@ -147,6 +148,7 @@ LegConfig leg_config_from_environment(
     const std::string role_name = base + "_ROLE";
     const std::string bind_name = base + "_BIND_HOST";
     const std::string peer_name = base + "_PEER_HOST";
+    const std::string peer_node_name = base + "_PEER_NODE_ID";
     const std::string port_name = base + "_PORT";
     const std::string timeout_name = base + "_CONNECT_TIMEOUT_MS";
     const std::string path_name = base + "_DATA_PATH";
@@ -157,6 +159,7 @@ LegConfig leg_config_from_environment(
             environment_or(role_name.c_str(), default_role), role_name),
         environment_or(bind_name.c_str(), "0.0.0.0"),
         environment_or(peer_name.c_str(), "127.0.0.1"),
+        environment_or(peer_node_name.c_str(), ""),
         static_cast<std::uint16_t>(size_from_environment(
             port_name.c_str(), default_port, 1, 65535)),
         std::chrono::milliseconds{size_from_environment(
@@ -246,7 +249,6 @@ bool snapshot_ring(
     const RingBuffer* ring,
     sidecar::telemetry::RingSnapshot& output) noexcept {
     const std::uint64_t slot_count = ring->header->slot_count;
-    const std::uint64_t max_payload = ring->header->max_payload_bytes;
     for (int attempt = 0; attempt < 3; ++attempt) {
         const std::uint64_t read = ring->header->read_position.load(
             std::memory_order_acquire);
@@ -254,8 +256,8 @@ bool snapshot_ring(
             std::memory_order_acquire);
         if (write >= read && write - read <= slot_count) {
             output = sidecar::telemetry::RingSnapshot{
-                slot_count * max_payload,
-                (write - read) * max_payload,
+                static_cast<std::uint32_t>(slot_count),
+                static_cast<std::uint32_t>(write - read),
                 write,
                 read,
                 ring->header->shutdown.load(
@@ -265,6 +267,33 @@ bool snapshot_ring(
         }
     }
     return false;
+}
+
+sidecar::telemetry::TransportKind telemetry_transport(
+    const LegConfig& config) noexcept {
+    return config.data_path == sidecar::network::DataPathMode::strict_rdma
+               ? sidecar::telemetry::TransportKind::rdma
+               : sidecar::telemetry::TransportKind::tcp;
+}
+
+bool snapshot_link(
+    const LegConfig& config,
+    const RingBuffer* ring,
+    const sidecar::forwarder::LegMetrics& metrics,
+    sidecar::telemetry::LinkSnapshot& output) noexcept {
+    if (!snapshot_ring(ring, output.ring)) {
+        return false;
+    }
+    if (config.role == LegRole::disabled) {
+        output.connection = sidecar::telemetry::ConnectionState::disabled;
+    } else if (metrics.connected.load(std::memory_order_acquire)) {
+        output.connection = sidecar::telemetry::ConnectionState::connected;
+    } else {
+        output.connection = sidecar::telemetry::ConnectionState::disconnected;
+    }
+    output.payload_bytes_total =
+        metrics.payload_bytes_total.load(std::memory_order_relaxed);
+    return true;
 }
 
 void log_dropped(
@@ -278,7 +307,10 @@ void log_dropped(
               << " bytes=" << dropped.bytes << std::endl;
 }
 
-void run_ingress_leg(const LegConfig& config, RingBuffer* input) {
+void run_ingress_leg(
+    const LegConfig& config,
+    RingBuffer* input,
+    sidecar::forwarder::LegMetrics& metrics) {
     while (running != 0 && !ringbuf_is_shutdown(input)) {
         try {
             sidecar::network::UCXTransport transport =
@@ -288,7 +320,7 @@ void run_ingress_leg(const LegConfig& config, RingBuffer* input) {
             std::cout << "sidecar: leg=" << config.name
                       << " event=connected" << std::endl;
             sidecar::forwarder::run_ingress_session(
-                running, input, transport, memory);
+                running, input, transport, memory, metrics);
             return;
         } catch (const std::exception& error) {
             if (running == 0 || ringbuf_is_shutdown(input)) {
@@ -302,7 +334,10 @@ void run_ingress_leg(const LegConfig& config, RingBuffer* input) {
     }
 }
 
-void run_egress_leg(const LegConfig& config, RingBuffer* output) {
+void run_egress_leg(
+    const LegConfig& config,
+    RingBuffer* output,
+    sidecar::forwarder::LegMetrics& metrics) {
     while (running != 0 && !ringbuf_is_shutdown(output)) {
         log_dropped(
             config, sidecar::forwarder::drop_stale_frames(output));
@@ -316,7 +351,7 @@ void run_egress_leg(const LegConfig& config, RingBuffer* output) {
             std::cout << "sidecar: leg=" << config.name
                       << " event=connected" << std::endl;
             sidecar::forwarder::run_egress_session(
-                running, output, transport, memory);
+                running, output, transport, memory, metrics);
             return;
         } catch (const std::exception& error) {
             if (running == 0 || ringbuf_is_shutdown(output)) {
@@ -363,20 +398,30 @@ int main() {
             environment_or(
                 "SIDECAR_DOWNSTREAM_SHM_NAME", kDownstreamBufName),
             downstream_config};
+        sidecar::forwarder::LegMetrics upstream_metrics;
+        sidecar::forwarder::LegMetrics downstream_metrics;
 
         const std::vector<sidecar::telemetry::TelemetryTarget> targets{
             {
                 "upstream",
-                [ring = upstream.get()](
-                    sidecar::telemetry::RingSnapshot& output) noexcept {
-                    return snapshot_ring(ring, output);
+                upstream_leg.peer_node_id,
+                sidecar::telemetry::LinkDirection::ingress,
+                telemetry_transport(upstream_leg),
+                [&upstream_leg, ring = upstream.get(), &upstream_metrics](
+                    sidecar::telemetry::LinkSnapshot& output) noexcept {
+                    return snapshot_link(
+                        upstream_leg, ring, upstream_metrics, output);
                 },
             },
             {
                 "downstream",
-                [ring = downstream.get()](
-                    sidecar::telemetry::RingSnapshot& output) noexcept {
-                    return snapshot_ring(ring, output);
+                downstream_leg.peer_node_id,
+                sidecar::telemetry::LinkDirection::egress,
+                telemetry_transport(downstream_leg),
+                [&downstream_leg, ring = downstream.get(), &downstream_metrics](
+                    sidecar::telemetry::LinkSnapshot& output) noexcept {
+                    return snapshot_link(
+                        downstream_leg, ring, downstream_metrics, output);
                 },
             },
         };
@@ -397,12 +442,14 @@ int main() {
         std::thread downstream_thread;
         if (upstream_leg.role != LegRole::disabled) {
             upstream_thread = std::thread([&] {
-                run_ingress_leg(upstream_leg, upstream.get());
+                run_ingress_leg(
+                    upstream_leg, upstream.get(), upstream_metrics);
             });
         }
         if (downstream_leg.role != LegRole::disabled) {
             downstream_thread = std::thread([&] {
-                run_egress_leg(downstream_leg, downstream.get());
+                run_egress_leg(
+                    downstream_leg, downstream.get(), downstream_metrics);
             });
         }
 

@@ -17,6 +17,10 @@ ACK、重传、去重或多帧窗口。
 当前读租约。组合根在 Egress 重连前调用 `drop_stale_frames` 清空断链积压，恢复
 后只继续实时流。Forwarder 本身不创建 SHM、endpoint、线程或重连策略。
 
+每个 Session 接收一个 `LegMetrics`。握手成功到 Session 销毁期间发布
+`connected=true`，Payload 完成时以 relaxed 原子操作累计字节。该对象不包含锁、
+回调、网络导出或 RTT 探针。
+
 Payload Send/Receive 的地址来自 Ring 映射，并带入该映射对应的
 `UCXMemoryRegion`。因此代码路径没有临时 Payload buffer 或 memcpy；实际是否
 使用 NIC DMA 仍须用 strict-rdma 和 UCX 协议信息在目标硬件上验证。

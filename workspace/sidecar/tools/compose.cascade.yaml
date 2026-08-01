@@ -15,6 +15,7 @@ services:
       NODE_ID: cascade-a
       SIDECAR_UPSTREAM_ROLE: disabled
       SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_NODE_ID: cascade-b
       SIDECAR_DOWNSTREAM_PEER_HOST: 127.0.0.1
       SIDECAR_DOWNSTREAM_PORT: ${CASCADE_AB_PORT:-23337}
       SIDECAR_DOWNSTREAM_CONNECT_TIMEOUT_MS: "1000"
@@ -45,11 +46,13 @@ services:
     environment:
       NODE_ID: cascade-b
       SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_PEER_NODE_ID: cascade-a
       SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
       SIDECAR_UPSTREAM_PORT: ${CASCADE_AB_PORT:-23337}
       SIDECAR_UPSTREAM_CONNECT_TIMEOUT_MS: "1000"
       SIDECAR_UPSTREAM_DATA_PATH: ${SIDECAR_DATA_PATH:-functional}
       SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_NODE_ID: cascade-c
       SIDECAR_DOWNSTREAM_PEER_HOST: 127.0.0.1
       SIDECAR_DOWNSTREAM_PORT: ${CASCADE_BC_PORT:-23338}
       SIDECAR_DOWNSTREAM_CONNECT_TIMEOUT_MS: "1000"
@@ -80,6 +83,7 @@ services:
     environment:
       NODE_ID: cascade-c
       SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_PEER_NODE_ID: cascade-b
       SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
       SIDECAR_UPSTREAM_PORT: ${CASCADE_BC_PORT:-23338}
       SIDECAR_UPSTREAM_CONNECT_TIMEOUT_MS: "1000"
@@ -188,3 +192,16 @@ services:
       - ${RATE_MIB_S:-0}
     depends_on:
       - sidecar-c
+
+  telemetry:
+    build:
+      context: ../../..
+      dockerfile: workspace/web/Dockerfile
+    image: ${TELEMETRY_IMAGE:-uestcradar-telemetry:link-monitor}
+    platform: linux/arm64
+    network_mode: host
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
