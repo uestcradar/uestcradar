@@ -18,7 +18,6 @@
 | :--- | :--- |
 | **`workspace/tools/compose.yaml`** | **单机 7 服务全拓扑配置**：在单台机器上以 Docker 容器方式拉起 `sidecar-a/b/c` + `worker-a/b/c` + `telemetry-web` 完整 7 服务级联拓扑与监控界面。 |
 | **`workspace/tools/compose.cascade.distributed.yaml`** | **多物理节点分布式拓扑**：跨 3 台物理服务器部署 `sidecar-node` 与 `worker-node` 的标准化通用模板。 |
-| **`workspace/tools/deploy_cli.py`** | **分布式智能推导部署 CLI**：自动推导 3 节点拓扑连线、自动剔除冗余变量、支持交互/命令行输入与一键远程分发拉起 (`--up`)。 |
 | **`workspace/tools/node.env`** | **分布式环境变量模板**：包含完备的镜像 Tag、节点身份、Web 遥测 (8081/9900)、RDMA 网络与共享内存的标准化环境配置模板。 |
 | **`workspace/tools/sync_distributed_compose.sh`** | **集群一键分发脚本**：一键将 `compose.cascade.distributed.yaml` 同步推送覆盖到所有集群节点的 `/root/workspace/docker/` 目录下。 |
 | **`workspace/tools/README.md`** | **部署与运维使用说明文档**。 |
@@ -40,7 +39,8 @@
 ### 2. 脚本工作原理与输出
 
 * **目标路径**：脚本会自动连接集群所有物理节点（`192.162.2.16` ~ `192.162.2.192`），建立 `/root/workspace/docker/` 目录并推送覆写 `compose.cascade.distributed.yaml`。
-* **认证机制**：默认使用 SSH 密钥或密码（`SSH_USER=root`, `SSH_PASSWORD=111111`）自动登录分发。
+* **认证机制**：脚本默认只使用 SSH Key/Agent；Web 编排使用仅保存在后端内存 Session
+  中的 Password 或 Private Key，仓库不保存默认密码。
 * **输出示例**：
 
 ```text
@@ -106,9 +106,17 @@ docker run -d \
   --read-only \
   --cap-drop=ALL \
   --security-opt no-new-privileges:true \
+  --mount type=bind,source=/etc/uestcradar/tls,target=/tls,readonly \
+  -e TELEMETRY_TLS_CERT_FILE=/tls/web.crt \
+  -e TELEMETRY_TLS_KEY_FILE=/tls/web.key \
+  -e TELEMETRY_ADVERTISE_HOST=192.162.2.64 \
   --restart unless-stopped \
-  registry.chengyistudio.com/cxx/telemetry-web:latest
+  registry.chengyistudio.com/cxx/web:latest
 ```
+
+生产 Web 使用 HTTPS/WSS；证书和私钥只读挂载，不写入镜像或仓库。浏览器访问
+`https://<Host-C-管理网IP>:8080`。`TELEMETRY_ADVERTISE_HOST` 必须是所有 Sidecar
+都能访问的 Web 控制器 IPv4 地址。
 
 ### 3. 在 3 台物理节点上配置环境变量文件并启动
 

@@ -15,6 +15,9 @@ workspace/examples/cascade_worker/
     └── main.cpp        # 包含 source / operator / sink 角色的算子源码
 ```
 
+镜像支持 `source`、`operator`、`sink` 三种角色。编排控制面通过
+`CASCADE_ROLE` 环境变量选择角色；直接运行时仍可使用原有 `--role` 参数，命令行参数优先。
+
 ---
 
 ## 🚀 镜像构建与推送

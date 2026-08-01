@@ -8,10 +8,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
+	"uestcradar/telemetry/internal/orchestration"
 	pb "uestcradar/telemetry/internal/telemetrypb"
 	webassets "uestcradar/telemetry/web"
 )
@@ -23,15 +25,23 @@ const (
 
 // Config controls UDP ingestion and HTTP/WebSocket serving.
 type Config struct {
-	UDPAddress  string
-	HTTPAddress string
+	UDPAddress        string
+	HTTPAddress       string
+	TLSCertFile       string
+	TLSKeyFile        string
+	AdvertiseHost     string
+	AllowInsecureHTTP bool
 }
 
 // ConfigFromEnv returns server configuration from environment variables.
 func ConfigFromEnv() Config {
 	return Config{
-		UDPAddress:  envOr("TELEMETRY_UDP_ADDR", ":9900"),
-		HTTPAddress: envOr("TELEMETRY_HTTP_ADDR", ":8080"),
+		UDPAddress:        envOr("TELEMETRY_UDP_ADDR", ":9900"),
+		HTTPAddress:       envOr("TELEMETRY_HTTP_ADDR", ":8080"),
+		TLSCertFile:       os.Getenv("TELEMETRY_TLS_CERT_FILE"),
+		TLSKeyFile:        os.Getenv("TELEMETRY_TLS_KEY_FILE"),
+		AdvertiseHost:     os.Getenv("TELEMETRY_ADVERTISE_HOST"),
+		AllowInsecureHTTP: os.Getenv("TELEMETRY_ALLOW_INSECURE_HTTP") == "true",
 	}
 }
 
@@ -42,12 +52,17 @@ func Run(parent context.Context, config Config) error {
 
 	store := NewStore()
 	hub := NewHub(store)
+	secureHTTP := config.TLSCertFile != "" && config.TLSKeyFile != ""
+	if !secureHTTP && !config.AllowInsecureHTTP && !loopbackAddress(config.HTTPAddress) {
+		return fmt.Errorf("TLS certificate and key are required for non-loopback HTTP")
+	}
+	orchestrator := orchestration.NewService(config.AdvertiseHost, secureHTTP)
 	go hub.Run(ctx)
 	go scanNodeLeases(ctx, store, hub, nodeLeaseTTL, nodeScanInterval)
 
 	httpServer := &http.Server{
 		Addr:              config.HTTPAddress,
-		Handler:           newHTTPHandler(store, hub),
+		Handler:           newHTTPHandler(store, hub, orchestrator),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errorsChannel := make(chan error, 2)
@@ -55,7 +70,12 @@ func Run(parent context.Context, config Config) error {
 		errorsChannel <- receiveUDP(ctx, config.UDPAddress, store, hub)
 	}()
 	go func() {
-		err := httpServer.ListenAndServe()
+		var err error
+		if secureHTTP {
+			err = httpServer.ListenAndServeTLS(config.TLSCertFile, config.TLSKeyFile)
+		} else {
+			err = httpServer.ListenAndServe()
+		}
 		if errors.Is(err, http.ErrServerClosed) {
 			err = nil
 		}
@@ -83,14 +103,8 @@ func Run(parent context.Context, config Config) error {
 	return runError
 }
 
-func newHTTPHandler(store *Store, hub *Hub) http.Handler {
+func newHTTPHandler(store *Store, hub *Hub, orchestrationHandlers ...http.Handler) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if _, err := writer.Write(webassets.Index); err != nil {
-			return
-		}
-	})
 	mux.HandleFunc("/api/snapshot", func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, store.Snapshot(time.Now()))
 	})
@@ -98,7 +112,20 @@ func newHTTPHandler(store *Store, hub *Hub) http.Handler {
 		writeJSON(writer, store.Snapshot(time.Now()).Nodes)
 	})
 	mux.HandleFunc("/ws", hub.ServeWebSocket)
+	if len(orchestrationHandlers) > 0 && orchestrationHandlers[0] != nil {
+		mux.Handle("/api/v1/", orchestrationHandlers[0])
+	}
+	mux.Handle("/", http.FileServer(http.FS(webassets.Files())))
 	return mux
+}
+
+func loopbackAddress(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+	host = strings.Trim(host, "[]")
+	return host == "localhost" || net.ParseIP(host).IsLoopback()
 }
 
 func writeJSON(writer http.ResponseWriter, value any) {

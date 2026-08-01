@@ -12,6 +12,12 @@ import (
 	pb "uestcradar/telemetry/internal/telemetrypb"
 )
 
+func TestLoopbackAddress(t *testing.T) {
+	if !loopbackAddress("127.0.0.1:8080") || !loopbackAddress("[::1]:8080") || loopbackAddress(":8080") {
+		t.Fatal("loopback address classification failed")
+	}
+}
+
 func TestSnapshotEndpointAndWebSocketInitialState(t *testing.T) {
 	store := NewStore()
 	seenAt := time.Now()

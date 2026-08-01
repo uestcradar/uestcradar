@@ -86,6 +86,9 @@ double parse_double(const char* value, const char* option) {
 
 Arguments parse_arguments(int argc, char* argv[]) {
     Arguments result;
+    if (const char* role = std::getenv("CASCADE_ROLE")) {
+        result.role = role;
+    }
     for (int index = 1; index < argc; ++index) {
         const std::string_view option{argv[index]};
         const auto next = [&]() -> const char* {

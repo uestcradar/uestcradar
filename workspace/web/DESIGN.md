@@ -53,5 +53,11 @@ Collector：
 
 - `TELEMETRY_UDP_ADDR`，默认 `:9900`
 - `TELEMETRY_HTTP_ADDR`，默认 `:8080`
+- `TELEMETRY_ADVERTISE_HOST`，编排时写入远端 Sidecar 的控制器可达地址
+- `TELEMETRY_TLS_CERT_FILE`、`TELEMETRY_TLS_KEY_FILE`，非 loopback 监听必须配置
+- `TELEMETRY_ALLOW_INSECURE_HTTP=true`，仅用于单机开发
 
 HTTP `GET /api/snapshot` 返回初始完整快照，`GET /ws` 持续推送最新完整快照。
+
+同一 Web 进程还提供内存 Session、SSH/SFTP 节点探查和离线 Compose 编排；不使用
+Agent、数据库或额外控制面容器。SSH 凭证不进入遥测数据流、日志、node.env 或磁盘。

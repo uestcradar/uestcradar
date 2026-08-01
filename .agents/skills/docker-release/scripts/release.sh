@@ -169,7 +169,7 @@ run_local() {
     local -a scoped_paths=(.agents/skills/docker-release)
     case "$component" in
         sidecar) scoped_paths+=(workspace/sidecar/Dockerfile) ;;
-        web) scoped_paths+=(workspace/web/Dockerfile) ;;
+        web) scoped_paths+=(workspace/web workspace/proto/telemetry.proto) ;;
         worker) scoped_paths+=("workspace/examples/$worker_name") ;;
     esac
     if [[ -n "$(git status --porcelain -- "${scoped_paths[@]}")" ]]; then
@@ -246,20 +246,16 @@ verify_remote_image() {
 
 ensure_web_build_base() {
     local destination="$registry/web:build-base"
-    local status
     log "checking Web build base: $destination"
-    if pull_remote_tag "$destination"; then
-        return
-    else
-        status=$?
-    fi
-    (( status == 10 )) || return "$status"
-
-    local legacy="$registry/telemetry-web:build-base"
-    log "initializing $destination from $legacy"
-    docker pull "$legacy"
-    docker tag "$legacy" "$destination"
-    docker push "$destination"
+    pull_remote_tag "$destination" || {
+        echo "Web build-base is unavailable; publish workspace/web/docker/Dockerfile.build-base first" >&2
+        return 1
+    }
+    docker run --rm --entrypoint /bin/sh "$destination" -c \
+        'node --version >/dev/null && npm --version >/dev/null && test -d /opt/web-frontend/node_modules' || {
+        echo "Web build-base lacks Node/npm or cached frontend dependencies; rebuild it from workspace/web/docker" >&2
+        return 1
+    }
 }
 
 publish_image() {

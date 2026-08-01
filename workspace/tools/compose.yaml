@@ -157,6 +157,9 @@ services:
   telemetry-web:
     container_name: telemetry-web
     image: ${TELEMETRY_IMAGE:-registry.chengyistudio.com/cxx/web:latest}
+    environment:
+      TELEMETRY_ALLOW_INSECURE_HTTP: "true"
+      TELEMETRY_ADVERTISE_HOST: ${TELEMETRY_ADVERTISE_HOST:-127.0.0.1}
     ports:
       - "8081:8080"
       - "9900:9900/udp"

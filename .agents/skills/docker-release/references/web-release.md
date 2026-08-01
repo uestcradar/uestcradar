@@ -15,8 +15,9 @@ Entrypoint=/telemetry
 OS/Architecture=linux/arm64
 ```
 
-Web 默认使用 `registry.chengyistudio.com/cxx/web:build-base`。若该 Tag 尚不存在，
-发布脚本会从现有 `cxx/telemetry-web:build-base` 初始化它；本阶段不删除旧仓库。
+Web 默认使用 `registry.chengyistudio.com/cxx/web:build-base`。该基座由
+`workspace/web/docker/Dockerfile.build-base` 构建，必须包含 Go、Protobuf、Node/npm 和
+与当前 lockfile 对应的离线前端依赖；发布脚本不会再从旧 telemetry-web 基座降级初始化。
 
 ```bash
 ./.agents/skills/docker-release/scripts/release.sh \
