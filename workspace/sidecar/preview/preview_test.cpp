@@ -12,12 +12,20 @@ namespace fb = uestcradar::preview;
 
 namespace {
 
-struct IQMetadata {
-    std::uint32_t channels;
-    std::uint32_t samples;
-    double sample_rate;
-    double center_frequency;
-};
+constexpr std::size_t kIQMetadataBytes = 2136;
+constexpr std::size_t kIQChannelsOffset = 8;
+constexpr std::size_t kIQSamplesOffset = 12;
+
+void store_iq_dimensions(
+    std::vector<std::byte>& frame,
+    std::uint32_t channels,
+    std::uint32_t samples) {
+    auto* metadata = frame.data() + sizeof(uestcradar::Envelope);
+    std::memcpy(
+        metadata + kIQChannelsOffset, &channels, sizeof(channels));
+    std::memcpy(
+        metadata + kIQSamplesOffset, &samples, sizeof(samples));
+}
 
 struct ComplexI16 {
     std::int16_t i;
@@ -50,20 +58,19 @@ std::vector<std::byte> iq_frame() {
     constexpr std::uint32_t channels = 2;
     constexpr std::uint32_t samples = 256;
     const std::size_t payload_bytes =
-        sizeof(IQMetadata) + channels * samples * sizeof(ComplexI16);
+        kIQMetadataBytes + channels * samples * sizeof(ComplexI16);
     std::vector<std::byte> frame(sizeof(uestcradar::Envelope) + payload_bytes);
     const uestcradar::Envelope envelope{
         .frame_id = 77,
         .timestamp = 88,
         .type_id = 1,
-        .type_version = 2,
+        .type_version = 3,
         .payload_length = static_cast<std::uint32_t>(payload_bytes),
     };
-    const IQMetadata metadata{channels, samples, 1.0e6, 10.0e9};
     std::memcpy(frame.data(), &envelope, sizeof(envelope));
-    std::memcpy(frame.data() + sizeof(envelope), &metadata, sizeof(metadata));
+    store_iq_dimensions(frame, channels, samples);
     auto* values = reinterpret_cast<ComplexI16*>(
-        frame.data() + sizeof(envelope) + sizeof(metadata));
+        frame.data() + sizeof(envelope) + kIQMetadataBytes);
     for (std::size_t index = 0; index < samples; ++index) {
         values[index] = {static_cast<std::int16_t>(index % 31), 0};
         values[samples + index] = {
@@ -112,20 +119,19 @@ bool verify_large_multichannel_iq_compression() {
     constexpr std::uint32_t channels = 4;
     constexpr std::uint32_t samples = 1'277'952;
     const std::size_t payload_bytes =
-        sizeof(IQMetadata) + channels * samples * sizeof(ComplexI16);
+        kIQMetadataBytes + channels * samples * sizeof(ComplexI16);
     std::vector<std::byte> frame(sizeof(uestcradar::Envelope) + payload_bytes);
     const uestcradar::Envelope envelope{
         .frame_id = 78,
         .timestamp = 89,
         .type_id = 1,
-        .type_version = 2,
+        .type_version = 3,
         .payload_length = static_cast<std::uint32_t>(payload_bytes),
     };
-    const IQMetadata metadata{channels, samples, 1.0e6, 10.0e9};
     std::memcpy(frame.data(), &envelope, sizeof(envelope));
-    std::memcpy(frame.data() + sizeof(envelope), &metadata, sizeof(metadata));
+    store_iq_dimensions(frame, channels, samples);
     auto* values = reinterpret_cast<ComplexI16*>(
-        frame.data() + sizeof(envelope) + sizeof(metadata));
+        frame.data() + sizeof(envelope) + kIQMetadataBytes);
     for (std::uint32_t channel = 0; channel < channels; ++channel) {
         values[static_cast<std::size_t>(channel) * samples +
                (channel + 1) * 1000] = {
@@ -140,7 +146,7 @@ bool verify_large_multichannel_iq_compression() {
     const auto* waveform = preview == nullptr
         ? nullptr
         : preview->body_as_WaveformPreview();
-    return payload_bytes - sizeof(metadata) == 19.5 * 1024 * 1024 &&
+    return payload_bytes - kIQMetadataBytes == 19.5 * 1024 * 1024 &&
            encoded.size() < frame.size() / 64 &&
            preview != nullptr && waveform != nullptr &&
            preview->original_rows() == channels &&
