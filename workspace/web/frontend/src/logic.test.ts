@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTopology, reconcileRoles, roleAt, shmSizeForSlots, validateChain } from './logic';
+import { buildTopology, reconcileRoles, roleAt, shmSizeForRing, validateChain } from './logic';
 import type { ChainEntry, ImageInfo, NodeInspection, TelemetryNode } from './types';
 
 const image = (reference: string, input: string, output: string): ImageInfo => ({ reference, id: `sha256:${reference}`, architecture: 'arm64', contract: { roles: ['source', 'operator', 'sink'], input, output } });
@@ -11,7 +11,9 @@ describe('cascade planning', () => {
     expect([0, 1, 2].map(index => roleAt(index, 3))).toEqual(['source', 'operator', 'sink']);
   });
   it('reserves enough shared memory for both fixed-slot rings', () => {
-    expect([32, 64, 128, 256].map(shmSizeForSlots)).toEqual(['256m', '256m', '512m', '1g']);
+    const mib = 1024 * 1024;
+    expect(shmSizeForRing(64, mib)).toBe('256m');
+    expect([4, 6, 8, 32, 64].map(slots => shmSizeForRing(slots, 128 * mib))).toEqual(['2g', '2g', '3g', '10g', '18g']);
   });
   it('rejects repeated physical nodes', () => {
     const worker = image('worker:a', '1:1', '1:1');

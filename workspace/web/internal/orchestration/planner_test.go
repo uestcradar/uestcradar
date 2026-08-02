@@ -46,23 +46,26 @@ func TestBuildPlanSourceOperatorSink(t *testing.T) {
 	}
 }
 
-func TestBuildPlanPropagatesSelectedSlotCountAndRejectsSmallSHM(t *testing.T) {
+func TestBuildPlanDerivesRingCapacityWithoutWorkerArguments(t *testing.T) {
 	worker := ImageInfo{Reference: workerRepository + "cascade-worker-latest", ID: "sha256:worker", Architecture: "arm64", Contract: WorkerContract{Roles: []string{"source", "sink"}, Input: "1:1", Output: "1:1"}}
 	nodes := map[string]NodeInspection{
 		"10.0.0.1": inspectedNode("10.0.0.1", worker),
 		"10.0.0.2": inspectedNode("10.0.0.2", worker),
 	}
-	request := PlanRequest{Chain: []ChainEntry{{IP: "10.0.0.1", RDMADevice: "hns_1:1", WorkerImage: worker.Reference}, {IP: "10.0.0.2", RDMADevice: "hns_1:1", WorkerImage: worker.Reference}}, SlotCount: 128, MaxPayloadBytes: 1048576, SHMSize: "512m"}
+	request := PlanRequest{Chain: []ChainEntry{{IP: "10.0.0.1", RDMADevice: "hns_1:1", WorkerImage: worker.Reference}, {IP: "10.0.0.2", RDMADevice: "hns_1:1", WorkerImage: worker.Reference}}, SlotCount: 8, MaxPayloadBytes: 128 << 20}
 	plan, err := BuildPlan(request, nodes, "10.0.0.99", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(plan.Nodes[0].env, "SLOT_COUNT=128") || !strings.Contains(plan.Nodes[0].env, "SIDECAR_SHM_SIZE=512m") {
+	if !strings.Contains(plan.Nodes[0].env, "SLOT_COUNT=8") || !strings.Contains(plan.Nodes[0].env, "MAX_PAYLOAD_BYTES=134217728") || !strings.Contains(plan.Nodes[0].env, "SIDECAR_SHM_SIZE=3g") {
 		t.Fatalf("selected RingBuffer configuration missing:\n%s", plan.Nodes[0].env)
 	}
-	request.SHMSize = "256m"
-	if _, err := BuildPlan(request, nodes, "10.0.0.99", time.Now()); err == nil || !strings.Contains(err.Error(), "too small") {
-		t.Fatalf("expected small shm_size rejection, got %v", err)
+	if strings.Contains(plan.Nodes[0].env, "CASCADE_PAYLOAD") || strings.Contains(plan.Nodes[0].compose, "payload-bytes") {
+		t.Fatal("orchestration must not configure Worker payload arguments")
+	}
+	request.SHMSize = "2g"
+	if _, err := BuildPlan(request, nodes, "10.0.0.99", time.Now()); err == nil || !strings.Contains(err.Error(), "must be 3g") {
+		t.Fatalf("expected derived shm_size rejection, got %v", err)
 	}
 }
 

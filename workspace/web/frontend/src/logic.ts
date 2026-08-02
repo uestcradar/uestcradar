@@ -2,10 +2,16 @@ import type { ChainEntry, NodeInspection, Role, TelemetryNode } from './types';
 
 export const roleAt = (index: number, total: number): Role => index === 0 ? 'source' : index === total - 1 ? 'sink' : 'operator';
 
-export function shmSizeForSlots(slotCount: number): string {
-  if (slotCount <= 64) return '256m';
-  if (slotCount <= 128) return '512m';
-  return '1g';
+export function shmSizeForRing(slotCount: number, maxPayloadBytes: number): string {
+  const mebibyte = 1024 * 1024;
+  const gibibyte = 1024 * mebibyte;
+  const stride = Math.ceil((maxPayloadBytes + 64) / 64) * 64;
+  const required = 2 * (4096 + stride * slotCount);
+  const payloadCapacity = 2 * slotCount * maxPayloadBytes;
+  const headroom = Math.min(gibibyte, Math.max(64 * mebibyte, payloadCapacity / 8));
+  const total = required + headroom;
+  if (total <= 256 * mebibyte) return '256m';
+  return `${Math.ceil(total / gibibyte)}g`;
 }
 
 export function validateChain(chain: ChainEntry[], nodes: NodeInspection[]): string {

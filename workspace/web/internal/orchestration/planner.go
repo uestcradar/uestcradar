@@ -3,7 +3,6 @@ package orchestration
 import (
 	"fmt"
 	"net"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -77,8 +76,6 @@ services:
     depends_on: [sidecar-node]
 `
 
-var shmSizePattern = regexp.MustCompile(`^[1-9][0-9]*(m|g)$`)
-
 func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHost string, now time.Time) (DeploymentPlan, error) {
 	if len(request.Chain) < 2 {
 		return DeploymentPlan{}, fmt.Errorf("chain requires a Source and Sink")
@@ -89,21 +86,20 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 	if request.SlotCount == 0 {
 		request.SlotCount = 64
 	}
-	if request.SlotCount != 32 && request.SlotCount != 64 && request.SlotCount != 128 && request.SlotCount != 256 {
-		return DeploymentPlan{}, fmt.Errorf("slot_count must be one of 32, 64, 128, or 256")
+	if !supportedSlotCount(request.SlotCount) {
+		return DeploymentPlan{}, fmt.Errorf("slot_count must be one of 4, 6, 8, 16, 32, or 64")
 	}
 	if request.MaxPayloadBytes == 0 {
 		request.MaxPayloadBytes = 1048576
 	}
-	if request.SHMSize == "" {
-		request.SHMSize = "256m"
+	if !supportedMaxPayloadBytes(request.MaxPayloadBytes) {
+		return DeploymentPlan{}, fmt.Errorf("max_payload_bytes must be 1, 8, 32, 64, or 128 MiB")
 	}
-	if !shmSizePattern.MatchString(request.SHMSize) {
-		return DeploymentPlan{}, fmt.Errorf("invalid shm_size")
+	derivedSHMSize := recommendedSHMSize(request.SlotCount, request.MaxPayloadBytes)
+	if request.SHMSize != "" && request.SHMSize != derivedSHMSize {
+		return DeploymentPlan{}, fmt.Errorf("shm_size is derived from RingBuffer capacity and must be %s", derivedSHMSize)
 	}
-	if shmSizeBytes(request.SHMSize) < minimumSHMBytes(request.SlotCount, request.MaxPayloadBytes) {
-		return DeploymentPlan{}, fmt.Errorf("shm_size is too small for two configured RingBuffers")
-	}
+	request.SHMSize = derivedSHMSize
 
 	seenIPs := map[string]bool{}
 	sidecarImageID := ""
@@ -180,18 +176,34 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 	return DeploymentPlan{ID: id, CreatedAt: now, Nodes: planned}, nil
 }
 
-func shmSizeBytes(value string) uint64 {
-	amount, _ := strconv.ParseUint(value[:len(value)-1], 10, 64)
-	if strings.HasSuffix(value, "g") {
-		return amount * 1024 * 1024 * 1024
-	}
-	return amount * 1024 * 1024
+func supportedSlotCount(value uint32) bool {
+	return value == 4 || value == 6 || value == 8 || value == 16 || value == 32 || value == 64
 }
 
-func minimumSHMBytes(slotCount, maxPayloadBytes uint32) uint64 {
-	// Both rings share /dev/shm. The extra page per slot safely covers fixed
-	// headers and alignment without coupling the planner to the C++ layout.
-	return 2 * uint64(slotCount) * (uint64(maxPayloadBytes) + 4096)
+func supportedMaxPayloadBytes(value uint32) bool {
+	return value == 1<<20 || value == 8<<20 || value == 32<<20 || value == 64<<20 || value == 128<<20
+}
+
+func recommendedSHMSize(slotCount, maxPayloadBytes uint32) string {
+	const (
+		mebibyte = uint64(1024 * 1024)
+		gibibyte = 1024 * mebibyte
+	)
+	stride := (uint64(maxPayloadBytes) + 64 + 63) &^ uint64(63)
+	required := 2 * (4096 + stride*uint64(slotCount))
+	payloadCapacity := 2 * uint64(slotCount) * uint64(maxPayloadBytes)
+	headroom := payloadCapacity / 8
+	if headroom < 64*mebibyte {
+		headroom = 64 * mebibyte
+	}
+	if headroom > gibibyte {
+		headroom = gibibyte
+	}
+	total := required + headroom
+	if total <= 256*mebibyte {
+		return "256m"
+	}
+	return strconv.FormatUint((total+gibibyte-1)/gibibyte, 10) + "g"
 }
 
 func roleAt(index, total int) string {
