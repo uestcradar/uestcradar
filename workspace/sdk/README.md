@@ -5,6 +5,11 @@ SDK 6 面向算法开发者只提供两个头文件：
 - `data.h`：`IQFrame`、`PulseCompressionFrame`、`RDFrame` 及其业务 Metadata。
 - `sdk.h`：类型化 `Input`、`Output` 的底层声明；通常只需包含 `data.h`。
 
+> 数据格式使用约束：算法开发者必须使用 `data.h` 中已经定义的标准输入输出帧，
+> 不得在算法项目中私自声明、复制或修改数据帧格式。现有数据帧不能满足算法需求时，
+> 请联系 SDK 维护者，由维护者统一修改 `data.h`、版本化 JSON 契约、类型注册和契约
+> 测试，以保证生产者、消费者及跨语言解码端的数据布局始终一致。
+
 ## 读取数据
 
 ```cpp
@@ -44,37 +49,7 @@ SDK 6 继续使用既有 Ring ABI v6 和 Sidecar protocol v3，不改变物理�
 每种帧分别维护 `type_id/type_version`，`create(metadata, parent)` 只有一个通用入口，
 新增帧不会产生逐帧组合重载。
 
-## 新增或修改一种帧
+## SDK 维护
 
-改动严格限定为四处：
-
-1. 在 `include/data.h` 增加或修改公开的 Metadata 和强类型 Frame。
-2. 增加或修改 `contracts/<name>.json` 契约。
-3. 在 `include/contract_catalog.def` 增加或修改一行注册。
-4. 增加或修改该帧的一个契约测试。
-
-构建期自动生成 C++ `ContractTraits`、`contracts.manifest.json`、Go 解码代码和
-TypeScript `DataView` 解码代码。生成物安装在
-`share/cycomm_sdk/contracts/`，无需手工同步字段偏移。
-
-只修改某个现有 JSON 契约时，构建系统只重新编译该契约对象并重新链接 SDK；其他
-帧的契约对象、类型编号和版本保持不变。Producer 和 Consumer 必须使用完全一致的
-`type_id/type_version`，不进行隐式版本转换。
-
-## 验证
-
-```bash
-cmake -S . -B build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_TESTING=ON
-cmake --build build --parallel
-ctest --test-dir build --output-on-failure
-```
-
-SDK 数据面基准工具支持指定 Payload 和帧数：
-
-```bash
-./build/sdk-benchmark 4096 50000
-./build/sdk-benchmark 65536 20000
-./build/sdk-benchmark 1048576 3000
-```
+算法开发者无需了解数据帧的物理布局。需要新增或修改标准数据帧时，请由 SDK
+维护者按照[数据帧契约维护指南](contracts/README.md)统一修改并验证。
