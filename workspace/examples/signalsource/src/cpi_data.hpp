@@ -16,9 +16,18 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace radar_example {
+
+constexpr std::size_t kOfflineCpiCount = 10;
+constexpr std::uint32_t kOfflineCpiSamples = 751206;
+constexpr std::uint32_t kOfflineCpiPulses = 64;
+constexpr std::size_t kOfflineCpiCs16Bytes = 3004824;
+constexpr std::size_t kIQV3MetadataBytes = 2136;
+constexpr std::size_t kIQV3PayloadBytes =
+    kIQV3MetadataBytes + kOfflineCpiCs16Bytes;
 
 struct CpiData {
     uestcradar::IQMetadata metadata;
@@ -195,6 +204,55 @@ inline CpiData load_cpi(const std::filesystem::path& directory) {
     static_assert(std::is_trivially_copyable_v<uestcradar::ComplexInt16>);
     static_assert(sizeof(uestcradar::ComplexInt16) == 4);
     return result;
+}
+
+inline bool same_waveform_configuration(
+    const uestcradar::IQMetadata& left,
+    const uestcradar::IQMetadata& right) noexcept {
+    return left.channel_count == right.channel_count &&
+        left.samples_per_channel == right.samples_per_channel &&
+        left.pulse_count == right.pulse_count &&
+        left.wave_process_type == right.wave_process_type &&
+        left.velocity_oversampling == right.velocity_oversampling &&
+        left.sample_rate_hz == right.sample_rate_hz &&
+        left.nominal_carrier_frequency_hz ==
+            right.nominal_carrier_frequency_hz &&
+        left.bandwidth_hz == right.bandwidth_hz &&
+        left.pulse_width_s == right.pulse_width_s &&
+        left.nominal_prt_s == right.nominal_prt_s &&
+        left.observation_max_range_m == right.observation_max_range_m &&
+        left.dequantization_scale == right.dequantization_scale;
+}
+
+inline std::vector<CpiData> load_cpi_sequence(
+    const std::filesystem::path& data_root) {
+    std::vector<CpiData> sequence;
+    sequence.reserve(kOfflineCpiCount);
+    for (std::size_t index = 0; index < kOfflineCpiCount; ++index) {
+        const auto directory = data_root / ("CPI" + std::to_string(index));
+        auto cpi = load_cpi(directory);
+        if (cpi.metadata.cpi_index != index) {
+            throw std::runtime_error(
+                directory.string() + " metadata cpi_index is not " +
+                std::to_string(index));
+        }
+        if (cpi.metadata.channel_count != 1 ||
+            cpi.metadata.samples_per_channel != kOfflineCpiSamples ||
+            cpi.metadata.pulse_count != kOfflineCpiPulses ||
+            cpi.cs16.size() != kOfflineCpiCs16Bytes) {
+            throw std::runtime_error(
+                directory.string() + " does not match the offline IQ v3 shape");
+        }
+        if (!sequence.empty() &&
+            !same_waveform_configuration(
+                sequence.front().metadata, cpi.metadata)) {
+            throw std::runtime_error(
+                directory.string() +
+                " waveform configuration differs from CPI0");
+        }
+        sequence.push_back(std::move(cpi));
+    }
+    return sequence;
 }
 
 inline void copy_cpi_samples(

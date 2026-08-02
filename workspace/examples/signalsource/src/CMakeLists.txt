@@ -31,8 +31,18 @@ if(BUILD_TESTING)
     target_link_libraries(cpi-data-test PRIVATE cycomm::sdk)
     target_compile_features(cpi-data-test PRIVATE cxx_std_20)
     target_compile_options(cpi-data-test PRIVATE -Wall -Wextra -Wpedantic)
-    set(CPI0_TEST_DATA_DIR "" CACHE PATH "Optional authoritative CPI0 test data")
-    if(CPI0_TEST_DATA_DIR)
+    set(CPI_TEST_DATA_ROOT "" CACHE PATH "Optional authoritative CPI0-CPI9 root")
+    set(CPI0_TEST_DATA_DIR "" CACHE PATH "Deprecated path to authoritative CPI0")
+    if(NOT CPI_TEST_DATA_ROOT AND CPI0_TEST_DATA_DIR)
+        get_filename_component(_cpi0_name "${CPI0_TEST_DATA_DIR}" NAME)
+        if(_cpi0_name STREQUAL "CPI0")
+            get_filename_component(
+                CPI_TEST_DATA_ROOT "${CPI0_TEST_DATA_DIR}" DIRECTORY)
+        else()
+            set(CPI_TEST_DATA_ROOT "${CPI0_TEST_DATA_DIR}")
+        endif()
+    endif()
+    if(CPI_TEST_DATA_ROOT)
         find_package(Threads REQUIRED)
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(UCX REQUIRED IMPORTED_TARGET ucx)
@@ -69,13 +79,13 @@ if(BUILD_TESTING)
             cpi-sidecar-test PRIVATE -Wall -Wextra -Wpedantic)
         add_test(
             NAME signalsource-cpi-data
-            COMMAND cpi-data-test "${CPI0_TEST_DATA_DIR}")
+            COMMAND cpi-data-test "${CPI_TEST_DATA_ROOT}")
         add_test(
             NAME signalsource-cpi-ring
-            COMMAND cpi-ring-test "${CPI0_TEST_DATA_DIR}")
+            COMMAND cpi-ring-test "${CPI_TEST_DATA_ROOT}")
         add_test(
             NAME signalsource-cpi-sidecar
-            COMMAND cpi-sidecar-test "${CPI0_TEST_DATA_DIR}")
+            COMMAND cpi-sidecar-test "${CPI_TEST_DATA_ROOT}/CPI0")
         set_tests_properties(
             signalsource-cpi-sidecar PROPERTIES TIMEOUT 30)
     endif()
