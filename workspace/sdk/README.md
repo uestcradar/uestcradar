@@ -82,8 +82,47 @@ using namespace uestcradar;
 Input<IQFrame> input;
 auto iq = input.read();
 auto metadata = iq.metadata();
-auto samples = iq.data();
+auto samples = iq.data(); // 返回 Array2D<ComplexInt16>
 ```
+
+### 二维数据矩阵索引与访问方式
+
+三种数据帧统一通过 `frame.data()` 返回 `Array2D<T>` 二维视图对象，索引语法如下：
+
+#### 1. `IQFrame`（数据类型：`ComplexInt16` CS16 复数）
+* **索引语法**：`iq.data()[channel][sample_index]`
+  - `channel`: 通道号（`0 ~ metadata.channel_count - 1`）
+  - `sample_index`: 采样点序号（`0 ~ metadata.samples_per_channel - 1`）
+* **代码示例**：
+  ```cpp
+  auto matrix = iq.data();
+  ComplexInt16 sample = matrix[0][1000]; // 0 号通道第 1000 个采样点
+  int16_t i_val = sample.i; // I 实部
+  int16_t q_val = sample.q; // Q 虚部
+  std::span<const ComplexInt16> channel_0 = matrix[0]; // 通道 0 连续数据切片
+  ```
+
+#### 2. `PulseCompressionFrame`（数据类型：`ComplexFloat32` 单精度复数）
+* **索引语法**：`pulse.data()[pulse_index][range_bin]`
+  - `pulse_index`: 脉冲序号/行号（`0 ~ metadata.pulses_per_cpi - 1`）
+  - `range_bin`: 距离门序号/列号（`0 ~ metadata.range_bin_count - 1`）
+* **代码示例**：
+  ```cpp
+  auto matrix = pulse.data();
+  ComplexFloat32 val = matrix[pulse_idx][bin_idx]; // 第 pulse_idx 脉冲、第 bin_idx 距离门
+  float i_val = val.i;
+  float q_val = val.q;
+  ```
+
+#### 3. `RDFrame`（数据类型：`float` 或 `ComplexFloat32` 幅值/复数）
+* **索引语法**：`rd.data()[doppler_bin][range_bin]`
+  - `doppler_bin`: 多普勒速度网格行号（`0 ~ metadata.doppler_bin_count - 1`）
+  - `range_bin`: 距离门网格列号（`0 ~ metadata.range_bin_count - 1`）
+* **代码示例**：
+  ```cpp
+  auto rd_map = rd.data();
+  float power_dB = rd_map[doppler_idx][range_idx]; // 第 doppler_idx 多普勒通道、第 range_idx 距离门能量
+  ```
 
 ## 创建并写出数据
 
