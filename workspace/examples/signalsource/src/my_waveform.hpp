@@ -2,25 +2,50 @@
 
 #include <data.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numbers>
+#include <vector>
 
 namespace radar_example {
 
-inline constexpr std::uint32_t kIqSamples = 128;
 inline constexpr std::uint32_t kRangeBins = 64;
 inline constexpr std::uint32_t kPulsesPerCpi = 8;
 inline constexpr std::uint32_t kTargetRangeBin = 17;
 inline constexpr std::uint32_t kTargetDopplerBin = 2;
 
-inline uestcradar::IQMetadata iq_metadata() {
+inline uestcradar::IQMetadata iq_metadata(
+    std::uint32_t channels,
+    std::uint32_t samples_per_channel) {
     return {
-        .channel_count = 1,
-        .samples_per_channel = kIqSamples,
+        .channel_count = channels,
+        .samples_per_channel = samples_per_channel,
         .sample_rate_hz = 1.0e6,
         .center_frequency_hz = 10.0e9,
+    };
+}
+
+inline uestcradar::ComplexInt16 iq_sample(
+    std::uint32_t channel,
+    std::size_t index,
+    std::size_t samples_per_channel) {
+    const std::size_t period = 192 + static_cast<std::size_t>(channel) * 64;
+    const std::int32_t phase = static_cast<std::int32_t>(
+        (index * (channel + 1U)) % period);
+    const std::int32_t centered = phase - static_cast<std::int32_t>(period / 2);
+    const std::int32_t baseline = centered *
+        static_cast<std::int32_t>(18'000 / (period / 2));
+    const std::size_t pulse_center = samples_per_channel *
+        (static_cast<std::size_t>(channel) + 1) / 5;
+    const bool pulse = index >= pulse_center && index < pulse_center + 8;
+    const std::int16_t peak = static_cast<std::int16_t>(
+        std::min<std::uint32_t>(30'000, 18'000 + channel * 3'000));
+    return {
+        pulse ? peak : static_cast<std::int16_t>(baseline),
+        pulse ? static_cast<std::int16_t>(-peak)
+              : static_cast<std::int16_t>(-baseline / 2),
     };
 }
 
@@ -37,16 +62,31 @@ inline uestcradar::PulseCompressionMetadata pulse_metadata(
 }
 
 inline void fill_iq(uestcradar::IQFrame& frame) {
-    auto samples = frame.data()[0];
-    for (std::size_t index = 0; index < samples.size(); ++index) {
-        const double position =
-            static_cast<double>(index) / static_cast<double>(samples.size());
-        const double phase = std::numbers::pi * 16.0 * position * position;
-        samples[index] = {
-            static_cast<std::int16_t>(std::cos(phase) * 20'000.0),
-            static_cast<std::int16_t>(std::sin(phase) * 20'000.0),
-        };
+    auto matrix = frame.data();
+    for (std::size_t channel = 0; channel < matrix.rows(); ++channel) {
+        auto samples = matrix[channel];
+        for (std::size_t index = 0; index < samples.size(); ++index) {
+            samples[index] = iq_sample(
+                static_cast<std::uint32_t>(channel), index, samples.size());
+        }
     }
+}
+
+inline std::vector<uestcradar::ComplexInt16> make_iq_waveform(
+    std::uint32_t channels,
+    std::uint32_t samples_per_channel) {
+    std::vector<uestcradar::ComplexInt16> values(
+        static_cast<std::size_t>(channels) * samples_per_channel);
+    for (std::uint32_t channel = 0; channel < channels; ++channel) {
+        for (std::uint32_t index = 0;
+             index < samples_per_channel;
+             ++index) {
+            values[static_cast<std::size_t>(channel) *
+                       samples_per_channel + index] =
+                iq_sample(channel, index, samples_per_channel);
+        }
+    }
+    return values;
 }
 
 inline void fill_pulse(

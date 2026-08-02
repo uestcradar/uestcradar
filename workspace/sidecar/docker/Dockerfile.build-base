@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     g++ \
+    flatbuffers-compiler \
+    libflatbuffers-dev \
     libprotobuf-dev \
     libucx-dev \
     ninja-build \

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
+import { PreviewPanel } from './PreviewPanel';
+import { parseContract } from './preview';
 import type { ChainEntry, ClusterSnapshot, LinkSnapshot, NodeInspection, Task, TaskOutputChunk, TelemetryNode } from './types';
 import { reconcileRoles, roleAt, shmSizeForRing, telemetryForEntry, validateChain } from './logic';
 
@@ -218,7 +220,7 @@ export default function App() {
     {loginOpen && <LoginModal onLogin={login} />}
     {workerNode && <WorkerModal node={workerNode} onClose={() => setWorkerNode(undefined)} onSelect={image => updateWorker(workerNode, image)} />}
     {hostKeyNode && <HostKeyModal node={hostKeyNode} onClose={() => setHostKeyNode(undefined)} onConfirm={() => confirmHostKey(hostKeyNode)} />}
-    {detail && <DetailDrawer entry={detail.entry} node={telemetryForEntry(detail.index, snapshot.nodes)} onClose={() => setDetail(undefined)} />}
+    {detail && <DetailDrawer entry={detail.entry} inspection={nodes.find(node => node.ip === detail.entry.ip)} node={telemetryForEntry(detail.index, snapshot.nodes)} onClose={() => setDetail(undefined)} />}
   </div>;
 }
 
@@ -322,8 +324,11 @@ function HostKeyModal({node, onClose, onConfirm}: {node: NodeInspection; onClose
   return <Modal title={`确认 SSH Host Key · ${node.ip}`} onClose={onClose}><div className="modal-form"><p>这是当前 Session 首次连接该节点。请核对以下 SHA256 指纹，指纹发生变化时系统会阻止连接。</p><code className="fingerprint">{node.host_key_fingerprint}</code><button className="primary-button" onClick={onConfirm}>确认指纹并继续探查</button></div></Modal>;
 }
 
-function DetailDrawer({entry, node, onClose}: {entry: ChainEntry; node?: TelemetryNode; onClose: () => void}) {
-  return <div className="drawer-backdrop" onMouseDown={event => {if (event.target === event.currentTarget) onClose();}}><aside className="detail-drawer"><div className="drawer-heading"><div><span className="section-kicker">TELEMETRY DETAIL</span><h2>{entry.ip}</h2></div><IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton></div><div className="drawer-summary"><span>节点状态</span><StatusLabel node={node} /><span>Goodput</span><strong>{(node?.goodput_gbps || 0).toFixed(3)} GB/s</strong><span>最后心跳</span><strong>{node?.last_seen ? new Date(node.last_seen).toLocaleString('zh-CN') : '未上报'}</strong></div>{(node?.links || []).map(link => <article className="link-detail" key={link.link_id}><div><strong>{link.link_id}</strong><span>{link.transport?.toUpperCase() || 'UNKNOWN'} · {link.status}</span></div><dl><dt>Peer</dt><dd>{link.peer_node_id || '无'}</dd><dt>Goodput</dt><dd>{(link.goodput_gbps || 0).toFixed(3)} GB/s</dd><dt>Capacity</dt><dd>{link.ring.capacity_slots}</dd><dt>Used</dt><dd>{link.ring.used_slots}</dd><dt>Write Position</dt><dd>{link.ring.write_position}</dd><dt>Read Position</dt><dd>{link.ring.read_position}</dd><dt>Watermark</dt><dd>{link.ring.watermark_pct.toFixed(1)}%</dd></dl></article>)}{!node?.links?.length && <p className="drawer-empty">当前节点尚无遥测明细。</p>}</aside></div>;
+function DetailDrawer({entry, inspection, node, onClose}: {entry: ChainEntry; inspection?: NodeInspection; node?: TelemetryNode; onClose: () => void}) {
+  const worker = inspection?.workers?.find(image => image.reference === entry.worker_image);
+  const input = parseContract(worker?.contract.input);
+  const output = parseContract(worker?.contract.output);
+  return <div className="drawer-backdrop" onMouseDown={event => {if (event.target === event.currentTarget) onClose();}}><aside className="detail-drawer"><div className="drawer-heading"><div><span className="section-kicker">TELEMETRY DETAIL</span><h2>{entry.ip}</h2></div><IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton></div><div className="drawer-summary"><span>节点状态</span><StatusLabel node={node} /><span>Goodput</span><strong>{(node?.goodput_gbps || 0).toFixed(3)} GB/s</strong><span>最后心跳</span><strong>{node?.last_seen ? new Date(node.last_seen).toLocaleString('zh-CN') : '未上报'}</strong></div><PreviewPanel nodeId={node?.node_id} input={input} output={output} />{(node?.links || []).map(link => <article className="link-detail" key={link.link_id}><div><strong>{link.link_id}</strong><span>{link.transport?.toUpperCase() || 'UNKNOWN'} · {link.status}</span></div><dl><dt>Peer</dt><dd>{link.peer_node_id || '无'}</dd><dt>Goodput</dt><dd>{(link.goodput_gbps || 0).toFixed(3)} GB/s</dd><dt>Capacity</dt><dd>{link.ring.capacity_slots}</dd><dt>Used</dt><dd>{link.ring.used_slots}</dd><dt>Write Position</dt><dd>{link.ring.write_position}</dd><dt>Read Position</dt><dd>{link.ring.read_position}</dd><dt>Watermark</dt><dd>{link.ring.watermark_pct.toFixed(1)}%</dd></dl></article>)}{!node?.links?.length && <p className="drawer-empty">当前节点尚无遥测明细。</p>}</aside></div>;
 }
 
 function Modal({title, onClose, children}: {title: string; onClose?: () => void; children: React.ReactNode}) { return <div className="modal-backdrop" onMouseDown={event => {if (onClose && event.target === event.currentTarget) onClose();}}><section className="modal"><div className="modal-heading"><h2>{title}</h2>{onClose && <IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton>}</div>{children}</section></div>; }

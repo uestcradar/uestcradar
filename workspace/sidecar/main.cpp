@@ -1,5 +1,6 @@
 #include "forwarder/forwarder.hpp"
 #include "network/ucx_transport.hpp"
+#include "preview/preview.hpp"
 #include "ringbuf/ringbuf.hpp"
 #include "telemetry/telemetry.hpp"
 
@@ -310,7 +311,8 @@ void log_dropped(
 void run_ingress_leg(
     const LegConfig& config,
     RingBuffer* input,
-    sidecar::forwarder::LegMetrics& metrics) {
+    sidecar::forwarder::LegMetrics& metrics,
+    sidecar::forwarder::FrameTap* preview_tap) {
     while (running != 0 && !ringbuf_is_shutdown(input)) {
         try {
             sidecar::network::UCXTransport transport =
@@ -320,7 +322,7 @@ void run_ingress_leg(
             std::cout << "sidecar: leg=" << config.name
                       << " event=connected" << std::endl;
             sidecar::forwarder::run_ingress_session(
-                running, input, transport, memory, metrics);
+                running, input, transport, memory, metrics, preview_tap);
             return;
         } catch (const std::exception& error) {
             if (running == 0 || ringbuf_is_shutdown(input)) {
@@ -337,7 +339,8 @@ void run_ingress_leg(
 void run_egress_leg(
     const LegConfig& config,
     RingBuffer* output,
-    sidecar::forwarder::LegMetrics& metrics) {
+    sidecar::forwarder::LegMetrics& metrics,
+    sidecar::forwarder::FrameTap* preview_tap) {
     while (running != 0 && !ringbuf_is_shutdown(output)) {
         log_dropped(
             config, sidecar::forwarder::drop_stale_frames(output));
@@ -351,7 +354,7 @@ void run_egress_leg(
             std::cout << "sidecar: leg=" << config.name
                       << " event=connected" << std::endl;
             sidecar::forwarder::run_egress_session(
-                running, output, transport, memory, metrics);
+                running, output, transport, memory, metrics, preview_tap);
             return;
         } catch (const std::exception& error) {
             if (running == 0 || ringbuf_is_shutdown(output)) {
@@ -401,6 +404,33 @@ int main() {
         sidecar::forwarder::LegMetrics upstream_metrics;
         sidecar::forwarder::LegMetrics downstream_metrics;
 
+        const std::string node_id = environment_or("NODE_ID", "sidecar-node");
+        const auto preview_started = std::chrono::system_clock::now();
+        const std::string preview_instance_id = node_id + "-" +
+            std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                preview_started.time_since_epoch()).count());
+        const std::string telemetry_host = environment_or(
+            "TELEMETRY_HOST", "telemetry-web");
+        sidecar::preview::Runtime preview_runtime({
+            node_id,
+            preview_instance_id,
+            environment_or("PREVIEW_HOST", telemetry_host.c_str()),
+            static_cast<std::uint16_t>(size_from_environment(
+                "PREVIEW_PORT", 9901, 1, 65535)),
+            {
+                upstream_leg.role != LegRole::disabled,
+                upstream_config.type_id,
+                upstream_config.type_version,
+                uestcradar::kEnvelopeSize + upstream_config.max_payload_bytes,
+            },
+            {
+                downstream_leg.role != LegRole::disabled,
+                downstream_config.type_id,
+                downstream_config.type_version,
+                uestcradar::kEnvelopeSize + downstream_config.max_payload_bytes,
+            },
+        });
+
         const std::vector<sidecar::telemetry::TelemetryTarget> targets{
             {
                 "upstream",
@@ -437,19 +467,24 @@ int main() {
                           << error.what() << ')' << std::endl;
             }
         });
+        std::thread preview_thread([&] {
+            preview_runtime.run(running);
+        });
 
         std::thread upstream_thread;
         std::thread downstream_thread;
         if (upstream_leg.role != LegRole::disabled) {
             upstream_thread = std::thread([&] {
                 run_ingress_leg(
-                    upstream_leg, upstream.get(), upstream_metrics);
+                    upstream_leg, upstream.get(), upstream_metrics,
+                    preview_runtime.input_tap());
             });
         }
         if (downstream_leg.role != LegRole::disabled) {
             downstream_thread = std::thread([&] {
                 run_egress_leg(
-                    downstream_leg, downstream.get(), downstream_metrics);
+                    downstream_leg, downstream.get(), downstream_metrics,
+                    preview_runtime.output_tap());
             });
         }
 
@@ -474,6 +509,7 @@ int main() {
             downstream_thread.join();
         }
         telemetry_thread.join();
+        preview_thread.join();
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "sidecar: " << error.what() << '\n';

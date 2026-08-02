@@ -2,7 +2,8 @@
 
 本目录为 SDK 教学示例提供两个基础程序，算法开发者通常不需要修改它们：
 
-- `signalsource --type iq|pulse`：持续产生 IQ 或脉压测试帧。
+- `signalsource --type iq|pulse`：持续产生 IQ 或脉压测试帧。IQ 默认生成 4 通道、
+  每通道 1,277,952 个复数采样点，单帧矩阵恰好 19.5 MiB，目标速率 30 fps。
 - `frame-sink --type pulse|rd`：消费结果并打印矩阵尺寸和峰值。
 
 两个程序都只包含 `data.h`，分别展示最小的类型化 `Output<DataFrame>` 和
@@ -12,13 +13,22 @@ Sidecar Compose。
 
 ## 构建
 
-基础镜像必须包含当前 SDK 5、Ring ABI v6 和 Contract v2：
+基础镜像必须包含当前 SDK 6、Ring ABI v6 和 Contract v2：
 
 ```bash
 docker build \
   -t registry.chengyistudio.com/cxx/signalsource:latest \
   workspace/examples/signalsource
 ```
+
+可用 `--channels`、`--samples-per-channel`、`--rate-hz` 调整测试源。例如用于快速
+冒烟测试：
+
+```bash
+signalsource --type iq --channels 4 --samples-per-channel 4096 --rate-hz 30
+```
+
+每个通道使用不同周期的测试波形和不同位置的窄脉冲，便于验证预览压缩不会串道。
 
 启动后会看到类似日志：
 

@@ -11,7 +11,7 @@ RUN test "$(uname -m)" = "aarch64"
 
 WORKDIR /src
 COPY workspace/common/ ./common/
-COPY workspace/proto/telemetry.proto ./proto/telemetry.proto
+COPY workspace/proto/ ./proto/
 COPY workspace/sdk/ ./sdk/
 COPY workspace/sidecar/ ./sidecar/
 

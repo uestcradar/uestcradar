@@ -42,6 +42,18 @@ foreach(required "decodeMetadata" "payload length mismatch" "DataView")
         message(FATAL_ERROR "generated TypeScript decoder is missing ${required}")
     endif()
 endforeach()
+file(READ "${TEST_ROOT}/valid/preview_contracts.generated.hpp" preview_contracts)
+foreach(required
+    "Element::complex_int16"
+    "Element::complex_float32"
+    "Visualization::waveform"
+    "Visualization::heatmap"
+    "no_channel_index")
+    string(FIND "${preview_contracts}" "${required}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "generated preview contracts are missing ${required}")
+    endif()
+endforeach()
 
 file(WRITE "${TEST_ROOT}/duplicate.def"
     "UESTCRADAR_CONTRACT(iq, IQFrame, IQMetadata)\n"
