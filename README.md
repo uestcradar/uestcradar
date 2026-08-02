@@ -103,19 +103,17 @@ graph TD
 > 📖 关于如何基于脚手架模板克隆新算法、制定数据格式、执行本地静态自检沙盒测试以及进行 AArch64 容器化交叉编译，请参阅：
 > **[C++ 算子开发模板专属指南 (algorithm_template/README.md)](.agents/skills/develop_cpp_algorithm/algorithm_template/README.md)**
 
----
+## 算法开发基座 (单机测试环境)
 
-## Docker 单机算子开发基座 (Docker 算法开发部分)
+在 `workspace/examples/` 目录下提供了单机测试黑盒环境（内置测试数据源与结果自动校验）。算法开发者在本地一键启动测试环境后，即可专心编写 C++ / Qt 算法代码，无需关心底层传输细节。
 
-仓库在 `workspace/examples/` 目录下提供了基于黑盒 Compose 基础设施的单机算法开发基座，内含仿真/真实数据源、Sidecar 内存网关与结果校验端。算法开发者无需关注底层传输，可以在本地环境独立高效地进行算法开发与调试。
+### 算法开发指南
 
-### 算子开发基座文档索引
-
-| 算子开发基座名称 | 适合应用场景 | 开发使用指南索引 (相对路径) |
+| 算法开发基座 | 适用场景 | 说明文档 (相对路径) |
 | :--- | :--- | :--- |
-| **`pulsecompression`** | C++ 一维匹配滤波 / 脉冲压缩算法开发 | **[PulseCompression 算法开发基座指南](workspace/examples/pulsecompression/README.md)** |
-| **`qt5-algorithm`** | Qt5 框架下二维距离-多普勒（RDMap）算法开发 | **[Qt5 距离多普勒 RD 算法开发基座指南](workspace/examples/qt5-algorithm/README.md)** |
+| **`pulsecompression`** | C++ 一维匹配滤波 / 脉冲压缩算法开发 | **[脉冲压缩算法开发指南](workspace/examples/pulsecompression/README.md)** |
+| **`qt5-algorithm`** | Qt5 框架下二维距离-多普勒 (RDMap) 算法开发 | **[Qt5 RD 图算法开发指南](workspace/examples/qt5-algorithm/README.md)** |
 
 > [!TIP]
-> 📖 关于底层标准帧契约（`IQFrame` / `PulseCompressionFrame` / `RDFrame`）的数据结构定义、Metadata 字段说明及 `Array2D` 内存索引语法，请参阅：
-> **[UESTC Radar Worker SDK 接口指南 (workspace/sdk/README.md)](workspace/sdk/README.md)**
+> 📖 关于各种雷达数据帧（IQ 数据、脉脉冲压缩数据、RD 图）的具体字段含义和读取方法，请参阅：
+> **[SDK 数据读写指南](workspace/sdk/README.md)**
