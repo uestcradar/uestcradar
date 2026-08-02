@@ -63,13 +63,23 @@ docker compose -f docker-compose-infra.yaml up -d
 
 ### 第二步：编写算法
 
+关于 SDK 输入输出管道（`Input<IQFrame>`、`Output<PulseCompressionFrame>`）及各类帧契约结构的详细说明，请参考 [SDK 接口指南](../../sdk/README.md)。
+
 示例入口展示了 Worker 必需的三个动作：
 
 ```cpp
 auto iq = input.read();
+//初始化本次脉压输出的一些基本参数
+    PulseCompressionMetadata metadata{
+        .channel_count = 1,          // 1. 接收天线/数据通道数量 (本次测试数据源通道数为1,但实机将会接入多通道雷达)
+        .range_bin_count = 1024,     // 2. 一维距离门/采样单元数量 (对应脉压矩阵的列数 N_obs)
+        .pulse_index = 0,            // 3. 当前脉冲在 CPI 积累周期内的索引序号 (0 ~ pulses_per_cpi - 1)
+        .pulses_per_cpi = 8,         // 4. 一个 CPI 积累周期包含的总脉冲数 (对应脉压矩阵的行数 N_pulse)
+        .range_resolution_m = 1.5,   // 5. 距离维分辨率 (物理单位：米 m)
+    };
 
-auto pulse = output.create(describe_output(iq.metadata()), iq);
-dequantize(iq, pulse);  // 替换为真实脉压处理。
+auto pulse = output.create(metadata, iq);
+process(iq, pulse);  // 替换为真实脉压处理。
 
 output.write(std::move(pulse));
 ```
@@ -132,17 +142,10 @@ QEMU 环境只用于功能和正确性验证，不作为吞吐性能基准。
 
 ### 第五步：发布正式镜像
 
-正式发布前，将完成的目录放回仓库的 `workspace/examples/pulsecompression`，从仓库根目录
-运行：
+开发完成后，给自己开发完成的镜像打上tag，推送到镜像源即可
 
 ```bash
-./.agents/skills/docker-release/scripts/release.sh \
-  --remote-dir /root/workspace/uestcradar
-```
+docker tag my-pulsecompression:dev registry.chengyistudio.com/cxx/worker:pulsecompression-v1.0.0
 
-在菜单中选择 `Worker`，再选择 `pulsecompression`。发布结果为：
-
-```text
-registry.chengyistudio.com/cxx/worker:pulsecompression-sha-<gitsha12>-arm64
-registry.chengyistudio.com/cxx/worker:pulsecompression-latest
+docker push registry.chengyistudio.com/cxx/worker:pulsecompression-v1.0.0
 ```
