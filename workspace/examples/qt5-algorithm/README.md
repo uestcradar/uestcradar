@@ -1,123 +1,121 @@
-# UESTC Radar - Qt5 多线程并行算法开发模板 (Qt5 Algorithm)
+# UESTC Radar - Qt5 距离-多普勒算法开发模板
 
-欢迎！本目录专为熟悉 Qt 框架的**算法工程师**打造。
-
-通过引入 Qt5 极其优雅的 `QThread` 与信号槽（Signals & Slots）机制，我们解决了一个核心痛点：**如何避免复杂的数学解算（如 FFT）拖慢网络数据拉取，导致底层缓冲区溢出？**
-
-本模板向您展示了经典的“**单线程后台抽水、多线程解包分发**”架构。对算法开发者而言，基座网络和线程池派发逻辑已被完美封装，您只需专注于编写并行的通道解算算子。
+本目录是 Qt5 雷达算法开发模板，演示一条连续的 **脉冲压缩数据 → RD 图**处理流。
+示例每收齐 8 个脉冲生成一张 RD 图，并持续打印矩阵尺寸和峰值位置。
 
 ## 开发全流程概览
 
 ```mermaid
 graph TD
-    A[第一步: 启动算法开发基座] --> B[第二步: 编写多通道算法]
-    B --> C[第三步: 算法构建]
+    A[第一步: 启动算法开发环境] --> B[第二步: 编写算法]
+    B --> C[第三步: 构建算法镜像]
     C --> D[第四步: 运行与调试]
-    D --> E[第五步: 发布镜像至私有源]
+    D --> E[第五步: 发布算法镜像]
 ```
 
-## 第一步：一键启动“算法开发基座”
+## 第一步：启动算法开发环境
 
-在开始写您的算法之前，您需要先用 `docker-compose` 把底层基础设施（包括模拟数据发生器、网络路由节点等）在后台启动。**这些细节对您完全屏蔽，您只需执行即可。**
-
-请直接使用本目录为您准备好的 `docker-compose.infra.yaml` 启动基座：
+在本目录执行一条命令：
 
 ```bash
- docker-compose -f docker-compose.infra.yaml up -d --force-recreate --pull always
+docker-compose -f docker-compose.infra.yaml up -d --no-build
 ```
 
-启动成功后，水管已经接通，模拟数据已经堵在 `sidecar-beta` 的内存中，等待您的算法提取。
+启动后，连续脉冲压缩测试数据已准备好。
 
-## 第二步：编写您的多通道算法
+## 第二步：编写算法
 
-在这个框架下，所有通信复杂度由 `Input<IQFrame>::read()` 隐藏。`RadarReader` 只读取 IQFrame 的二维通道数据，`ChannelProcessor` 在后台线程处理对应通道。
-
-您的主程序（`main.cpp`）将变得像自然语言一样清晰易懂：
+算法入口位于 `src/main.cpp`，数学实现位于 `src/my_rd_algorithm.hpp`。Qt 日志与容器
+生命周期不会改变 SDK 的使用方式：
 
 ```cpp
-#include <QCoreApplication>
-#include "radar_reader.hpp"
-#include "channel_processor.hpp"
+#include <data.h>
+#include "my_rd_algorithm.hpp"
 
-int main(int argc, char *argv[]) {
-    QCoreApplication app(argc, argv);
+using namespace uestcradar;
 
-    // 1. 启动雷达数据源采集 (在独立线程后台无脑拉取数据，并按通道解包)
-    RadarReader reader;
+Input<PulseCompressionFrame> input;
+Output<RDFrame> output;
+CpiBuffer cpi;
 
-    // 2. 初始化多通道并行处理器 (各自运行在独立的 QThread)
-    ChannelProcessor channel1("Channel_1_FFT");
-    ChannelProcessor channel2("Channel_2_CFAR");
+while (true) {
+    // 1. 读取脉冲压缩数据并加入 CPI。
+    auto pulse = input.read();
+    auto pulse_metadata = pulse.metadata();
+    cpi.push(pulse_metadata.pulse_index,
+             pulse_metadata.pulses_per_cpi,
+             pulse.data()[0]);
 
-    // 3. 将解包后的通道数据投递给不同的通道进行异步处理 (利用隐式共享，跨线程零拷贝)
-    QObject::connect(&reader, &RadarReader::channel1DataReceived, 
-                     &channel1, &ChannelProcessor::processData, Qt::QueuedConnection);
-    QObject::connect(&reader, &RadarReader::channel2DataReceived, 
-                     &channel2, &ChannelProcessor::processData, Qt::QueuedConnection);
+    if (!cpi.ready()) {
+        continue;
+    }
 
-    // 4. 开始运行事件循环
-    reader.start();
-    return app.exec();
+    // 2. 填写本算法输出数据的业务参数。
+    RDMetadata metadata{
+        .channel_index = 0,
+        .range_bin_count = static_cast<std::uint32_t>(
+            cpi.range_bin_count()),
+        .doppler_bin_count = 8,
+        .range_resolution_m = pulse_metadata.range_resolution_m,
+        .velocity_resolution_mps = 0.5,
+    };
+    // 多帧合成一帧 RD 时，这里传本次 CPI 中最后读取到的脉压帧。
+    auto rd = output.create(metadata, pulse);
+
+    // 3. 执行算法并写出 RD 图。
+    auto result = compute_rd(cpi, rd.data());
+    qInfo() << "RD peak="
+            << result.peak_range_bin
+            << result.peak_doppler_bin;
+    output.write(std::move(rd));
+    cpi.clear();
 }
 ```
 
-请直接打开本目录 `src/` 下的源码查看，它将作为您的开发模板。
+开发自己的算法时，主要替换 `src/my_rd_algorithm.hpp` 中 `compute_rd()` 的实现。
+示例只使用 QtCore，保留了最小的 `QCoreApplication` 与 `qInfo()` 日志逻辑。
 
-## 第三步：算法构建
-
-写好算法后，使用本目录极简的 `Dockerfile` 编译出您的算法容器。
-（得益于底层的 `algo-base`，使用 `--pull` 可确保拉取最新的基座镜像，避免 SDK ABI 不一致问题！）
+## 第三步：构建算法镜像
 
 ```bash
-docker build --pull -t qt5-algorithm:dev .
+docker build --pull -t my-radar-qt5-algorithm:dev .
 ```
 
 ## 第四步：运行与调试
 
-您可以带上 `--ipc container:sidecar-beta` 这把钥匙，将您的多线程算法挂载到刚才启动的基座上。我们提供了两种运行模式：
-
-**模式 A：直接运行算法验证**
-如果您确认代码无误，希望让它在后台默默跑完并输出结果文件，可以指定 `--entrypoint` 为算法主程序：
-
 ```bash
-docker run -it --rm \
-  --name qt5-algorithm-test \
-  --network host \
-  --ipc container:sidecar-beta \
-  --entrypoint /app/qt5_algo \
-  qt5-algorithm:dev
+export QT5_ALGORITHM_IMAGE=my-radar-qt5-algorithm:dev
+docker-compose -f docker-compose.infra.yaml up -d --no-build qt5-algorithm
+docker-compose -f docker-compose.infra.yaml logs -f qt5-algorithm rd-sink
 ```
 
-如果您在终端中看到来自 `[Channel_1_FFT]` 和 `[Channel_2_CFAR]` 位于不同线程（Hex ID 不同）交替打印的处理日志，说明多通道并行架构已完美生效！
+正常日志示例：
 
-**模式 B：进入容器交互式调试**
-如果您的算法异常，或者希望在容器内手动执行测试，请将 `--entrypoint` 覆盖为 `/bin/bash` 并开启交互终端（`-it`）：
-
-```bash
-docker run -it --rm \
-  --name qt5-algorithm-debug \
-  --network host \
-  --ipc container:sidecar-beta \
-  -v $(pwd)/src:/src \
-  --entrypoint /bin/bash \
-  qt5-algorithm:dev
+```text
+[qt-algorithm] pulse compression -> RD ready frames=0
+[qt-algorithm] produced=1 RD=64 x 8 peak=17,2
+[sink] type=rd received=1 shape=64x8 peak=17,2
 ```
 
-进入容器后，您可以直接在 `/build` 目录执行 `./qt5_algo` 观察报错输出。甚至可以将本机代码目录挂载进去（`-v`）当场修改、重新 `make`，极大提升调试效率。
-
-## 第五步：发布镜像至私有源 (用于生产部署)
-
-当您的算法经过本地验证后，您可以将其推送到私有仓库，从而将算法部署到真实的物理雷达基站或云端集群中。
+进入容器交互调试：
 
 ```bash
-# 1. 打上符合私有源规则的 Tag
-docker tag qt5-algorithm:dev registry.chengyistudio.com/cxx/qt5-algorithm:v1.0.0
+docker-compose -f docker-compose.infra.yaml run --rm --no-deps \
+  --entrypoint /bin/bash qt5-algorithm
+/app/qt5-algorithm --log-every 1
+```
 
-# 2. 登录私有仓库 (若未登录)
+停止环境：
+
+```bash
+docker-compose -f docker-compose.infra.yaml down
+```
+
+## 第五步：发布算法镜像
+
+```bash
+docker tag my-radar-qt5-algorithm:dev \
+  registry.chengyistudio.com/cxx/my-radar-qt5-algorithm:v1.0.0
 docker login registry.chengyistudio.com
-
-# 3. 推送到远端
-docker push registry.chengyistudio.com/cxx/qt5-algorithm:v1.0.0
+docker push registry.chengyistudio.com/cxx/my-radar-qt5-algorithm:v1.0.0
 ```
-
-至此，您的 Qt5 多线程并行算法就已经成功发布！

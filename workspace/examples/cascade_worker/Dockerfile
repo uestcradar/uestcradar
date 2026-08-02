@@ -17,5 +17,5 @@ CMD ["--test", "benchmark", "--payload-bytes", "134217728", "--duration-seconds"
 
 LABEL io.uestcradar.contract="worker/v1" \
       io.uestcradar.roles="source,operator,sink" \
-      io.uestcradar.input="1:1" \
-      io.uestcradar.output="1:1"
+      io.uestcradar.input="1:2" \
+      io.uestcradar.output="1:2"

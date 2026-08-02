@@ -9,7 +9,7 @@ namespace sidecar::forwarder::protocol {
 inline constexpr std::uint64_t kPayloadTag = 0x4657445f44415441ULL;
 inline constexpr std::uint64_t kCreditTag = 0x4657445f43524454ULL;
 inline constexpr std::uint64_t kHelloTag = 0x4657445f48454c4fULL;
-inline constexpr std::uint32_t kProtocolVersion = 2;
+inline constexpr std::uint32_t kProtocolVersion = 3;
 
 enum class PortRole : std::uint32_t {
     producer = 1,

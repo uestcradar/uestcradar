@@ -39,7 +39,13 @@ bool append(RingBuffer* ring, std::size_t bytes) {
     for (std::size_t index = 0; index < bytes; ++index) {
         lease.payload()[index] = static_cast<std::byte>(index & 0xff);
     }
-    return ringbuf_commit(lease, bytes) == RingResult::ok;
+    lease.envelope() = {
+        .frame_id = bytes,
+        .type_id = ring->header->type_id,
+        .type_version = ring->header->type_version,
+        .payload_length = static_cast<std::uint32_t>(bytes),
+    };
+    return ringbuf_commit(lease) == RingResult::ok;
 }
 
 }  // namespace

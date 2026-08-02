@@ -10,7 +10,7 @@ ARG BUILD_JOBS=2
 RUN test "$(uname -m)" = "aarch64"
 
 WORKDIR /src
-COPY workspace/common/ringbuf/ ./common/ringbuf/
+COPY workspace/common/ ./common/
 COPY workspace/proto/telemetry.proto ./proto/telemetry.proto
 COPY workspace/sdk/ ./sdk/
 COPY workspace/sidecar/ ./sidecar/
@@ -30,6 +30,7 @@ RUN cmake -S sidecar -B sidecar-build -G Ninja \
 RUN mkdir -p /out \
     && g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic \
       -I/src/sdk/include \
+      -I/src/common \
       sidecar/tools/cascade_worker.cpp \
       -L/src/sdk-build -Wl,-rpath,/app \
       -luestcradar_sdk \
@@ -42,7 +43,7 @@ RUN mkdir -p /out \
 
 FROM --platform=${SIDECAR_PLATFORM} ${RUNTIME_BASE} AS runtime
 
-LABEL io.uestcradar.contract="sidecar/v1"
+LABEL io.uestcradar.contract="sidecar/v2"
 
 RUN test "$(uname -m)" = "aarch64"
 WORKDIR /app

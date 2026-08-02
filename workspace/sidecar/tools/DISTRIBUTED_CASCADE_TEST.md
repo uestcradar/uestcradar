@@ -102,10 +102,12 @@ node.env
 ```dotenv
   # 填入刚获取的真实不可变 Digest
     SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
-    CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker@sha256:a514f2614b9fbc68eb967a2fd4166591bab7fcc52a34d1461e3fdd63850f0558
+    CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker:latest
   
     NODE_ID=node-a
     CASCADE_ROLE=source
+    TYPE_ID=1
+    TYPE_VERSION=2
   
     # 双 Leg 角色配置：禁用上游，下游连接机器 B
     UPSTREAM_ROLE=disabled
@@ -137,10 +139,12 @@ node.env
 ```
  # 不可变镜像 Digest
     SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
-    CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker@sha256:a514f2614b9fbc68eb967a2fd4166591bab7fcc52a34d1461e3fdd63850f0558
+    CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker:latest
   
     NODE_ID=node-b
     CASCADE_ROLE=operator
+    TYPE_ID=1
+    TYPE_VERSION=2
   
     # 通道角色：上游监听机器 B 本身，下游连接机器 C (192.170.2.128)
     UPSTREAM_ROLE=listen
@@ -173,10 +177,12 @@ node.env
 
 ```
   	SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
-    CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker@sha256:a514f2614b9fbc68eb967a2fd4166591bab7fcc52a34d1461e3fdd63850f0558
+    CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker:latest
 
     NODE_ID=node-c
     CASCADE_ROLE=sink
+    TYPE_ID=1
+    TYPE_VERSION=2
 
     # 双 Leg 角色配置
     UPSTREAM_ROLE=listen

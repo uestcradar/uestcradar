@@ -91,7 +91,7 @@ RingBufferConfig ring_config_from_environment(
             INT32_MAX)),
         uint64_from_environment(type_id_name, kDefaultFrameTypeId),
         static_cast<std::uint32_t>(size_from_environment(
-            type_version_name, 1, 1, UINT32_MAX)),
+            type_version_name, 2, 1, UINT32_MAX)),
     };
 }
 
