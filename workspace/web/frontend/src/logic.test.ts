@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTopology, reconcileRoles, roleAt, validateChain } from './logic';
+import { buildTopology, reconcileRoles, roleAt, shmSizeForSlots, validateChain } from './logic';
 import type { ChainEntry, ImageInfo, NodeInspection, TelemetryNode } from './types';
 
 const image = (reference: string, input: string, output: string): ImageInfo => ({ reference, id: `sha256:${reference}`, architecture: 'arm64', contract: { roles: ['source', 'operator', 'sink'], input, output } });
@@ -9,6 +9,9 @@ const entry = (ip: string, worker: string): ChainEntry => ({ key: ip, ip, rdma_d
 describe('cascade planning', () => {
   it('infers terminal and operator roles', () => {
     expect([0, 1, 2].map(index => roleAt(index, 3))).toEqual(['source', 'operator', 'sink']);
+  });
+  it('reserves enough shared memory for both fixed-slot rings', () => {
+    expect([32, 64, 128, 256].map(shmSizeForSlots)).toEqual(['256m', '256m', '512m', '1g']);
   });
   it('rejects repeated physical nodes', () => {
     const worker = image('worker:a', '1:1', '1:1');

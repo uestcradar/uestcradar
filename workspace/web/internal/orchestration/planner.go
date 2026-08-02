@@ -89,6 +89,9 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 	if request.SlotCount == 0 {
 		request.SlotCount = 64
 	}
+	if request.SlotCount != 32 && request.SlotCount != 64 && request.SlotCount != 128 && request.SlotCount != 256 {
+		return DeploymentPlan{}, fmt.Errorf("slot_count must be one of 32, 64, 128, or 256")
+	}
 	if request.MaxPayloadBytes == 0 {
 		request.MaxPayloadBytes = 1048576
 	}
@@ -97,6 +100,9 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 	}
 	if !shmSizePattern.MatchString(request.SHMSize) {
 		return DeploymentPlan{}, fmt.Errorf("invalid shm_size")
+	}
+	if shmSizeBytes(request.SHMSize) < minimumSHMBytes(request.SlotCount, request.MaxPayloadBytes) {
+		return DeploymentPlan{}, fmt.Errorf("shm_size is too small for two configured RingBuffers")
 	}
 
 	seenIPs := map[string]bool{}
@@ -172,6 +178,20 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		return DeploymentPlan{}, err
 	}
 	return DeploymentPlan{ID: id, CreatedAt: now, Nodes: planned}, nil
+}
+
+func shmSizeBytes(value string) uint64 {
+	amount, _ := strconv.ParseUint(value[:len(value)-1], 10, 64)
+	if strings.HasSuffix(value, "g") {
+		return amount * 1024 * 1024 * 1024
+	}
+	return amount * 1024 * 1024
+}
+
+func minimumSHMBytes(slotCount, maxPayloadBytes uint32) uint64 {
+	// Both rings share /dev/shm. The extra page per slot safely covers fixed
+	// headers and alignment without coupling the planner to the C++ layout.
+	return 2 * uint64(slotCount) * (uint64(maxPayloadBytes) + 4096)
 }
 
 func roleAt(index, total int) string {

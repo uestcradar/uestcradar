@@ -2,6 +2,12 @@ import type { ChainEntry, NodeInspection, Role, TelemetryNode } from './types';
 
 export const roleAt = (index: number, total: number): Role => index === 0 ? 'source' : index === total - 1 ? 'sink' : 'operator';
 
+export function shmSizeForSlots(slotCount: number): string {
+  if (slotCount <= 64) return '256m';
+  if (slotCount <= 128) return '512m';
+  return '1g';
+}
+
 export function validateChain(chain: ChainEntry[], nodes: NodeInspection[]): string {
 	if (chain.length < 2) return '至少需要一个 Source 节点和一个 Sink 节点';
   if (chain.some(entry => !entry.ip || !entry.rdma_device || !entry.worker_image)) return '请完整选择每个节点、RDMA 端口和 Worker';

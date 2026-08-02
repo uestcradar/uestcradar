@@ -19,6 +19,7 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<ClusterSnapshot>({generated_at: '', nodes: []});
   const [logs, setLogs] = useState<ConsoleEntry[]>([]);
   const [busy, setBusy] = useState(false);
+  const [slotCount, setSlotCount] = useState(64);
   const [isStreamRunning, setStreamRunning] = useState(false);
   const [workerNode, setWorkerNode] = useState<NodeInspection>();
   const [detail, setDetail] = useState<{entry: ChainEntry; index: number}>();
@@ -170,7 +171,7 @@ export default function App() {
     if (chainError) { appendLog(`${chainError}\n`, 'stderr'); return; }
     try {
       appendLog('正在校验拓扑并生成各节点部署参数。\n');
-      const plan = await api.previewPlan(chain);
+      const plan = await api.previewPlan(chain, slotCount);
       const replace = plan.nodes.some(node => node.existing_deployment);
       if (replace && !window.confirm('目标节点存在已有部署，是否停止并覆盖为当前拓扑？')) {
         appendLog('用户取消覆盖已有部署。\n');
@@ -209,7 +210,7 @@ export default function App() {
     <main className="dashboard-body">
       <NodePool nodes={poolNodes} locked={controlsLocked} onInspect={inspectAll} onAdd={addCustomNode} onJoin={addToChain} onSidecar={updateSidecar} onWorker={node => requireSession(async () => setWorkerNode(node))} onLogin={inspectOne} />
       <section className="workspace-column">
-        <TopologyCanvas chain={chain} nodes={nodes} telemetry={snapshot.nodes} locked={controlsLocked} goodput={totalGoodput} onChange={updateEntry} onMove={moveEntry} onRemove={removeEntry} onDetail={(entry, index) => setDetail({entry, index})} />
+        <TopologyCanvas chain={chain} nodes={nodes} telemetry={snapshot.nodes} locked={controlsLocked} goodput={totalGoodput} slotCount={slotCount} onSlotCount={setSlotCount} onChange={updateEntry} onMove={moveEntry} onRemove={removeEntry} onDetail={(entry, index) => setDetail({entry, index})} />
         <Console logs={logs} onClear={() => setLogs([])} />
       </section>
     </main>
@@ -242,7 +243,7 @@ function NodePool({nodes, locked, onInspect, onAdd, onJoin, onSidecar, onWorker,
   </aside>;
 }
 
-function TopologyCanvas({chain, nodes, telemetry, locked, goodput, onChange, onMove, onRemove, onDetail}: {chain: ChainEntry[]; nodes: NodeInspection[]; telemetry: TelemetryNode[]; locked: boolean; goodput: number; onChange: (index: number, patch: Partial<ChainEntry>) => void; onMove: (index: number, offset: number) => void; onRemove: (index: number) => void; onDetail: (entry: ChainEntry, index: number) => void}) {
+function TopologyCanvas({chain, nodes, telemetry, locked, goodput, slotCount, onSlotCount, onChange, onMove, onRemove, onDetail}: {chain: ChainEntry[]; nodes: NodeInspection[]; telemetry: TelemetryNode[]; locked: boolean; goodput: number; slotCount: number; onSlotCount: (value: number) => void; onChange: (index: number, patch: Partial<ChainEntry>) => void; onMove: (index: number, offset: number) => void; onRemove: (index: number) => void; onDetail: (entry: ChainEntry, index: number) => void}) {
   const viewport = useRef<HTMLDivElement>(null);
   const cards = useRef(new Map<string, HTMLElement>());
   const [lines, setLines] = useState<{x1: number; y1: number; x2: number; y2: number}[]>([]);
@@ -265,7 +266,7 @@ function TopologyCanvas({chain, nodes, telemetry, locked, goodput, onChange, onM
     return () => {observer.disconnect(); root.removeEventListener('scroll', draw); window.removeEventListener('resize', draw);};
   }, [draw]);
   return <section className="topology-panel panel-surface">
-    <div className="topology-toolbar"><div><span className="section-kicker">LIVE CASCADE</span><h2>级联数据流拓扑</h2></div><div className="topology-stats"><span>节点数 <strong>{chain.length}</strong></span><span>Goodput <strong>{goodput.toFixed(2)} GB/s</strong></span></div></div>
+    <div className="topology-toolbar"><div><span className="section-kicker">LIVE CASCADE</span><h2>级联数据流拓扑</h2></div><div className="topology-stats"><label className="slot-control">Ring Slots<select value={slotCount} disabled={locked} onChange={event => onSlotCount(Number(event.target.value))}><option value={32}>32 · 256 MiB SHM</option><option value={64}>64 · 256 MiB SHM</option><option value={128}>128 · 512 MiB SHM</option><option value={256}>256 · 1 GiB SHM</option></select></label><span>节点数 <strong>{chain.length}</strong></span><span>Goodput <strong>{goodput.toFixed(2)} GB/s</strong></span></div></div>
     <div className="topology-viewport" ref={viewport}>
       {!chain.length ? <div className="topology-empty"><EmptyPipelineIcon /><strong>拓扑管道当前为空</strong><span>请从左侧节点池点击“添加到拓扑”</span></div> : <div className="topology-track">
         <svg className="flow-lines" width="100%" height="100%" aria-hidden="true">{lines.map((line, index) => <line key={index} {...line} />)}</svg>
