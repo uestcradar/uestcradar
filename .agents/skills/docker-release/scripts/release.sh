@@ -26,6 +26,7 @@ Environment overrides:
   RELEASE_DIR
   REGISTRY      default: registry.chengyistudio.com/cxx
   ALGO_BASE     default: REGISTRY/algo-base:latest; pin a candidate Tag or Digest for Worker builds
+  SDK_BASE_IMAGE default: REGISTRY/ubuntu:24.04
 USAGE
     exit 2
 }
@@ -112,6 +113,7 @@ select_release_target() {
         '  1) Sidecar' \
         '  2) Web' \
         '  3) Worker' \
+        '  4) SDK / Algo Base' \
         '  0) 退出'
     read -r -p '请输入序号: ' choice || {
         echo "未读取到选择，退出" >&2
@@ -121,6 +123,7 @@ select_release_target() {
         1) component=sidecar ;;
         2) component=web ;;
         3) component=worker ;;
+        4) component=sdk ;;
         0) echo "已取消发布"; exit 0 ;;
         *) echo "无效选择: $choice" >&2; exit 2 ;;
     esac
@@ -169,6 +172,7 @@ run_local() {
 
     local -a scoped_paths=(.agents/skills/docker-release)
     case "$component" in
+        sdk) scoped_paths+=(workspace/sdk workspace/common) ;;
         sidecar) scoped_paths+=(workspace/sidecar/Dockerfile) ;;
         web) scoped_paths+=(workspace/web workspace/proto/telemetry.proto) ;;
         worker) scoped_paths+=("workspace/examples/$worker_name") ;;
@@ -178,13 +182,19 @@ run_local() {
         exit 1
     fi
 
-    local sha quoted_dir remote_command
+    local sha quoted_dir remote_command remote_invocation
     sha=$(git rev-parse HEAD)
     printf -v quoted_dir '%q' "$release_dir"
-    remote_command="cd $quoted_dir && .agents/skills/docker-release/scripts/release.sh --remote-run --remote-dir $quoted_dir --component $(printf '%q' "$component") --expected-sha $(printf '%q' "$sha")"
+    remote_invocation=".agents/skills/docker-release/scripts/release.sh --remote-run --remote-dir $quoted_dir --component $(printf '%q' "$component") --expected-sha $(printf '%q' "$sha")"
     if [[ "$component" == "worker" ]]; then
-        remote_command+=" --worker-name $(printf '%q' "$worker_name")"
+        remote_invocation+=" --worker-name $(printf '%q' "$worker_name")"
+        if [[ -n "${ALGO_BASE:-}" ]]; then
+            remote_invocation="ALGO_BASE=$(printf '%q' "$ALGO_BASE") $remote_invocation"
+        fi
+    elif [[ "$component" == "sdk" && -n "${SDK_BASE_IMAGE:-}" ]]; then
+        remote_invocation="SDK_BASE_IMAGE=$(printf '%q' "$SDK_BASE_IMAGE") $remote_invocation"
     fi
+    remote_command="cd $quoted_dir && $remote_invocation"
     if [[ "$component" == "worker" ]]; then
         echo "dispatching Worker '$worker_name' release to ${release_user}@${release_host}:${release_dir}"
     else
@@ -286,7 +296,7 @@ publish_image() {
 run_remote() {
     cd "$repo_root"
     case "$component" in
-        sidecar|worker|web) ;;
+        sdk|sidecar|worker|web) ;;
         *) echo "invalid remote component: $component" >&2; exit 2 ;;
     esac
     if [[ "$component" == "worker" ]]; then
@@ -317,13 +327,19 @@ run_remote() {
     }
     log "checking Docker engine"
     docker info --format 'Docker server={{.ServerVersion}} storage={{.Driver}}'
-    log "checking Registry read access with $registry/sidecar:latest"
-    if ! pull_remote_tag "$registry/sidecar:latest"; then
-        echo "Registry read preflight failed for $registry/sidecar:latest" >&2
+    local preflight_image="$registry/sidecar:latest"
+    if [[ "$component" == "sdk" ]]; then
+        preflight_image=${SDK_BASE_IMAGE:-$registry/ubuntu:24.04}
+    fi
+    log "checking Registry read access with $preflight_image"
+    if ! pull_remote_tag "$preflight_image"; then
+        echo "Registry read preflight failed for $preflight_image" >&2
         exit 1
     fi
 
     local sha12=${expected_sha:0:12}
+    local sdk_version="$registry/algo-base:sha-${sha12}-arm64"
+    local sdk_latest="$registry/algo-base:latest"
     local sidecar_version="$registry/sidecar:sha-${sha12}-arm64"
     local sidecar_latest="$registry/sidecar:latest"
     local web_version="$registry/web:sha-${sha12}-arm64"
@@ -335,6 +351,11 @@ run_remote() {
     local worker_latest="$registry/worker:${worker_tag:+${worker_tag}-}latest"
     local version_image moving_image kind
     case "$component" in
+        sdk)
+            version_image=$sdk_version
+            moving_image=$sdk_latest
+            kind=sdk
+            ;;
         sidecar)
             version_image=$sidecar_version
             moving_image=$sidecar_latest
@@ -353,6 +374,15 @@ run_remote() {
     esac
     assert_remote_tag_absent "$version_image"
 
+    if [[ "$component" == "sdk" ]]; then
+        local sdk_base_image=${SDK_BASE_IMAGE:-$registry/ubuntu:24.04}
+        log "building SDK Algo Base: $sdk_version"
+        docker build --build-arg "BASE_IMAGE=$sdk_base_image" \
+            --target algo-base -f workspace/sdk/Dockerfile \
+            -t "$sdk_version" .
+        log "verifying SDK Algo Base image contract"
+        verify_remote_image "$sdk_version" sdk
+    fi
     if [[ "$component" == "sidecar" ]]; then
         log "building Sidecar: $sidecar_version"
         docker build --target runtime -f workspace/sidecar/Dockerfile \

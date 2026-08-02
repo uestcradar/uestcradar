@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 IMAGE sidecar|worker|web" >&2
+    echo "usage: $0 IMAGE sdk|sidecar|worker|web" >&2
     exit 2
 }
 
@@ -11,7 +11,7 @@ image=$1
 kind=$2
 
 case "$kind" in
-    sidecar|worker|web) ;;
+    sdk|sidecar|worker|web) ;;
     *) usage ;;
 esac
 
@@ -31,14 +31,8 @@ fail() {
 [[ "$(inspect '{{.Os}}')" == "linux" ]] || fail "$image is not linux"
 [[ "$(inspect '{{.Architecture}}')" == "arm64" ]] || fail "$image is not arm64"
 
-entrypoint=$(inspect '{{json .Config.Entrypoint}}')
-command=$(inspect '{{json .Config.Cmd}}')
-if [[ "$entrypoint" == "null" || "$entrypoint" == "[]" ]]; then
-    [[ "$command" != "null" && "$command" != "[]" ]] || \
-        fail "$image has neither Entrypoint nor Cmd"
-fi
-
 case "$kind" in
+    sdk) expected_contract=algo-base/v2 ;;
     sidecar) expected_contract=sidecar/v2 ;;
     worker) expected_contract=worker/v2 ;;
     web) expected_contract=web/v1 ;;
@@ -47,13 +41,32 @@ esac
 [[ "$(label io.uestcradar.contract)" == "$expected_contract" ]] || \
     fail "$image has an invalid io.uestcradar.contract"
 
+if [[ "$kind" == "sdk" ]]; then
+    docker run --rm --entrypoint /bin/sh "$image" -c '
+        command -v cmake >/dev/null &&
+        command -v g++ >/dev/null &&
+        test -f /usr/local/lib/libuestcradar_sdk.so &&
+        test -f /usr/local/include/sdk.h &&
+        test -f /usr/local/include/data.h &&
+        test -f /usr/local/lib/cmake/cycomm_sdk/cycomm_sdkConfig.cmake &&
+        test -f /usr/local/share/cycomm_sdk/contracts/contracts.manifest.json
+    ' || fail "$image does not contain the installed SDK toolchain and contract catalog"
+else
+    entrypoint=$(inspect '{{json .Config.Entrypoint}}')
+    command=$(inspect '{{json .Config.Cmd}}')
+    if [[ "$entrypoint" == "null" || "$entrypoint" == "[]" ]]; then
+        [[ "$command" != "null" && "$command" != "[]" ]] || \
+            fail "$image has neither Entrypoint nor Cmd"
+    fi
+fi
+
 if [[ "$kind" == "sidecar" ]]; then
     [[ "$entrypoint" == '["/app/sidecar"]' ]] || \
         fail "$image Entrypoint is not /app/sidecar"
 elif [[ "$kind" == "web" ]]; then
     [[ "$entrypoint" == '["/telemetry"]' ]] || \
         fail "$image Entrypoint is not /telemetry"
-else
+elif [[ "$kind" == "worker" ]]; then
     roles=$(label io.uestcradar.roles)
     input=$(label io.uestcradar.input)
     output=$(label io.uestcradar.output)

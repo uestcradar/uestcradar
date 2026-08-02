@@ -24,6 +24,8 @@ RUN cmake -S sdk -B sdk-build \
 # ==============================================================================
 FROM ${BASE_IMAGE} AS algo-base
 
+LABEL io.uestcradar.contract="algo-base/v2"
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 # 1. 算法开发者依旧需要 g++ 和 make 来编译他们自己的业务代码

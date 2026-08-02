@@ -1,5 +1,14 @@
 # 私有源镜像契约（Ring ABI v6）
 
+## SDK / Algo Base
+
+```dockerfile
+LABEL io.uestcradar.contract="algo-base/v2"
+```
+
+`algo-base/v2` 安装 SDK 6.x、Ring ABI v6、C++ 头文件、CMake Package 和生成的帧契约目录。
+它是构建基座，不需要 Entrypoint。
+
 ## Sidecar
 
 ```dockerfile

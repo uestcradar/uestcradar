@@ -17,6 +17,9 @@ registry.chengyistudio.com/cxx/algo-base:latest
 SDK 升级候选验证时必须通过 `ALGO_BASE` 指向不可变 Tag 或 Digest；发布脚本会先拉取该
 基座，再将它作为 Docker build argument 传入 Worker Dockerfile。
 
+正式升级顺序为先发布 SDK/Algo Base，再逐个重新发布受影响的 Worker。发布 SDK 不会
+隐式重建或覆盖任何 Worker 镜像。
+
 发布 Tags：
 
 ```text
