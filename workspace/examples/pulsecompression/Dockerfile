@@ -5,14 +5,16 @@ FROM ${ALGO_BASE}
 WORKDIR /app
 COPY src/ ./src/
 
-# 编译算法业务代码
-RUN cmake -S src -B build -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -S src -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTING=OFF \
     && cmake --build build --parallel \
-    && cp build/algorithm ./algorithm \
+    && cp build/pulsecompression ./pulsecompression \
     && rm -rf src build
 
-ENTRYPOINT ["/app/algorithm"]
+ENTRYPOINT ["/app/pulsecompression"]
 
+# Image contract: keep these four labels unchanged for PulseCompression.
 LABEL io.uestcradar.contract="worker/v2" \
       io.uestcradar.roles="operator" \
       io.uestcradar.input="1:3" \
