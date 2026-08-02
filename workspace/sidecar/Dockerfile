@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
 ARG SIDECAR_PLATFORM=linux/arm64
-ARG BUILD_BASE=registry.chengyistudio.com/cxx/sidecar:build-base@sha256:65d9b2a8f484e3f9b79141849ef307d8af175dc21dd108d3df352024a593b20a
-ARG RUNTIME_BASE=registry.chengyistudio.com/cxx/sidecar:runtime-base@sha256:d65fd967ab57896199a58f7e87caa4b4c5c792ef27d9a65127a7567fdb420891
+ARG BUILD_BASE=registry.chengyistudio.com/cxx/sidecar:build-base
+ARG RUNTIME_BASE=registry.chengyistudio.com/cxx/sidecar:runtime-base
 
 FROM --platform=${SIDECAR_PLATFORM} ${BUILD_BASE} AS build
 
