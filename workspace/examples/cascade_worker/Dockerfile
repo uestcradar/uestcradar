@@ -13,7 +13,7 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     && rm -rf build CMakeLists.txt src
 
 ENTRYPOINT ["/app/cascade-worker"]
-CMD ["--test", "benchmark", "--duration-seconds", "86400"]
+CMD ["--test", "benchmark", "--payload-bytes", "1048576", "--duration-seconds", "86400"]
 
 LABEL io.uestcradar.contract="worker/v1" \
       io.uestcradar.roles="source,operator,sink" \
