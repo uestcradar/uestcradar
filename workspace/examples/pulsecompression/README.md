@@ -22,9 +22,8 @@ docker-compose-infra.yaml
 无论怎样重写算法，还必须遵守以下接口约束：
 
 - Worker 只能使用 SDK 的 `Input<IQFrame>` 和 `Output<PulseCompressionFrame>`。具体的帧契约结构的详细说明，请参考 [SDK 接口指南](../../sdk/README.md)。
-- 每个输出帧的 `payload_length` 不得超过 **32 MiB（33,554,432 字节）**，该长度包含
-  Metadata 和矩阵数据。
-- `Dockerfile` 构建必须使用官方基座镜像 `registry.chengyistudio.com/cxx/algo-base`，否则无法包含（`#include <data.h>`）及编译 SDK 库。
+- 每个输出帧的 `payload_length` 不得超过 **32 MiB（33,554,432 字节）**，该长度包含Metadata 和矩阵数据。
+- `Dockerfile` 构建必须使用官方基座镜像 `registry.chengyistudio.com/cxx/algo-base`，否则无法包含链接并编译 SDK 库。
 - `Dockerfile` 底部四个镜像契约 Label 不得删除或修改类型（用于控制台自动识别拓扑与遥测）。
 - `docker-compose-worker.yaml` 里面有关共享内存/基座镜像还有 platform 等配置禁止修改。
 
@@ -111,15 +110,13 @@ uestcradar/pulsecompression:dev
 docker compose -f docker-compose-worker.yaml up
 ```
 
-另一个终端可以查看基座中的数据源和数据校验器的日志，验证是否有正常的数据流：
+另一个终端可以查看基座中的数据源和数据校验器的日志，验证数据流是否正常：
 
 ```bash
 docker compose -f docker-compose-infra.yaml logs -f signalsource signalsink
 ```
 
-通用 SignalSink 持续打印接收到的 PulseCompressionFrame 尺寸和峰值。示例代码还会校验
-CPI0–CPI9 的 IQ Metadata、64 元素脉冲参数、CS16 数据和循环顺序；删除示例校验器后，
-SignalSink 仍可用于确认输出帧持续到达。
+通用 SignalSink 持续打印接收到的 PulseCompressionFrame 尺寸和峰值。示例代码还会校验CPI0–CPI9 的 IQ Metadata、64 元素脉冲参数、CS16 数据和循环顺序；SignalSink 可用于确认输出帧持续到达。
 
 修改代码后只需重新执行：
 

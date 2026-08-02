@@ -1,0 +1,17 @@
+# Developer-owned Worker build/run configuration.
+name: uestcradar-qt5-rd-worker
+
+services:
+  rd-algorithm:
+    image: uestcradar/rd-algorithm:dev
+    platform: linux/arm64
+    build:
+      context: .
+      pull: true
+      args:
+        ALGO_BASE: ${ALGO_BASE:-registry.chengyistudio.com/cxx/algo-base@sha256:d63bad75fc9cc8c4f0fe4b8bbee0e4089a6634318ee2be57692b83fd59425487}
+    network_mode: host
+    ipc: container:uestcradar-qt5-rd-sidecar
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_qt5_algorithm_up
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_qt5_algorithm_down
