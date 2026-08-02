@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM registry.chengyistudio.com/cxx/algo-base:latest
+ARG ALGO_BASE=registry.chengyistudio.com/cxx/algo-base:latest
+FROM ${ALGO_BASE}
 
 WORKDIR /app
 COPY src/ ./src/

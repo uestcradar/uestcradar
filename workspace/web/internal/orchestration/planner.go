@@ -44,11 +44,11 @@ services:
       SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
       SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
       SIDECAR_UPSTREAM_TYPE_ID: ${UPSTREAM_TYPE_ID:-1}
-      SIDECAR_UPSTREAM_TYPE_VERSION: ${UPSTREAM_TYPE_VERSION:-1}
+      SIDECAR_UPSTREAM_TYPE_VERSION: ${UPSTREAM_TYPE_VERSION:-2}
       SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
       SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
       SIDECAR_DOWNSTREAM_TYPE_ID: ${DOWNSTREAM_TYPE_ID:-1}
-      SIDECAR_DOWNSTREAM_TYPE_VERSION: ${DOWNSTREAM_TYPE_VERSION:-1}
+      SIDECAR_DOWNSTREAM_TYPE_VERSION: ${DOWNSTREAM_TYPE_VERSION:-2}
       UCX_TLS: ${UCX_TLS:-rc_verbs,tcp}
       UCX_NET_DEVICES: ${UCX_NET_DEVICES}
       UCX_SOCKADDR_TLS_PRIORITY: tcp
@@ -119,8 +119,8 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		if inspection.ComposeCLI != "v1" && inspection.ComposeCLI != "v2" {
 			return DeploymentPlan{}, fmt.Errorf("node %s has no supported Docker Compose CLI", entry.IP)
 		}
-		if inspection.SidecarContract != "sidecar/v1" || inspection.SidecarImageID == "" {
-			return DeploymentPlan{}, fmt.Errorf("node %s has no local sidecar/v1 image", entry.IP)
+		if inspection.SidecarContract != "sidecar/v2" || inspection.SidecarImageID == "" {
+			return DeploymentPlan{}, fmt.Errorf("node %s has no local sidecar/v2 image", entry.IP)
 		}
 		if sidecarImageID == "" {
 			sidecarImageID = inspection.SidecarImageID

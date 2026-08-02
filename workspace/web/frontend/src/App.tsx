@@ -315,7 +315,7 @@ function LoginModal({onLogin}: {onLogin: (body: Parameters<typeof api.createSess
 
 function WorkerModal({node, onClose, onSelect}: {node: NodeInspection; onClose: () => void; onSelect: (image: string) => void}) {
   const [selected, setSelected] = useState(node.workers?.[0]?.reference || '');
-  return <Modal title={`更新 Worker · ${node.ip}`} onClose={onClose}><div className="modal-form"><p>仅可选择该节点本地已探查且满足 worker/v1 契约的 Tag。点击后才会从私有源执行 docker pull。</p><label>Worker 镜像<select value={selected} onChange={event => setSelected(event.target.value)}>{node.workers.map(image => <option key={image.reference} value={image.reference}>{image.reference}</option>)}</select></label><button className="primary-button" disabled={!selected} onClick={() => onSelect(selected)}>同步所选 Worker</button></div></Modal>;
+  return <Modal title={`更新 Worker · ${node.ip}`} onClose={onClose}><div className="modal-form"><p>仅可选择该节点本地已探查且满足 worker/v2 契约的 Tag。点击后才会从私有源执行 docker pull。</p><label>Worker 镜像<select value={selected} onChange={event => setSelected(event.target.value)}>{node.workers.map(image => <option key={image.reference} value={image.reference}>{image.reference}</option>)}</select></label><button className="primary-button" disabled={!selected} onClick={() => onSelect(selected)}>同步所选 Worker</button></div></Modal>;
 }
 
 function HostKeyModal({node, onClose, onConfirm}: {node: NodeInspection; onClose: () => void; onConfirm: () => void}) {

@@ -10,8 +10,8 @@ import (
 var typeContractPattern = regexp.MustCompile(`^[1-9][0-9]*:[1-9][0-9]*$`)
 
 func ParseWorkerContract(labels map[string]string) (WorkerContract, error) {
-	if labels["io.uestcradar.contract"] != "worker/v1" {
-		return WorkerContract{}, fmt.Errorf("contract is not worker/v1")
+	if labels["io.uestcradar.contract"] != "worker/v2" {
+		return WorkerContract{}, fmt.Errorf("contract is not worker/v2")
 	}
 	rolesText := labels["io.uestcradar.roles"]
 	input := labels["io.uestcradar.input"]

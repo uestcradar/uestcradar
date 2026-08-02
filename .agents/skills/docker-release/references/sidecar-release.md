@@ -10,7 +10,7 @@ registry.chengyistudio.com/cxx/sidecar:latest
 必需契约：
 
 ```text
-io.uestcradar.contract=sidecar/v1
+io.uestcradar.contract=sidecar/v2
 Entrypoint=/app/sidecar
 OS/Architecture=linux/arm64
 ```

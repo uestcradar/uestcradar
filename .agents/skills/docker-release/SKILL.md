@@ -16,7 +16,8 @@ description: 在 ARM64 开发机上验证、构建并双 Tag 发布 Sidecar、Wo
    只列出该目录下包含 Dockerfile 的直接子目录。
 4. `workspace/sidecar/Dockerfile` 的 `cascade-worker` target 只用于本地测试，不得发布。
 5. 不可变 Tag 不能覆盖；先推不可变 Tag、拉回验签，再更新滚动 Tag。
-6. `registry.chengyistudio.com/cxx/algo-base:latest` 是 Worker 开发基础镜像，保持不变。
+6. `registry.chengyistudio.com/cxx/algo-base:latest` 是默认 Worker 开发基础镜像；SDK
+   升级验证必须用 `ALGO_BASE` 固定候选 Tag 或 Digest，禁止混用 SDK ABI。
 
 ## 快速入口
 
@@ -31,7 +32,8 @@ description: 在 ARM64 开发机上验证、构建并双 Tag 发布 Sidecar、Wo
 `workspace/examples/` 下的具体目录；Dockerfile 缺失最小 Worker Labels、构建失败或
 镜像契约验证失败时立即停止，不推送镜像。
 
-可通过 `RELEASE_HOST`、`RELEASE_USER`、`RELEASE_DIR` 和 `REGISTRY` 覆盖默认值。
+可通过 `RELEASE_HOST`、`RELEASE_USER`、`RELEASE_DIR`、`REGISTRY` 和 `ALGO_BASE`
+覆盖默认值。
 
 ## 参考文档
 

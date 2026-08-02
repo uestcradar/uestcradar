@@ -25,6 +25,7 @@ Environment overrides:
   RELEASE_USER  default: root
   RELEASE_DIR
   REGISTRY      default: registry.chengyistudio.com/cxx
+  ALGO_BASE     default: REGISTRY/algo-base:latest; pin a candidate Tag or Digest for Worker builds
 USAGE
     exit 2
 }
@@ -361,8 +362,15 @@ run_remote() {
     fi
     if [[ "$component" == "worker" ]]; then
         local worker_dir="workspace/examples/$worker_name"
+        local algo_base=${ALGO_BASE:-$registry/algo-base:latest}
+        log "pulling Worker SDK base: $algo_base"
+        pull_remote_tag "$algo_base" || {
+            echo "Worker SDK base is unavailable: $algo_base" >&2
+            exit 1
+        }
         log "building Worker '$worker_name': $worker_version"
-        docker build -f "$worker_dir/Dockerfile" \
+        docker build --build-arg "ALGO_BASE=$algo_base" \
+            -f "$worker_dir/Dockerfile" \
             -t "$worker_version" "$worker_dir"
         log "verifying Worker image contract"
         verify_remote_image "$worker_version" worker

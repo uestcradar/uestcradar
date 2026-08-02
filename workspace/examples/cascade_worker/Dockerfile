@@ -15,7 +15,7 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 ENTRYPOINT ["/app/cascade-worker"]
 CMD ["--test", "benchmark", "--payload-bytes", "134217728", "--duration-seconds", "86400"]
 
-LABEL io.uestcradar.contract="worker/v1" \
+LABEL io.uestcradar.contract="worker/v2" \
       io.uestcradar.roles="source,operator,sink" \
       io.uestcradar.input="1:2" \
       io.uestcradar.output="1:2"

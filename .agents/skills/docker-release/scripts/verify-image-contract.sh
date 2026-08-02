@@ -38,7 +38,13 @@ if [[ "$entrypoint" == "null" || "$entrypoint" == "[]" ]]; then
         fail "$image has neither Entrypoint nor Cmd"
 fi
 
-[[ "$(label io.uestcradar.contract)" == "$kind/v1" ]] || \
+case "$kind" in
+    sidecar) expected_contract=sidecar/v2 ;;
+    worker) expected_contract=worker/v2 ;;
+    web) expected_contract=web/v1 ;;
+esac
+
+[[ "$(label io.uestcradar.contract)" == "$expected_contract" ]] || \
     fail "$image has an invalid io.uestcradar.contract"
 
 if [[ "$kind" == "sidecar" ]]; then

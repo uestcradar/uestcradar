@@ -441,8 +441,8 @@ func (s *Service) handleSidecarSync(writer http.ResponseWriter, request *http.Re
 			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil)
 			return
 		}
-		if inspection.SidecarContract != "sidecar/v1" || inspection.SidecarImageID == "" {
-			s.updateTask(session, task.ID, "failed", body.IP, "updated image does not satisfy sidecar/v1", nil)
+		if inspection.SidecarContract != "sidecar/v2" || inspection.SidecarImageID == "" {
+			s.updateTask(session, task.ID, "failed", body.IP, "updated image does not satisfy sidecar/v2", nil)
 			return
 		}
 		session.mu.Lock()

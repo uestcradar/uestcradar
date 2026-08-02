@@ -222,7 +222,7 @@ func (b *SSHBackend) Inspect(session *Session, ip string, output CommandOutput) 
 		result.SidecarImageID = sidecar.ID
 		result.SidecarContract = sidecar.Config.Labels["io.uestcradar.contract"]
 	}
-	refs, _ := runSSHOutput(client, "docker image ls --filter label=io.uestcradar.contract=worker/v1 --format '{{.Repository}}:{{.Tag}}'", output)
+	refs, _ := runSSHOutput(client, "docker image ls --filter label=io.uestcradar.contract=worker/v2 --format '{{.Repository}}:{{.Tag}}'", output)
 	seen := map[string]bool{}
 	for _, reference := range strings.Fields(refs) {
 		if !strings.HasPrefix(reference, workerRepository) || strings.HasSuffix(reference, ":<none>") || seen[reference] {
