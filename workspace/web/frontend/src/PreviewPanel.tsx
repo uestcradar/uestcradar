@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ContractRef, PreviewFrameData, PreviewSelector, PreviewStatusData, WaveformChannelData } from './preview';
-import { buildSubscription, decodePreviewMessage } from './preview';
+import { adaptiveWaveformPeak, buildSubscription, decodePreviewMessage, waveformXAxisLabel } from './preview';
 
 interface PreviewPanelProps {
   nodeId?: string;
@@ -97,7 +97,7 @@ function PreviewCard({title, leg, contract, frame, status}: {title: string; leg:
       <div><strong>{title}</strong><span>{contract ? `Type ${contract.typeId}:${contract.typeVersion}` : '该角色无此 Leg'}</span></div>
       {channels.length > 1 && <label>通道<select value={channel} onChange={event => setChannel(Number(event.target.value))}>{channels.map(item => <option key={item.channelIndex} value={item.channelIndex}>CH {item.channelIndex}</option>)}</select></label>}
     </div>
-    {!contract ? <div className="preview-empty">当前 Worker 契约未声明该方向的数据类型。</div> : !frame ? <div className="preview-empty">等待 Sidecar 预览帧。</div> : frame.kind === 'waveform' ? <WaveformCanvas channel={channels.find(item => item.channelIndex === channel) || channels[0]} originalColumns={frame.originalColumns} /> : <HeatmapCanvas frame={frame} />}
+    {!contract ? <div className="preview-empty">当前 Worker 契约未声明该方向的数据类型。</div> : !frame ? <div className="preview-empty">等待 Sidecar 预览帧。</div> : frame.kind === 'waveform' ? <WaveformCanvas channel={channels.find(item => item.channelIndex === channel) || channels[0]} originalColumns={frame.originalColumns} xAxisLabel={waveformXAxisLabel(frame.typeId)} /> : <HeatmapCanvas frame={frame} />}
     <div className="preview-stats">
       <span>实际 <strong>{status?.actualFps.toFixed(1) || '0.0'} fps</strong></span>
       <span>快照丢弃 <strong>{status?.snapshotDrops || 0}</strong></span>
@@ -107,7 +107,16 @@ function PreviewCard({title, leg, contract, frame, status}: {title: string; leg:
   </article>;
 }
 
-function WaveformCanvas({channel, originalColumns}: {channel?: WaveformChannelData; originalColumns: number}) {
+function formatAxisValue(value: number): string {
+  if (value === 0) return '0';
+  const absolute = Math.abs(value);
+  if (absolute >= 10_000 || absolute < 0.01) return value.toExponential(1);
+  if (absolute >= 100) return value.toFixed(0);
+  if (absolute >= 10) return value.toFixed(1);
+  return value.toFixed(2);
+}
+
+function WaveformCanvas({channel, originalColumns, xAxisLabel}: {channel?: WaveformChannelData; originalColumns: number; xAxisLabel: string}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const element = canvas.current;
@@ -120,38 +129,88 @@ function WaveformCanvas({channel, originalColumns}: {channel?: WaveformChannelDa
       element.height = height * ratio;
       const context = element.getContext('2d');
       if (!context) return;
-      context.scale(ratio, ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.fillStyle = '#fbfdff';
       context.fillRect(0, 0, width, height);
-      context.strokeStyle = '#e2e8f0';
+
+      const plot = {left: 62, right: width - 14, top: 12, bottom: height - 36};
+      const plotWidth = Math.max(1, plot.right - plot.left);
+      const plotHeight = Math.max(1, plot.bottom - plot.top);
+      const peak = adaptiveWaveformPeak(channel);
+
+      context.font = '9px "SFMono-Regular", Consolas, monospace';
+      context.fillStyle = '#64748b';
       context.lineWidth = 1;
-      for (let index = 1; index < 4; index += 1) {
-        context.beginPath(); context.moveTo(0, height * index / 4); context.lineTo(width, height * index / 4); context.stroke();
+      context.textBaseline = 'middle';
+      for (let index = 0; index <= 4; index += 1) {
+        const fraction = index / 4;
+        const y = plot.bottom - fraction * plotHeight;
+        context.strokeStyle = index === 0 ? '#94a3b8' : '#e2e8f0';
+        context.beginPath();
+        context.moveTo(plot.left, y);
+        context.lineTo(plot.right, y);
+        context.stroke();
+        context.textAlign = 'right';
+        context.fillText(formatAxisValue(peak * fraction), plot.left - 7, y);
       }
-      const peak = channel.maximum.reduce(
-        (maximum, point) => Math.max(maximum, point.magnitude), 1,
-      );
-      const plot = (points: WaveformChannelData['maximum'], color: string, alpha: number) => {
+      context.textBaseline = 'top';
+      for (let index = 0; index <= 4; index += 1) {
+        const fraction = index / 4;
+        const x = plot.left + fraction * plotWidth;
+        context.strokeStyle = index === 0 ? '#94a3b8' : '#eef2f7';
+        context.beginPath();
+        context.moveTo(x, plot.top);
+        context.lineTo(x, plot.bottom);
+        context.stroke();
+        context.textAlign = index === 0 ? 'left' : index === 4 ? 'right' : 'center';
+        const column = Math.round(Math.max(0, originalColumns - 1) * fraction);
+        context.fillText(column.toLocaleString('en-US'), x, plot.bottom + 6);
+      }
+
+      context.fillStyle = '#475569';
+      context.font = '10px sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'bottom';
+      context.fillText(xAxisLabel, plot.left + plotWidth / 2, height - 2);
+      context.save();
+      context.translate(11, plot.top + plotHeight / 2);
+      context.rotate(-Math.PI / 2);
+      context.fillText('幅度 |I+jQ|', 0, 0);
+      context.restore();
+
+      context.save();
+      context.beginPath();
+      context.rect(plot.left, plot.top, plotWidth, plotHeight);
+      context.clip();
+      const plotWaveform = (points: WaveformChannelData['maximum'], color: string, alpha: number) => {
         context.beginPath();
         context.strokeStyle = color;
         context.globalAlpha = alpha;
         context.lineWidth = 1.5;
+        let started = false;
         points.forEach((point, index) => {
-          const x = originalColumns <= 1 ? 0 : point.x / (originalColumns - 1) * width;
-          const y = height - point.magnitude / peak * (height - 10) - 5;
-          if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+          if (!Number.isFinite(point.x) || !Number.isFinite(point.magnitude)) {
+            started = false;
+            return;
+          }
+          const x = originalColumns <= 1 ? plot.left : plot.left + point.x / (originalColumns - 1) * plotWidth;
+          const normalized = Math.max(0, Math.min(1, point.magnitude / peak));
+          const y = plot.bottom - normalized * plotHeight;
+          if (!started || index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+          started = true;
         });
         context.stroke();
       };
-      plot(channel.minimum, '#94a3b8', .75);
-      plot(channel.maximum, '#2563eb', 1);
+      plotWaveform(channel.minimum, '#94a3b8', .75);
+      plotWaveform(channel.maximum, '#2563eb', 1);
       context.globalAlpha = 1;
+      context.restore();
     };
     const observer = new ResizeObserver(draw);
     observer.observe(element);
     draw();
     return () => observer.disconnect();
-  }, [channel, originalColumns]);
+  }, [channel, originalColumns, xAxisLabel]);
   return <canvas className="preview-canvas" ref={canvas} />;
 }
 

@@ -28,6 +28,23 @@ export interface WaveformChannelData {
   maximum: ComplexPoint[];
 }
 
+export function adaptiveWaveformPeak(channel?: WaveformChannelData): number {
+  if (!channel) return Number.EPSILON;
+  let peak = 0;
+  for (const points of [channel.minimum, channel.maximum]) {
+    for (const point of points) {
+      if (Number.isFinite(point.magnitude)) peak = Math.max(peak, point.magnitude);
+    }
+  }
+  return Math.max(peak, Number.EPSILON);
+}
+
+export function waveformXAxisLabel(typeId: string): string {
+  if (typeId === '1') return '采样点';
+  if (typeId === '2') return '距离 Bin';
+  return '数据点';
+}
+
 export interface PreviewFrameData {
   kind: 'waveform' | 'heatmap';
   nodeId: string;

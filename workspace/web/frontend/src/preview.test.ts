@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { flatbuffers } from 'flatbuffers';
 import { uestcradar } from './generated/preview_generated';
-import { buildSubscription, decodeHalf, decodePreviewMessage, parseContract } from './preview';
+import { adaptiveWaveformPeak, buildSubscription, decodeHalf, decodePreviewMessage, parseContract, waveformXAxisLabel } from './preview';
 
 const fb = uestcradar.preview;
 
@@ -33,6 +33,19 @@ describe('preview protocol', () => {
     expect(decodeHalf(0xc000)).toBe(-2);
     expect(decodeHalf(0x0001)).toBeGreaterThan(0);
     expect(decodeHalf(0x7c00)).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('uses the actual finite waveform range for adaptive display', () => {
+    const point = (magnitude: number) => ({x: 0, i: magnitude, q: 0, magnitude});
+    const channel = {
+      channelIndex: 0,
+      minimum: [point(4e-7), point(Number.NaN)],
+      maximum: [point(0.003), point(0.006954)],
+    };
+    expect(adaptiveWaveformPeak(channel)).toBeCloseTo(0.006954);
+    expect(adaptiveWaveformPeak()).toBe(Number.EPSILON);
+    expect(waveformXAxisLabel('1')).toBe('采样点');
+    expect(waveformXAxisLabel('2')).toBe('距离 Bin');
   });
 
   it('keeps waveform channels isolated while decoding', () => {
