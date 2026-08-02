@@ -43,28 +43,14 @@ Options parse_options(int argc, char** argv) {
     return options;
 }
 
-uestcradar::PulseCompressionMetadata make_metadata(
-    const uestcradar::IQFrameView& iq,
-    std::uint64_t frame_id) {
-    constexpr std::uint32_t pulses_per_cpi = 8;
-    return {
-        .channel_count = iq.metadata().channel_count,
-        .range_bin_count = iq.metadata().samples_per_channel,
-        .pulse_index = static_cast<std::uint32_t>(
-            (frame_id - 1) % pulses_per_cpi),
-        .pulses_per_cpi = pulses_per_cpi,
-        .range_resolution_m = 1.5,
-    };
-}
-
 }  // namespace
 
 int main(int argc, char** argv) {
     try {
         std::cout << std::unitbuf;
         const Options options = parse_options(argc, argv);
-        uestcradar::Input<uestcradar::RawFrame> input;
-        uestcradar::Output<uestcradar::RawFrame> output;
+        uestcradar::Input<uestcradar::IQFrame> input;
+        uestcradar::Output<uestcradar::PulseCompressionFrame> output;
 
         std::cout << "[algorithm] IQ -> pulse compression ready"
                   << " frames=" << options.frames << '\n';
@@ -72,31 +58,23 @@ int main(int argc, char** argv) {
         for (std::uint64_t processed = 1;
              options.frames == 0 || processed <= options.frames;
              ++processed) {
-            uestcradar::RawFrame input_frame = input.read();
-            auto iq = uestcradar::IQFrameView::from(input_frame);
-
-            const auto metadata =
-                make_metadata(iq, input_frame.envelope().frame_id);
-            uestcradar::RawFrame output_frame = output.create({
-                .frame_id = input_frame.envelope().frame_id,
-                .timestamp = input_frame.envelope().timestamp,
-                .type_id =
-                    uestcradar::PulseCompressionFrameView::type_id,
-                .type_version =
-                    uestcradar::PulseCompressionFrameView::type_version,
-                .payload_length = static_cast<std::uint32_t>(
-                    uestcradar::PulseCompressionFrameView::payload_bytes(
-                        metadata)),
-            });
-            auto pulse =
-                uestcradar::PulseCompressionFrameView::initialize(
-                    output_frame, metadata);
+            auto iq = input.read();
+            const auto iq_metadata = iq.metadata();
+            constexpr std::uint32_t pulses_per_cpi = 8;
+            const uestcradar::PulseCompressionMetadata metadata{
+                .channel_count = iq_metadata.channel_count,
+                .range_bin_count = iq_metadata.samples_per_channel,
+                .pulse_index = static_cast<std::uint32_t>(
+                    (processed - 1) % pulses_per_cpi),
+                .pulses_per_cpi = pulses_per_cpi,
+                .range_resolution_m = 1.5,
+            };
+            auto pulse = output.create(metadata, iq);
 
             const auto result =
                 radar_algorithm::pulse_compress(iq.data(), pulse.data());
             if (processed == 1 || processed % options.log_every == 0) {
                 std::cout << "[algorithm] processed=" << processed
-                          << " frame=" << input_frame.envelope().frame_id
                           << " iq=" << iq.data().rows() << 'x'
                           << iq.data().columns()
                           << " pulse=" << pulse.data().rows() << 'x'
@@ -105,7 +83,7 @@ int main(int argc, char** argv) {
                           << '\n';
             }
 
-            output.write(std::move(output_frame));
+            output.write(std::move(pulse));
         }
 
         std::cout << "[algorithm] completed frames=" << options.frames

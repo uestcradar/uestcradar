@@ -1,31 +1,24 @@
 # UESTC Radar SDK 教学示例
 
-算法开发者从下面两个连续数据流开始即可。示例优先保证代码直白、日志可见和结果
-可验证，不用于性能压测。
+算法开发者从下面两条连续数据流开始即可。示例以代码直白、日志可见和结果可验证为
+目标，不用于性能压测。
 
-| 示例 | 输入 | 输出 | 主要学习内容 |
+| 示例 | 输入 | 输出 | 学习内容 |
 | --- | --- | --- | --- |
-| [algorithm](./algorithm) | `IQFrameView` | `PulseCompressionFrameView` | 标准 C++ Worker 的 `read/create/write` 生命周期 |
-| [qt5-algorithm](./qt5-algorithm) | `PulseCompressionFrameView` | `RDFrameView` | QtCore Worker、跨帧 CPI 和 RD 输出 |
-
-两条链路都由 [signalsource](./signalsource) 提供确定性输入和结果 Sink，并使用当前
-Dual-Leg Sidecar、RawFrame ABI、Contract v2 与 Docker Compose 2.4。
-
-## SDK 心智模型
+| [algorithm](./algorithm) | `IQFrame` | `PulseCompressionFrame` | 标准 C++ 的 `read/create/write` 流程 |
+| [qt5-algorithm](./qt5-algorithm) | `PulseCompressionFrame` | `RDFrame` | QtCore、跨帧 CPI 和 RD 输出 |
 
 ```text
-Input<RawFrame>::read()
+Input<DataFrame>::read()
         ↓
-data.h View::from()
+填写输出 Metadata
         ↓
-执行算法
+Output<DataFrame>::create(metadata, input)
         ↓
-Output<RawFrame>::create()
+执行算法：input.data() → output.data()
         ↓
-data.h View::initialize()
-        ↓
-Output<RawFrame>::write(std::move(frame))
+Output<DataFrame>::write(std::move(output))
 ```
 
-`helloworld`、`qt5core` 和 `cascade_worker` 仍作为底座或专项验证示例保留，但不属于
-算法 SDK 的第一条学习路径。
+[signalsource](./signalsource) 为两条教学流提供确定性测试输入和结果校验程序，算法
+开发者通过各示例的一键开发环境使用它，无需单独配置。

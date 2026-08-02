@@ -63,7 +63,7 @@ struct RDMetadata {
     double velocity_resolution_mps{};
 };
 
-class CYCOMM_SDK_API IQFrame final : public Frame {
+class CYCOMM_SDK_API IQFrame final {
 public:
     IQFrame(IQFrame&& other) noexcept;
     IQFrame& operator=(IQFrame&& other) noexcept;
@@ -74,14 +74,17 @@ public:
     [[nodiscard]] Array2D<const ComplexInt16> data() const;
 
 private:
-    explicit IQFrame(std::unique_ptr<Frame::Impl> impl) noexcept;
+    struct Impl;
+    explicit IQFrame(std::unique_ptr<Impl> impl) noexcept;
+    [[nodiscard]] const void* sdk_trace_context() const;
+    std::unique_ptr<Impl> impl_;
     friend class Input<IQFrame>;
     friend class Output<IQFrame>;
     template <class>
     friend class Output;
 };
 
-class CYCOMM_SDK_API PulseCompressionFrame final : public Frame {
+class CYCOMM_SDK_API PulseCompressionFrame final {
 public:
     PulseCompressionFrame(PulseCompressionFrame&& other) noexcept;
     PulseCompressionFrame& operator=(PulseCompressionFrame&& other) noexcept;
@@ -92,15 +95,17 @@ public:
     [[nodiscard]] Array2D<const ComplexFloat32> data() const;
 
 private:
-    explicit PulseCompressionFrame(
-        std::unique_ptr<Frame::Impl> impl) noexcept;
+    struct Impl;
+    explicit PulseCompressionFrame(std::unique_ptr<Impl> impl) noexcept;
+    [[nodiscard]] const void* sdk_trace_context() const;
+    std::unique_ptr<Impl> impl_;
     friend class Input<PulseCompressionFrame>;
     friend class Output<PulseCompressionFrame>;
     template <class>
     friend class Output;
 };
 
-class CYCOMM_SDK_API RDFrame final : public Frame {
+class CYCOMM_SDK_API RDFrame final {
 public:
     RDFrame(RDFrame&& other) noexcept;
     RDFrame& operator=(RDFrame&& other) noexcept;
@@ -111,7 +116,10 @@ public:
     [[nodiscard]] Array2D<const float> data() const;
 
 private:
-    explicit RDFrame(std::unique_ptr<Frame::Impl> impl) noexcept;
+    struct Impl;
+    explicit RDFrame(std::unique_ptr<Impl> impl) noexcept;
+    [[nodiscard]] const void* sdk_trace_context() const;
+    std::unique_ptr<Impl> impl_;
     friend class Input<RDFrame>;
     friend class Output<RDFrame>;
     template <class>
@@ -145,22 +153,25 @@ private:
         Output& operator=(const Output&) = delete;                    \
         ~Output();                                                    \
         [[nodiscard]] FrameType create(const MetadataType& metadata); \
+        template <class ParentFrame>                                  \
         [[nodiscard]] FrameType create(                               \
-            const MetadataType& metadata, const Frame& parent);       \
+            const MetadataType& metadata, const ParentFrame& parent) { \
+            return create_linked(                                     \
+                metadata, parent.sdk_trace_context());                 \
+        }                                                             \
         void write(FrameType&& frame);                                \
     private:                                                          \
+        [[nodiscard]] FrameType create_linked(                        \
+            const MetadataType& metadata, const void* trace_context); \
         struct Impl;                                                  \
         std::unique_ptr<Impl> impl_;                                  \
     }
 
-UESTCRADAR_DECLARE_INPUT(IQFrame);
-UESTCRADAR_DECLARE_INPUT(PulseCompressionFrame);
-UESTCRADAR_DECLARE_INPUT(RDFrame);
-
-UESTCRADAR_DECLARE_OUTPUT(IQFrame, IQMetadata);
-UESTCRADAR_DECLARE_OUTPUT(
-    PulseCompressionFrame, PulseCompressionMetadata);
-UESTCRADAR_DECLARE_OUTPUT(RDFrame, RDMetadata);
+#define UESTCRADAR_CONTRACT(Name, FrameType, MetadataType) \
+    UESTCRADAR_DECLARE_INPUT(FrameType);                    \
+    UESTCRADAR_DECLARE_OUTPUT(FrameType, MetadataType);
+#include <contract_catalog.def>
+#undef UESTCRADAR_CONTRACT
 
 #undef UESTCRADAR_DECLARE_INPUT
 #undef UESTCRADAR_DECLARE_OUTPUT

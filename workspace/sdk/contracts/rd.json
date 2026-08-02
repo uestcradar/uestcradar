@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "rd",
+  "cpp_frame": "RDFrame",
+  "cpp_metadata": "RDMetadata",
+  "type_id": 3,
+  "type_version": 2,
+  "byte_order": "little_endian",
+  "metadata_size": 32,
+  "fields": [
+    {"name": "channel_index", "type": "uint32", "offset": 0},
+    {"name": "range_bin_count", "type": "uint32", "offset": 4},
+    {"name": "doppler_bin_count", "type": "uint32", "offset": 8},
+    {"name": "reserved", "type": "uint32", "offset": 12, "reserved": true},
+    {"name": "range_resolution_m", "type": "float64", "offset": 16},
+    {"name": "velocity_resolution_mps", "type": "float64", "offset": 24}
+  ],
+  "payload": {
+    "kind": "matrix",
+    "element_type": "float32",
+    "cpp_element": "float",
+    "rows": "range_bin_count",
+    "columns": "doppler_bin_count",
+    "offset": 32
+  },
+  "visualization": {
+    "kind": "heatmap",
+    "row_axis": "range",
+    "column_axis": "velocity",
+    "row_resolution_field": "range_resolution_m",
+    "column_resolution_field": "velocity_resolution_mps"
+  }
+}

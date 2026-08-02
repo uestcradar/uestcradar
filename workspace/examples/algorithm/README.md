@@ -1,37 +1,32 @@
 # UESTC Radar - IQ 脉冲压缩算法开发模板
 
-欢迎！本目录是雷达**算法工程师**使用标准 C++ 开发算法的入门模板。
-
-示例会持续产生 IQ 数据，调用您的算法生成脉冲压缩结果，并在终端打印帧号、数据
-尺寸和峰值位置。您只需要关注 `main.cpp` 中的数据读写流程，以及
-`my_algorithm.hpp` 中的数学实现。
+本目录是标准 C++ 雷达算法开发模板，演示一条连续的 **IQ 数据 → 脉冲压缩数据**
+处理流。运行后会持续打印输入输出尺寸和峰值位置，便于确认算法正在工作。
 
 ## 开发全流程概览
 
 ```mermaid
 graph TD
-    A[第一步: 启动算法开发基座] --> B[第二步: 编写 IQ 脉压算法]
+    A[第一步: 启动算法开发环境] --> B[第二步: 编写算法]
     B --> C[第三步: 构建算法镜像]
     C --> D[第四步: 运行与调试]
-    D --> E[第五步: 发布镜像至私有源]
+    D --> E[第五步: 发布算法镜像]
 ```
 
-## 第一步：一键启动算法开发基座
+## 第一步：启动算法开发环境
 
-在本目录执行：
+在本目录执行一条命令：
 
 ```bash
 docker-compose -f docker-compose.infra.yaml up -d --no-build
 ```
 
-启动完成后，测试 IQ 数据已经准备好，等待您的算法读取。
+启动后，连续 IQ 测试数据已准备好。
 
-## 第二步：编写 IQ 脉压算法
+## 第二步：编写算法
 
-SDK 提供 `Input<RawFrame>` 和 `Output<RawFrame>`；`data.h` 提供 IQ 与脉冲压缩
-数据的安全访问接口。
-
-主程序位于 `src/main.cpp`，核心流程如下：
+算法入口位于 `src/main.cpp`，数学实现位于 `src/my_algorithm.hpp`。SDK 的完整处理
+流程只有读取、创建、计算和写出四步：
 
 ```cpp
 #include <data.h>
@@ -39,64 +34,44 @@ SDK 提供 `Input<RawFrame>` 和 `Output<RawFrame>`；`data.h` 提供 IQ 与脉�
 
 using namespace uestcradar;
 
-Input<RawFrame> input;
-Output<RawFrame> output;
+Input<IQFrame> input;
+Output<PulseCompressionFrame> output;
 
 while (true) {
-    // 1. 读取一帧 IQ 数据。
-    RawFrame input_frame = input.read();
-    auto iq = IQFrameView::from(input_frame);
+    // 1. 读取 IQ 数据。
+    auto iq = input.read();
+    auto iq_metadata = iq.metadata();
 
-    // 2. 创建一帧脉冲压缩输出。
-    auto metadata = make_metadata(
-        iq, input_frame.envelope().frame_id);
+    // 2. 填写本算法输出数据的业务参数。
+    PulseCompressionMetadata metadata{
+        .channel_count = iq_metadata.channel_count,
+        .range_bin_count = iq_metadata.samples_per_channel,
+        .pulse_index = 0,
+        .pulses_per_cpi = 8,
+        .range_resolution_m = 1.5,
+    };
+    // 一帧 IQ 生成一帧脉压结果时，这里传当前正在处理的 IQ 帧。
+    auto pulse = output.create(metadata, iq);
 
-    RawFrame output_frame = output.create({
-        .frame_id = input_frame.envelope().frame_id,
-        .timestamp = input_frame.envelope().timestamp,
-        .type_id = PulseCompressionFrameView::type_id,
-        .type_version = PulseCompressionFrameView::type_version,
-        .payload_length = static_cast<std::uint32_t>(
-            PulseCompressionFrameView::payload_bytes(metadata)),
-    });
-    auto pulse = PulseCompressionFrameView::initialize(
-        output_frame, metadata);
-
-    // 3. 执行您的算法。
+    // 3. 执行算法。
     auto result = pulse_compress(iq.data(), pulse.data());
     std::cout << "peak_range_bin=" << result.peak_range_bin << '\n';
 
-    // 4. 提交计算结果。
-    output.write(std::move(output_frame));
+    // 4. 写出结果。
+    output.write(std::move(pulse));
 }
 ```
 
-开发自己的算法时，主要修改：
+开发自己的算法时，主要替换 `src/my_algorithm.hpp` 中 `pulse_compress()` 的函数体。
+输入和输出都是可直接按行访问的二维数组。
 
-```text
-src/my_algorithm.hpp
-```
-
-当前示例使用一个简单的匹配滤波实现。您可以直接替换 `pulse_compress()` 的函数体，
-输入是 IQ 二维矩阵，输出是脉冲压缩二维矩阵。
-
-需要记住三条规则：
-
-1. 使用 `IQFrameView::from()` 读取 IQ 数据。
-2. 使用 `PulseCompressionFrameView::initialize()` 创建输出数据。
-3. 使用 `output.write(std::move(output_frame))` 提交结果。
-
-## 第三步：算法构建
-
-在本目录执行：
+## 第三步：构建算法镜像
 
 ```bash
-docker build -t my-radar-algorithm:dev .
+docker build --pull -t my-radar-algorithm:dev .
 ```
 
 ## 第四步：运行与调试
-
-运行刚刚构建的算法：
 
 ```bash
 export ALGORITHM_IMAGE=my-radar-algorithm:dev
@@ -104,40 +79,33 @@ docker-compose -f docker-compose.infra.yaml up -d --no-build algorithm
 docker-compose -f docker-compose.infra.yaml logs -f algorithm pulse-sink
 ```
 
-正常情况下会持续看到：
+正常日志示例：
 
 ```text
 [algorithm] IQ -> pulse compression ready frames=0
-[algorithm] processed=20 frame=20 iq=1x128 pulse=1x128 peak_range_bin=0
-[sink] type=pulse received=20 frame=20 shape=1x128 peak_range_bin=0
+[algorithm] processed=20 iq=1x128 pulse=1x128 peak_range_bin=0
+[sink] type=pulse received=20 shape=1x128 peak_range_bin=0
 ```
 
-如果需要进入容器调试：
+进入容器交互调试：
 
 ```bash
-docker-compose -f docker-compose.infra.yaml run --rm --no-deps --entrypoint /bin/bash algorithm
-```
-
-进入后直接运行：
-
-```bash
+docker-compose -f docker-compose.infra.yaml run --rm --no-deps \
+  --entrypoint /bin/bash algorithm
 /app/algorithm --log-every 1
 ```
 
-停止示例：
+停止环境：
 
 ```bash
 docker-compose -f docker-compose.infra.yaml down
 ```
 
-## 第五步：发布镜像至私有源
+## 第五步：发布算法镜像
 
 ```bash
 docker tag my-radar-algorithm:dev \
   registry.chengyistudio.com/cxx/my-radar-algorithm:v1.0.0
-
 docker login registry.chengyistudio.com
 docker push registry.chengyistudio.com/cxx/my-radar-algorithm:v1.0.0
 ```
-
-至此，您的 IQ 脉冲压缩算法已经完成开发、验证和发布。

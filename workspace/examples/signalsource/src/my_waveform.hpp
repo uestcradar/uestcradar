@@ -25,18 +25,18 @@ inline uestcradar::IQMetadata iq_metadata() {
 }
 
 inline uestcradar::PulseCompressionMetadata pulse_metadata(
-    std::uint64_t frame_id) {
+    std::uint64_t sequence) {
     return {
         .channel_count = 1,
         .range_bin_count = kRangeBins,
         .pulse_index = static_cast<std::uint32_t>(
-            (frame_id - 1) % kPulsesPerCpi),
+            (sequence - 1) % kPulsesPerCpi),
         .pulses_per_cpi = kPulsesPerCpi,
         .range_resolution_m = 1.5,
     };
 }
 
-inline void fill_iq(uestcradar::IQFrameView& frame) {
+inline void fill_iq(uestcradar::IQFrame& frame) {
     auto samples = frame.data()[0];
     for (std::size_t index = 0; index < samples.size(); ++index) {
         const double position =
@@ -50,7 +50,7 @@ inline void fill_iq(uestcradar::IQFrameView& frame) {
 }
 
 inline void fill_pulse(
-    uestcradar::PulseCompressionFrameView& frame) {
+    uestcradar::PulseCompressionFrame& frame) {
     auto bins = frame.data()[0];
     for (auto& value : bins) {
         value = {};

@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 
 namespace {
 
@@ -49,45 +50,36 @@ Options parse_options(int argc, char** argv) {
     return options;
 }
 
-std::uint64_t timestamp_ns() {
-    const auto now = std::chrono::system_clock::now();
-    return static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now.time_since_epoch())
-            .count());
-}
-
-void send_iq(uestcradar::Output<uestcradar::RawFrame>& output,
-             std::uint64_t frame_id) {
+void send_iq(uestcradar::Output<uestcradar::IQFrame>& output) {
     const auto metadata = radar_example::iq_metadata();
-    uestcradar::RawFrame raw = output.create({
-        .frame_id = frame_id,
-        .timestamp = timestamp_ns(),
-        .type_id = uestcradar::IQFrameView::type_id,
-        .type_version = uestcradar::IQFrameView::type_version,
-        .payload_length = static_cast<std::uint32_t>(
-            uestcradar::IQFrameView::payload_bytes(metadata)),
-    });
-    auto iq = uestcradar::IQFrameView::initialize(raw, metadata);
+    auto iq = output.create(metadata);
     radar_example::fill_iq(iq);
-    output.write(std::move(raw));
+    output.write(std::move(iq));
 }
 
-void send_pulse(uestcradar::Output<uestcradar::RawFrame>& output,
-                std::uint64_t frame_id) {
-    const auto metadata = radar_example::pulse_metadata(frame_id);
-    uestcradar::RawFrame raw = output.create({
-        .frame_id = frame_id,
-        .timestamp = timestamp_ns(),
-        .type_id = uestcradar::PulseCompressionFrameView::type_id,
-        .type_version = uestcradar::PulseCompressionFrameView::type_version,
-        .payload_length = static_cast<std::uint32_t>(
-            uestcradar::PulseCompressionFrameView::payload_bytes(metadata)),
-    });
-    auto pulse =
-        uestcradar::PulseCompressionFrameView::initialize(raw, metadata);
+void send_pulse(
+    uestcradar::Output<uestcradar::PulseCompressionFrame>& output,
+    std::uint64_t sequence) {
+    const auto metadata = radar_example::pulse_metadata(sequence);
+    auto pulse = output.create(metadata);
     radar_example::fill_pulse(pulse);
-    output.write(std::move(raw));
+    output.write(std::move(pulse));
+}
+
+template <class Send>
+void run_source(const Options& options, Send send) {
+    const auto interval = std::chrono::duration<double>(
+        1.0 / options.rate_hz);
+    for (std::uint64_t sequence = 1;
+         options.frames == 0 || sequence <= options.frames;
+         ++sequence) {
+        send(sequence);
+        if (sequence == 1 || sequence % 20 == 0) {
+            std::cout << "[source] sent type=" << options.type
+                      << " sequence=" << sequence << '\n';
+        }
+        std::this_thread::sleep_for(interval);
+    }
 }
 
 }  // namespace
@@ -96,28 +88,18 @@ int main(int argc, char** argv) {
     try {
         std::cout << std::unitbuf;
         const Options options = parse_options(argc, argv);
-        uestcradar::Output<uestcradar::RawFrame> output;
-        const auto interval = std::chrono::duration<double>(
-            1.0 / options.rate_hz);
-
         std::cout << "[source] type=" << options.type
                   << " rate_hz=" << options.rate_hz
                   << " frames=" << options.frames << '\n';
 
-        for (std::uint64_t frame_id = 1;
-             options.frames == 0 || frame_id <= options.frames;
-             ++frame_id) {
-            if (options.type == "iq") {
-                send_iq(output, frame_id);
-            } else {
-                send_pulse(output, frame_id);
-            }
-
-            if (frame_id == 1 || frame_id % 20 == 0) {
-                std::cout << "[source] sent type=" << options.type
-                          << " frame=" << frame_id << '\n';
-            }
-            std::this_thread::sleep_for(interval);
+        if (options.type == "iq") {
+            uestcradar::Output<uestcradar::IQFrame> output;
+            run_source(options, [&](std::uint64_t) { send_iq(output); });
+        } else {
+            uestcradar::Output<uestcradar::PulseCompressionFrame> output;
+            run_source(options, [&](std::uint64_t sequence) {
+                send_pulse(output, sequence);
+            });
         }
 
         std::cout << "[source] completed frames=" << options.frames << '\n';

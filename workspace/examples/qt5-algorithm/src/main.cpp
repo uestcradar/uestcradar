@@ -51,8 +51,8 @@ int main(int argc, char** argv) {
     QCoreApplication application(argc, argv);
     try {
         const Options options = parse_options(argc, argv);
-        uestcradar::Input<uestcradar::RawFrame> input;
-        uestcradar::Output<uestcradar::RawFrame> output;
+        uestcradar::Input<uestcradar::PulseCompressionFrame> input;
+        uestcradar::Output<uestcradar::RDFrame> output;
         radar_qt_example::CpiBuffer cpi;
 
         qInfo() << "[qt-algorithm] pulse compression -> RD ready"
@@ -60,12 +60,11 @@ int main(int argc, char** argv) {
 
         std::uint64_t produced = 0;
         while (options.frames == 0 || produced < options.frames) {
-            uestcradar::RawFrame input_frame = input.read();
-            auto pulse =
-                uestcradar::PulseCompressionFrameView::from(input_frame);
+            auto pulse = input.read();
+            const auto pulse_metadata = pulse.metadata();
             cpi.push(
-                pulse.metadata().pulse_index,
-                pulse.metadata().pulses_per_cpi,
+                pulse_metadata.pulse_index,
+                pulse_metadata.pulses_per_cpi,
                 pulse.data()[0]);
 
             if (!cpi.ready()) {
@@ -77,35 +76,23 @@ int main(int argc, char** argv) {
                 .range_bin_count = static_cast<std::uint32_t>(
                     cpi.range_bin_count()),
                 .doppler_bin_count = radar_qt_example::kPulsesPerCpi,
-                .reserved = 0,
-                .range_resolution_m =
-                    pulse.metadata().range_resolution_m,
+                .range_resolution_m = pulse_metadata.range_resolution_m,
                 .velocity_resolution_mps = 0.5,
             };
-            uestcradar::RawFrame output_frame = output.create({
-                .frame_id = input_frame.envelope().frame_id,
-                .timestamp = input_frame.envelope().timestamp,
-                .type_id = uestcradar::RDFrameView::type_id,
-                .type_version = uestcradar::RDFrameView::type_version,
-                .payload_length = static_cast<std::uint32_t>(
-                    uestcradar::RDFrameView::payload_bytes(metadata)),
-            });
-            auto rd = uestcradar::RDFrameView::initialize(
-                output_frame, metadata);
+            auto rd = output.create(metadata, pulse);
             const auto result =
                 radar_qt_example::compute_rd(cpi, rd.data());
 
             ++produced;
             if (produced == 1 || produced % options.log_every == 0) {
                 qInfo() << "[qt-algorithm] produced=" << produced
-                        << "frame=" << input_frame.envelope().frame_id
                         << "RD=" << rd.data().rows() << "x"
                         << rd.data().columns()
                         << "peak=" << result.peak_range_bin << ","
                         << result.peak_doppler_bin;
             }
 
-            output.write(std::move(output_frame));
+            output.write(std::move(rd));
             cpi.clear();
         }
 

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -20,18 +21,24 @@
 
 namespace {
 
-using uestcradar::RawFrame;
 using uestcradar::ComplexInt16;
-using uestcradar::IQFrameView;
+using uestcradar::IQFrame;
 using uestcradar::IQMetadata;
 
-constexpr std::uint64_t kPhaseShift = 62;
-constexpr std::uint64_t kSequenceMask =
-    (std::uint64_t{1} << kPhaseShift) - 1;
 constexpr std::uint64_t kWarmup = 0;
 constexpr std::uint64_t kMeasure = 1;
 constexpr std::uint64_t kEnd = 2;
 constexpr std::size_t kHistogramBuckets = 1'000'002;
+
+struct TestControl {
+    std::uint64_t sequence{};
+    std::uint64_t phase{};
+    std::uint64_t timestamp{};
+};
+
+static_assert(sizeof(TestControl) % sizeof(ComplexInt16) == 0);
+constexpr std::size_t kControlSamples =
+    sizeof(TestControl) / sizeof(ComplexInt16);
 
 struct Arguments {
     std::string role;
@@ -144,27 +151,13 @@ Arguments parse_arguments(int argc, char* argv[]) {
             "--test must be correctness or benchmark");
     }
     constexpr std::size_t minimum =
-        sizeof(IQMetadata) + sizeof(ComplexInt16);
+        sizeof(IQMetadata) + sizeof(TestControl) + sizeof(ComplexInt16);
     if (result.payload_bytes < minimum ||
         result.payload_bytes > INT32_MAX || result.frames == 0 ||
         result.duration_seconds <= 0.0) {
         throw std::invalid_argument("cascade-worker arguments are invalid");
     }
     return result;
-}
-
-std::uint64_t encode_frame_id(
-    std::uint64_t sequence,
-    std::uint64_t phase) {
-    return (phase << kPhaseShift) | (sequence & kSequenceMask);
-}
-
-std::uint64_t phase_from(std::uint64_t frame_id) {
-    return frame_id >> kPhaseShift;
-}
-
-std::uint64_t sequence_from(std::uint64_t frame_id) {
-    return frame_id & kSequenceMask;
 }
 
 std::size_t samples_for_payload(std::size_t requested_bytes) {
@@ -199,22 +192,39 @@ ComplexInt16 expected_sample(
 }
 
 void fill_payload(
-    IQFrameView& frame,
+    IQFrame& frame,
     std::uint32_t seed,
     std::uint64_t sequence,
+    std::uint64_t phase,
     bool correctness) {
     auto values = frame.data().values();
+    const TestControl control{sequence, phase, unix_ns()};
+    std::memcpy(values.data(), &control, sizeof(control));
     if (!correctness) {
-        std::fill(values.begin(), values.end(), ComplexInt16{});
+        std::fill(
+            values.begin() + kControlSamples,
+            values.end(),
+            ComplexInt16{});
         return;
     }
-    for (std::size_t index = 0; index < values.size(); ++index) {
+    for (std::size_t index = kControlSamples;
+         index < values.size();
+         ++index) {
         values[index] = expected_sample(seed, sequence, index);
     }
 }
 
+TestControl test_control(const IQFrame& frame) {
+    TestControl control{};
+    std::memcpy(&control, frame.data().values().data(), sizeof(control));
+    if (control.phase > kEnd || control.sequence == 0) {
+        throw std::runtime_error("cascade test control is invalid");
+    }
+    return control;
+}
+
 void write_frame(
-    uestcradar::Output<RawFrame>& output,
+    uestcradar::Output<IQFrame>& output,
     std::size_t samples,
     std::uint64_t sequence,
     std::uint64_t phase,
@@ -225,21 +235,14 @@ void write_frame(
         .sample_rate_hz = 1.0,
         .center_frequency_hz = 0.0,
     };
-    RawFrame raw = output.create({
-        .frame_id = encode_frame_id(sequence, phase),
-        .timestamp = unix_ns(),
-        .type_id = IQFrameView::type_id,
-        .type_version = IQFrameView::type_version,
-        .payload_length = static_cast<std::uint32_t>(
-            IQFrameView::payload_bytes(metadata)),
-    });
-    auto frame = IQFrameView::initialize(raw, metadata);
+    auto frame = output.create(metadata);
     fill_payload(
         frame,
         arguments.seed,
         sequence,
+        phase,
         arguments.test == "correctness");
-    output.write(std::move(raw));
+    output.write(std::move(frame));
 }
 
 void pace(
@@ -285,12 +288,12 @@ struct Statistics {
 };
 
 bool validate_frame(
-    const RawFrame& raw,
-    const IQFrameView& frame,
+    const IQFrame& frame,
+    const TestControl& control,
     const Arguments& arguments,
     std::size_t samples,
     Statistics& stats) {
-    const std::uint64_t sequence = sequence_from(raw.envelope().frame_id);
+    const std::uint64_t sequence = control.sequence;
     if (stats.last_sequence != 0) {
         if (sequence == stats.last_sequence) {
             ++stats.duplicate;
@@ -312,7 +315,9 @@ bool validate_frame(
         frame.data().rows() == 1 && frame.data().columns() == samples;
     if (valid) {
         const auto values = frame.data().values();
-        for (std::size_t index = 0; index < values.size(); ++index) {
+        for (std::size_t index = kControlSamples;
+             index < values.size();
+             ++index) {
             const auto expected = expected_sample(
                 arguments.seed, sequence, index);
             if (values[index].i != expected.i ||
@@ -348,7 +353,7 @@ std::uint64_t percentile(
 }
 
 void observe(
-    const RawFrame& raw,
+    std::uint64_t sent_timestamp,
     std::size_t payload_bytes,
     bool measure_latency,
     Statistics& stats) {
@@ -362,8 +367,8 @@ void observe(
     if (measure_latency) {
         const std::uint64_t wall_now = unix_ns();
         const std::uint64_t latency =
-            wall_now >= raw.envelope().timestamp
-                ? wall_now - raw.envelope().timestamp
+            wall_now >= sent_timestamp
+                ? wall_now - sent_timestamp
                 : 0;
         stats.latency_total_ns += latency;
         ++stats.latency_us[std::min<std::size_t>(
@@ -408,7 +413,7 @@ void print_statistics(
 }
 
 int run_source(const Arguments& arguments) {
-    uestcradar::Output<RawFrame> output;
+    uestcradar::Output<IQFrame> output;
     const std::size_t samples = samples_for_payload(arguments.payload_bytes);
     const std::size_t bytes = actual_payload_bytes(samples);
     std::uint64_t sequence = 0;
@@ -446,7 +451,7 @@ int run_source(const Arguments& arguments) {
 }
 
 int run_receiver(const Arguments& arguments) {
-    uestcradar::Input<RawFrame> input;
+    uestcradar::Input<IQFrame> input;
     const bool is_operator = arguments.role == "operator";
     const bool correctness = arguments.test == "correctness";
     const std::size_t samples = samples_for_payload(arguments.payload_bytes);
@@ -456,12 +461,11 @@ int run_receiver(const Arguments& arguments) {
     bool measurement_started = false;
 
     if (is_operator) {
-        uestcradar::Output<RawFrame> output;
+        uestcradar::Output<IQFrame> output;
         for (;;) {
             auto input_frame = input.read();
-            auto input_view = IQFrameView::from(input_frame);
-            const std::uint64_t phase =
-                phase_from(input_frame.envelope().frame_id);
+            const TestControl control = test_control(input_frame);
+            const std::uint64_t phase = control.phase;
             if (phase == kMeasure) {
                 if (!measurement_started) {
                     cpu_started = process_cpu_seconds();
@@ -469,19 +473,18 @@ int run_receiver(const Arguments& arguments) {
                 }
                 if (correctness) {
                     static_cast<void>(validate_frame(
-                        input_frame, input_view,
+                        input_frame, control,
                         arguments, samples, stats));
                 }
-                observe(input_frame, bytes, false, stats);
+                observe(control.timestamp, bytes, false, stats);
             }
 
-            auto output_frame = output.create(input_frame.envelope());
-            auto output_view = IQFrameView::initialize(
-                output_frame, input_view.metadata());
+            auto output_frame = output.create(
+                input_frame.metadata(), input_frame);
             std::copy(
-                input_view.data().values().begin(),
-                input_view.data().values().end(),
-                output_view.data().values().begin());
+                input_frame.data().values().begin(),
+                input_frame.data().values().end(),
+                output_frame.data().values().begin());
             output.write(std::move(output_frame));
             if (phase == kEnd) {
                 break;
@@ -490,8 +493,8 @@ int run_receiver(const Arguments& arguments) {
     } else {
         for (;;) {
             auto frame = input.read();
-            auto view = IQFrameView::from(frame);
-            const std::uint64_t phase = phase_from(frame.envelope().frame_id);
+            const TestControl control = test_control(frame);
+            const std::uint64_t phase = control.phase;
             if (phase == kEnd) {
                 break;
             }
@@ -504,9 +507,9 @@ int run_receiver(const Arguments& arguments) {
             }
             if (correctness) {
                 static_cast<void>(validate_frame(
-                    frame, view, arguments, samples, stats));
+                    frame, control, arguments, samples, stats));
             }
-            observe(frame, bytes, true, stats);
+            observe(control.timestamp, bytes, true, stats);
         }
     }
 

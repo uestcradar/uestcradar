@@ -109,9 +109,10 @@ workspace/sidecar/tools/run_cascade_test.sh benchmark
 ## Ubuntu ARM64 镜像发布
 
 生产测试使用仓库中已经固定 Digest 的 Ubuntu `build-base` 和 `runtime-base`。
-只有基础依赖、UCX、编译器或系统包发生变化时，才需要更新两个基础镜像。本次
-RawFrame ABI 升级同时修改了 Sidecar、SDK 和 cascade-worker，二者必须使用同一
-提交重新构建并成对发布。
+只有基础依赖、UCX、编译器或系统包发生变化时，才需要更新两个基础镜像。SDK 5
+只收敛 Worker 的公开 C++ 接口，RawFrame ABI、Ring ABI、Contract 和 Sidecar
+协议均未改变，因此 Sidecar 与两个基础镜像无需随本次 SDK 升级重建；算法镜像、
+signalsource 和 cascade-worker 需要基于 SDK 5 重新构建。
 
 每次发布同时维护两个 Tag：
 

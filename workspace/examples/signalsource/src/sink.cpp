@@ -56,10 +56,9 @@ Options parse_options(int argc, char** argv) {
 }
 
 void consume_pulse(
-    uestcradar::RawFrame& raw,
+    uestcradar::PulseCompressionFrame& pulse,
     const Options& options,
     std::uint64_t received) {
-    auto pulse = uestcradar::PulseCompressionFrameView::from(raw);
     std::size_t peak_bin = 0;
     float peak = -1.0F;
     const auto bins = pulse.data()[0];
@@ -78,7 +77,6 @@ void consume_pulse(
     }
     if (received == 1 || received % options.log_every == 0) {
         std::cout << "[sink] type=pulse received=" << received
-                  << " frame=" << raw.envelope().frame_id
                   << " shape=" << pulse.data().rows() << 'x'
                   << pulse.data().columns()
                   << " peak_range_bin=" << peak_bin << '\n';
@@ -86,10 +84,9 @@ void consume_pulse(
 }
 
 void consume_rd(
-    uestcradar::RawFrame& raw,
+    uestcradar::RDFrame& rd,
     const Options& options,
     std::uint64_t received) {
-    auto rd = uestcradar::RDFrameView::from(raw);
     std::size_t peak_range = 0;
     std::size_t peak_doppler = 0;
     float peak = -std::numeric_limits<float>::infinity();
@@ -114,11 +111,30 @@ void consume_rd(
     }
     if (received == 1 || received % options.log_every == 0) {
         std::cout << "[sink] type=rd received=" << received
-                  << " frame=" << raw.envelope().frame_id
                   << " shape=" << rd.data().rows() << 'x'
                   << rd.data().columns()
                   << " peak=" << peak_range << ',' << peak_doppler
                   << '\n';
+    }
+}
+
+void consume_pulse_stream(const Options& options) {
+    uestcradar::Input<uestcradar::PulseCompressionFrame> input;
+    for (std::uint64_t received = 1;
+         options.frames == 0 || received <= options.frames;
+         ++received) {
+        auto pulse = input.read();
+        consume_pulse(pulse, options, received);
+    }
+}
+
+void consume_rd_stream(const Options& options) {
+    uestcradar::Input<uestcradar::RDFrame> input;
+    for (std::uint64_t received = 1;
+         options.frames == 0 || received <= options.frames;
+         ++received) {
+        auto rd = input.read();
+        consume_rd(rd, options, received);
     }
 }
 
@@ -128,26 +144,12 @@ int main(int argc, char** argv) {
     try {
         std::cout << std::unitbuf;
         const Options options = parse_options(argc, argv);
-        uestcradar::Input<uestcradar::RawFrame> input;
-        std::uint64_t previous_frame_id = 0;
-
         std::cout << "[sink] waiting for type=" << options.type
                   << " frames=" << options.frames << '\n';
-
-        for (std::uint64_t received = 1;
-             options.frames == 0 || received <= options.frames;
-             ++received) {
-            uestcradar::RawFrame raw = input.read();
-            if (raw.envelope().frame_id <= previous_frame_id) {
-                throw std::runtime_error("frame_id is not increasing");
-            }
-            previous_frame_id = raw.envelope().frame_id;
-
-            if (options.type == "pulse") {
-                consume_pulse(raw, options, received);
-            } else {
-                consume_rd(raw, options, received);
-            }
+        if (options.type == "pulse") {
+            consume_pulse_stream(options);
+        } else {
+            consume_rd_stream(options);
         }
 
         std::cout << "[sink] completed type=" << options.type

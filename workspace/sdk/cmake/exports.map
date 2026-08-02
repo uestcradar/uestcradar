@@ -1,15 +1,7 @@
-CYCOMM_SDK_5.0 {
+CYCOMM_SDK_6.0 {
     global:
-        _ZN10uestcradar5Frame*;
-        _ZNK10uestcradar5Frame*;
-        _ZN10uestcradar7IQFrame*;
-        _ZNK10uestcradar7IQFrame*;
-        _ZN10uestcradar21PulseCompressionFrame*;
-        _ZNK10uestcradar21PulseCompressionFrame*;
-        _ZN10uestcradar7RDFrame*;
-        _ZNK10uestcradar7RDFrame*;
-        _ZN10uestcradar5Input*;
-        _ZN10uestcradar6Output*;
+        _ZN10uestcradar*;
+        _ZNK10uestcradar*;
     local:
         *;
 };

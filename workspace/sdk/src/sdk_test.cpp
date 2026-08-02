@@ -18,14 +18,16 @@ namespace {
 constexpr std::uint64_t kIQTypeId = 1;
 constexpr std::uint64_t kPulseCompressionTypeId = 2;
 constexpr std::uint64_t kRDTypeId = 3;
-constexpr std::uint32_t kContractVersion = 2;
+constexpr std::uint32_t kIQVersion = 2;
+constexpr std::uint32_t kPulseCompressionVersion = 2;
+constexpr std::uint32_t kRDVersion = 2;
 
 class OwnedRing {
 public:
     OwnedRing(
         std::string name,
         std::uint64_t type_id,
-        std::uint32_t type_version = kContractVersion,
+        std::uint32_t type_version,
         std::uint32_t slots = 2)
         : name_(std::move(name)),
           ring_(ringbuf_create(
@@ -71,7 +73,7 @@ void seed_iq(
         .frame_id = frame_id,
         .timestamp = timestamp,
         .type_id = kIQTypeId,
-        .type_version = kContractVersion,
+        .type_version = kIQVersion,
         .payload_length = iq_payload_bytes(metadata),
     };
     std::memcpy(lease.payload().data(), &metadata, sizeof(metadata));
@@ -89,7 +91,7 @@ void seed_iq(
 }
 
 void test_typed_input_and_lifetime(const std::string& prefix) {
-    OwnedRing upstream{prefix + "_iq_up", kIQTypeId};
+    OwnedRing upstream{prefix + "_iq_up", kIQTypeId, kIQVersion};
     ::setenv(
         "UESTCRADAR_UPSTREAM_SHM_NAME", upstream.name().c_str(), 1);
     seed_iq(upstream.get(), 42);
@@ -106,6 +108,14 @@ void test_typed_input_and_lifetime(const std::string& prefix) {
                 iq.data().columns() == 3 &&
                 iq.data()[1][2].i == 6,
             "typed IQ mapping is incorrect");
+        iq.data()[0][0] = {321, -123};
+        const auto* shared_samples =
+            reinterpret_cast<const uestcradar::ComplexInt16*>(
+                upstream.get()->slots + sizeof(uestcradar::Envelope) +
+                sizeof(uestcradar::IQMetadata));
+        require(
+            shared_samples[0].i == 321 && shared_samples[0].q == -123,
+            "typed IQ data was copied instead of viewing the RingBuffer Slot");
 
         RingWriteLease blocked;
         require(
@@ -122,9 +132,10 @@ void test_typed_input_and_lifetime(const std::string& prefix) {
 }
 
 void test_operator_inherits_trace(const std::string& prefix) {
-    OwnedRing upstream{prefix + "_parent_up", kIQTypeId};
+    OwnedRing upstream{prefix + "_parent_up", kIQTypeId, kIQVersion};
     OwnedRing downstream{
-        prefix + "_pulse_down", kPulseCompressionTypeId};
+        prefix + "_pulse_down", kPulseCompressionTypeId,
+        kPulseCompressionVersion};
     ::setenv(
         "UESTCRADAR_UPSTREAM_SHM_NAME", upstream.name().c_str(), 1);
     ::setenv(
@@ -158,11 +169,23 @@ void test_operator_inherits_trace(const std::string& prefix) {
         committed.envelope().frame_id == 88 &&
             committed.envelope().timestamp == 987654321 &&
             committed.envelope().type_id == kPulseCompressionTypeId &&
-            committed.envelope().type_version == kContractVersion &&
+            committed.envelope().type_version == kPulseCompressionVersion &&
             committed.payload().size() ==
                 sizeof(metadata) + 6 *
                     sizeof(uestcradar::ComplexFloat32),
-        "SDK did not generate the expected hidden Envelope");
+            "SDK did not generate the expected hidden Envelope");
+    std::uint32_t wire_pulse_index{};
+    double wire_resolution{};
+    std::memcpy(
+        &wire_pulse_index, committed.payload().data() + 8,
+        sizeof(wire_pulse_index));
+    std::memcpy(
+        &wire_resolution, committed.payload().data() + 16,
+        sizeof(wire_resolution));
+    require(
+        wire_pulse_index == metadata.pulse_index &&
+            wire_resolution == metadata.range_resolution_m,
+        "generated pulse-compression wire metadata is incorrect");
     require(
         std::all_of(
             std::begin(committed.envelope().reserved),
@@ -185,7 +208,7 @@ void test_operator_inherits_trace(const std::string& prefix) {
 }
 
 void test_source_generates_trace(const std::string& prefix) {
-    OwnedRing downstream{prefix + "_rd_down", kRDTypeId};
+    OwnedRing downstream{prefix + "_rd_down", kRDTypeId, kRDVersion};
     ::setenv(
         "UESTCRADAR_DOWNSTREAM_SHM_NAME",
         downstream.name().c_str(),
@@ -211,9 +234,26 @@ void test_source_generates_trace(const std::string& prefix) {
             "could not read generated RD frame");
         require(
             lease.envelope().frame_id == expected_id &&
-                lease.envelope().timestamp >= previous_timestamp,
+                lease.envelope().timestamp >= previous_timestamp &&
+                lease.envelope().type_id == kRDTypeId &&
+                lease.envelope().type_version == kRDVersion,
             "source trace was not generated monotonically");
         previous_timestamp = lease.envelope().timestamp;
+        std::uint32_t reserved{};
+        double range_resolution{};
+        double velocity_resolution{};
+        std::memcpy(&reserved, lease.payload().data() + 12, sizeof(reserved));
+        std::memcpy(
+            &range_resolution, lease.payload().data() + 16,
+            sizeof(range_resolution));
+        std::memcpy(
+            &velocity_resolution, lease.payload().data() + 24,
+            sizeof(velocity_resolution));
+        require(
+            reserved == 0 &&
+                range_resolution == metadata.range_resolution_m &&
+                velocity_resolution == metadata.velocity_resolution_mps,
+            "generated RD wire metadata is incorrect");
         require(
             ringbuf_release(lease) == RingResult::ok,
             "could not release generated RD frame");
@@ -221,7 +261,7 @@ void test_source_generates_trace(const std::string& prefix) {
 }
 
 void test_contract_rejection(const std::string& prefix) {
-    OwnedRing wrong_port{prefix + "_wrong_port", kRDTypeId};
+    OwnedRing wrong_port{prefix + "_wrong_port", kRDTypeId, kRDVersion};
     ::setenv(
         "UESTCRADAR_UPSTREAM_SHM_NAME", wrong_port.name().c_str(), 1);
     bool port_rejected = false;
@@ -232,7 +272,23 @@ void test_contract_rejection(const std::string& prefix) {
     }
     require(port_rejected, "typed Input accepted a different contract");
 
-    OwnedRing malformed{prefix + "_malformed", kIQTypeId};
+    OwnedRing wrong_version{
+        prefix + "_wrong_version", kIQTypeId, kIQVersion + 1};
+    ::setenv(
+        "UESTCRADAR_UPSTREAM_SHM_NAME",
+        wrong_version.name().c_str(),
+        1);
+    bool version_rejected = false;
+    try {
+        uestcradar::Input<uestcradar::IQFrame> input;
+    } catch (const std::invalid_argument&) {
+        version_rejected = true;
+    }
+    require(
+        version_rejected,
+        "typed Input accepted a different contract version");
+
+    OwnedRing malformed{prefix + "_malformed", kIQTypeId, kIQVersion};
     ::setenv(
         "UESTCRADAR_UPSTREAM_SHM_NAME", malformed.name().c_str(), 1);
     RingWriteLease lease;
@@ -242,7 +298,7 @@ void test_contract_rejection(const std::string& prefix) {
     lease.envelope() = uestcradar::Envelope{
         .frame_id = 1,
         .type_id = kIQTypeId,
-        .type_version = 1,
+        .type_version = kIQVersion,
         .payload_length = 1,
     };
     require(
@@ -257,7 +313,7 @@ void test_contract_rejection(const std::string& prefix) {
     }
     require(frame_rejected, "typed Input accepted malformed data");
 
-    OwnedRing rd_output{prefix + "_bad_metadata", kRDTypeId};
+    OwnedRing rd_output{prefix + "_bad_metadata", kRDTypeId, kRDVersion};
     ::setenv(
         "UESTCRADAR_DOWNSTREAM_SHM_NAME", rd_output.name().c_str(), 1);
     uestcradar::Output<uestcradar::RDFrame> output;
