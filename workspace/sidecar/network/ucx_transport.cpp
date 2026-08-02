@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -117,13 +118,33 @@ struct UCXTransport::Impl : std::enable_shared_from_this<Impl> {
                 throw_ucx(name, result);
             }
         };
+        const auto configured_value = [](
+                                          const char* name,
+                                          const char* fallback) {
+            const char* value = std::getenv(name);
+            return (value != nullptr && value[0] != '\0')
+                ? value
+                : fallback;
+        };
 
         try {
             if (data_path == DataPathMode::strict_rdma) {
-                configure("TLS", "rc");
-                configure("RNDV_THRESH", "0");
-                configure("ZCOPY_THRESH", "0");
-                configure("RNDV_SCHEME", "get_zcopy");
+                configure(
+                    "TLS",
+                    configured_value("UCX_TLS", "rc_verbs,tcp"));
+                configure(
+                    "RNDV_THRESH",
+                    configured_value("UCX_RNDV_THRESH", "64"));
+                configure(
+                    "ZCOPY_THRESH",
+                    configured_value("UCX_ZCOPY_THRESH", "64"));
+                configure(
+                    "RNDV_SCHEME",
+                    configured_value("UCX_RNDV_SCHEME", "put_zcopy"));
+            } else {
+                configure(
+                    "TLS",
+                    configured_value("UCX_TLS", "tcp,self"));
             }
         } catch (...) {
             ::ucp_config_release(config);

@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <thread>
@@ -42,22 +43,8 @@ int run_server(std::uint16_t port) {
     }
 }
 
-}  // namespace
-
-int main() {
-    const std::uint16_t port =
-        static_cast<std::uint16_t>(20'000 + (::getpid() % 20'000));
-    const pid_t server_pid = ::fork();
-    if (server_pid == -1) {
-        std::cerr << "fork failed\n";
-        return 1;
-    }
-    if (server_pid == 0) {
-        ::_exit(run_server(port));
-    }
-
+int run_client(std::uint16_t port) {
     try {
-        std::this_thread::sleep_for(std::chrono::milliseconds{100});
         UCXTransport transport = UCXTransport::connect(
             EndpointOptions{"127.0.0.1", port, std::chrono::seconds{10}});
         std::array<std::byte, 64> output{};
@@ -75,7 +62,8 @@ int main() {
         UCXRequest receive = transport.receive(
             reply, kTestTag, UINT64_MAX, &reply_memory);
         transport.wait(receive);
-        if (reply != output || receive.bytes_transferred() != reply.size()) {
+        if (reply != output ||
+            receive.bytes_transferred() != reply.size()) {
             throw std::runtime_error("payload mismatch");
         }
 
@@ -101,18 +89,41 @@ int main() {
             throw std::runtime_error(
                 "out-of-region send was not rejected");
         }
+        return 0;
     } catch (const std::exception& error) {
         std::cerr << "ucx-transport-test: " << error.what() << '\n';
-        ::kill(server_pid, SIGTERM);
-        static_cast<void>(::waitpid(server_pid, nullptr, 0));
         return 1;
     }
+}
 
-    int status = 0;
-    if (::waitpid(server_pid, &status, 0) == -1 ||
-        !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        std::cerr << "ucx-transport-test: server failed\n";
-        return 1;
+}  // namespace
+
+int main() {
+    ::setenv("UCX_TLS", "tcp,self", 1);
+    const std::uint16_t port =
+        static_cast<std::uint16_t>(20'000 + (::getpid() % 20'000));
+    for (int round = 0; round < 2; ++round) {
+        const pid_t server_pid = ::fork();
+        if (server_pid == -1) {
+            std::cerr << "fork failed\n";
+            return 1;
+        }
+        if (server_pid == 0) {
+            ::_exit(run_server(port));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{100});
+        const int client_status = run_client(port);
+        if (client_status != 0) {
+            ::kill(server_pid, SIGTERM);
+        }
+        int server_status = 0;
+        if (::waitpid(server_pid, &server_status, 0) == -1 ||
+            !WIFEXITED(server_status) ||
+            WEXITSTATUS(server_status) != 0 || client_status != 0) {
+            std::cerr << "ucx-transport-test: round " << round
+                      << " failed\n";
+            return 1;
+        }
     }
     return 0;
 }

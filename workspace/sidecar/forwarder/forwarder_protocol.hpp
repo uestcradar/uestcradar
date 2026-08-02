@@ -9,10 +9,15 @@ namespace sidecar::forwarder::protocol {
 inline constexpr std::uint64_t kPayloadTag = 0x4657445f44415441ULL;
 inline constexpr std::uint64_t kCreditTag = 0x4657445f43524454ULL;
 inline constexpr std::uint64_t kHelloTag = 0x4657445f48454c4fULL;
-inline constexpr std::uint32_t kProtocolVersion = 1;
+inline constexpr std::uint32_t kProtocolVersion = 3;
+
+enum class PortRole : std::uint32_t {
+    producer = 1,
+    consumer = 2,
+};
 
 using CreditBytes = std::array<std::byte, sizeof(std::uint64_t)>;
-using HelloBytes = std::array<std::byte, 40>;
+using HelloBytes = std::array<std::byte, 24>;
 
 struct PortContract {
     std::uint64_t type_id;
@@ -21,8 +26,8 @@ struct PortContract {
 };
 
 struct Hello {
-    PortContract outbound;
-    PortContract inbound;
+    PortRole role;
+    PortContract contract;
 };
 
 template <class Bytes>
@@ -66,23 +71,27 @@ inline std::uint64_t decode_credit(
 inline HelloBytes encode_hello(const Hello& hello) noexcept {
     HelloBytes bytes{};
     encode_unsigned(bytes, 0, kProtocolVersion, 4);
-    encode_unsigned(bytes, 8, hello.outbound.type_id, 8);
-    encode_unsigned(bytes, 16, hello.outbound.type_version, 4);
-    encode_unsigned(bytes, 20, hello.outbound.max_payload_bytes, 4);
-    encode_unsigned(bytes, 24, hello.inbound.type_id, 8);
-    encode_unsigned(bytes, 32, hello.inbound.type_version, 4);
-    encode_unsigned(bytes, 36, hello.inbound.max_payload_bytes, 4);
+    encode_unsigned(
+        bytes, 4, static_cast<std::uint32_t>(hello.role), 4);
+    encode_unsigned(bytes, 8, hello.contract.type_id, 8);
+    encode_unsigned(bytes, 16, hello.contract.type_version, 4);
+    encode_unsigned(bytes, 20, hello.contract.max_payload_bytes, 4);
     return bytes;
 }
 
 inline bool decode_hello(
     const HelloBytes& bytes,
     Hello& hello) noexcept {
-    if (decode_unsigned(bytes, 0, 4) != kProtocolVersion ||
-        decode_unsigned(bytes, 4, 4) != 0) {
+    if (decode_unsigned(bytes, 0, 4) != kProtocolVersion) {
+        return false;
+    }
+    const auto role = static_cast<PortRole>(
+        decode_unsigned(bytes, 4, 4));
+    if (role != PortRole::producer && role != PortRole::consumer) {
         return false;
     }
     hello = {
+        role,
         {
             decode_unsigned(bytes, 8, 8),
             static_cast<std::uint32_t>(
@@ -90,20 +99,10 @@ inline bool decode_hello(
             static_cast<std::uint32_t>(
                 decode_unsigned(bytes, 20, 4)),
         },
-        {
-            decode_unsigned(bytes, 24, 8),
-            static_cast<std::uint32_t>(
-                decode_unsigned(bytes, 32, 4)),
-            static_cast<std::uint32_t>(
-                decode_unsigned(bytes, 36, 4)),
-        },
     };
-    return hello.outbound.type_id != 0 &&
-           hello.outbound.type_version != 0 &&
-           hello.outbound.max_payload_bytes != 0 &&
-           hello.inbound.type_id != 0 &&
-           hello.inbound.type_version != 0 &&
-           hello.inbound.max_payload_bytes != 0;
+    return hello.contract.type_id != 0 &&
+           hello.contract.type_version != 0 &&
+           hello.contract.max_payload_bytes != 0;
 }
 
 }  // namespace sidecar::forwarder::protocol

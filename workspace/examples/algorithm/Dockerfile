@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM registry.chengyistudio.com/cxx/algo-base:latest
+ARG ALGO_BASE=registry.chengyistudio.com/cxx/algo-base:latest
+FROM ${ALGO_BASE}
 
 WORKDIR /app
 COPY src/ ./src/
@@ -11,3 +12,8 @@ RUN cmake -S src -B build -DCMAKE_BUILD_TYPE=Release \
     && rm -rf src build
 
 ENTRYPOINT ["/app/algorithm"]
+
+LABEL io.uestcradar.contract="worker/v2" \
+      io.uestcradar.roles="operator" \
+      io.uestcradar.input="1:2" \
+      io.uestcradar.output="2:2"

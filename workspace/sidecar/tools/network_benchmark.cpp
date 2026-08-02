@@ -1,5 +1,6 @@
 #include "forwarder/forwarder_protocol.hpp"
 #include "network/ucx_transport.hpp"
+#include "raw_frame.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -7,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -31,6 +33,7 @@ namespace protocol = sidecar::forwarder::protocol;
 
 struct Arguments {
     std::string host{"127.0.0.1"};
+    std::string role{"consumer"};
     std::uint16_t port{13337};
     std::chrono::seconds duration{24};
     std::size_t chunk_bytes{256 * 1024};
@@ -78,6 +81,13 @@ Arguments parse_arguments(int argc, char* argv[]) {
 
         if (argument == "--host") {
             result.host = next();
+        } else if (argument == "--role") {
+            result.role = next();
+            if (result.role != "producer" &&
+                result.role != "consumer") {
+                throw std::invalid_argument(
+                    "role must be producer or consumer");
+            }
         } else if (argument == "--port") {
             const std::uint64_t port = parse_unsigned(next(), "port");
             if (port == 0 || port > 65535) {
@@ -120,6 +130,7 @@ Arguments parse_arguments(int argc, char* argv[]) {
         } else {
             throw std::invalid_argument(
                 "usage: network-benchmark [--host HOST] [--port PORT] "
+                "[--role producer|consumer] "
                 "[--duration SEC] [--chunk-bytes BYTES] "
                 "[--profile steady|jitter] "
                 "[--produce-mib-s RATE] [--consume-mib-s RATE] "
@@ -197,7 +208,8 @@ UCXTransport connect_with_retry(const Arguments& arguments) {
 
 void exchange_and_validate_contract(
     UCXTransport& transport,
-    std::size_t chunk_bytes) {
+    std::size_t chunk_bytes,
+    bool producer) {
     constexpr std::uint64_t iq_frame_type_id = 1;
     if (chunk_bytes > UINT32_MAX) {
         throw std::invalid_argument(
@@ -205,12 +217,17 @@ void exchange_and_validate_contract(
     }
     const protocol::PortContract port{
         iq_frame_type_id,
-        1,
+        2,
         static_cast<std::uint32_t>(chunk_bytes),
     };
     protocol::HelloBytes incoming{};
     protocol::HelloBytes outgoing =
-        protocol::encode_hello({port, port});
+        protocol::encode_hello({
+            producer
+                ? protocol::PortRole::producer
+                : protocol::PortRole::consumer,
+            port,
+        });
     UCXRequest receive =
         transport.receive(incoming, protocol::kHelloTag);
     UCXRequest send =
@@ -220,14 +237,16 @@ void exchange_and_validate_contract(
     protocol::Hello remote{};
     if (receive.bytes_transferred() != incoming.size() ||
         !protocol::decode_hello(incoming, remote) ||
-        remote.outbound.type_id != port.type_id ||
-        remote.outbound.type_version != port.type_version ||
-        remote.outbound.max_payload_bytes >
-            port.max_payload_bytes ||
-        remote.inbound.type_id != port.type_id ||
-        remote.inbound.type_version != port.type_version ||
-        port.max_payload_bytes >
-            remote.inbound.max_payload_bytes) {
+        remote.role == (producer
+                           ? protocol::PortRole::producer
+                           : protocol::PortRole::consumer) ||
+        remote.contract.type_id != port.type_id ||
+        remote.contract.type_version != port.type_version ||
+        (producer
+             ? port.max_payload_bytes >
+                   remote.contract.max_payload_bytes
+             : remote.contract.max_payload_bytes >
+                   port.max_payload_bytes)) {
         throw std::runtime_error(
             "sidecar forwarder contract is incompatible");
     }
@@ -239,18 +258,20 @@ public:
         UCXTransport& transport,
         std::size_t chunk_bytes)
         : transport_(transport),
-          send_buffer_(chunk_bytes, std::byte{0}),
-          receive_buffer_(chunk_bytes, std::byte{0}),
+          chunk_bytes_(chunk_bytes),
+          send_buffer_(uestcradar::kEnvelopeSize + chunk_bytes, std::byte{0}),
+          receive_buffer_(
+              uestcradar::kEnvelopeSize + chunk_bytes, std::byte{0}),
           send_memory_(transport.register_memory(send_buffer_)),
           receive_memory_(transport.register_memory(receive_buffer_)) {}
 
     bool progress(
         const Rates& rates,
-        Clock::time_point now) {
-        bool activity = false;
-        activity = progress_outbound(rates.produce, now) || activity;
-        activity = progress_inbound(rates.consume, now) || activity;
-        return activity;
+        Clock::time_point now,
+        bool producer) {
+        return producer
+                   ? progress_outbound(rates.produce, now)
+                   : progress_inbound(rates.consume, now);
     }
 
     std::uint64_t take_sent_bytes() noexcept {
@@ -300,11 +321,24 @@ private:
         }
         if (credit_available_ && !payload_send_active_ &&
             now >= next_send_ && rate > 0.0) {
+            if (peer_credit_ <= uestcradar::kEnvelopeSize) {
+                throw std::runtime_error("peer credit cannot hold Envelope");
+            }
             payload_length_ = std::min(
-                peer_credit_, send_buffer_.size());
+                chunk_bytes_, peer_credit_ - uestcradar::kEnvelopeSize);
+            const uestcradar::Envelope envelope{
+                .frame_id = ++sequence_,
+                .type_id = 1,
+                .type_version = 2,
+                .payload_length =
+                    static_cast<std::uint32_t>(payload_length_),
+            };
+            std::memcpy(
+                send_buffer_.data(), &envelope, sizeof(envelope));
+            frame_length_ = uestcradar::kEnvelopeSize + payload_length_;
             payload_send_ = transport_.send(
                 std::span<const std::byte>{
-                    send_buffer_.data(), payload_length_},
+                    send_buffer_.data(), frame_length_},
                 protocol::kPayloadTag,
                 &send_memory_);
             payload_send_active_ = true;
@@ -320,6 +354,7 @@ private:
             credit_available_ = false;
             peer_credit_ = 0;
             payload_length_ = 0;
+            frame_length_ = 0;
             activity = true;
         }
         return activity;
@@ -348,9 +383,20 @@ private:
             transport_.wait(payload_receive_);
             const std::size_t received =
                 payload_receive_.bytes_transferred();
-            if (received == 0 ||
+            uestcradar::Envelope envelope{};
+            if (received >= sizeof(envelope)) {
+                std::memcpy(&envelope, receive_buffer_.data(), sizeof(envelope));
+            }
+            const bool valid =
+                received >= sizeof(envelope) &&
+                envelope.type_id == 1 &&
+                envelope.type_version == 2 &&
+                envelope.payload_length <= chunk_bytes_ &&
+                received == sizeof(envelope) + envelope.payload_length;
+            if (!valid ||
                 !std::all_of(
-                    receive_buffer_.begin(),
+                    receive_buffer_.begin() +
+                        static_cast<std::ptrdiff_t>(sizeof(envelope)),
                     receive_buffer_.begin() +
                         static_cast<std::ptrdiff_t>(received),
                     [](std::byte value) {
@@ -359,10 +405,10 @@ private:
                 throw std::runtime_error(
                     "received payload failed validation");
             }
-            interval_received_ += received;
-            total_received_ += received;
+            interval_received_ += envelope.payload_length;
+            total_received_ += envelope.payload_length;
             next_receive_ = std::max(next_receive_, now) +
-                            pacing_delay(received, rate);
+                            pacing_delay(envelope.payload_length, rate);
             payload_completed_ = true;
             activity = true;
         }
@@ -383,6 +429,7 @@ private:
     }
 
     UCXTransport& transport_;
+    std::size_t chunk_bytes_;
     std::vector<std::byte> send_buffer_;
     std::vector<std::byte> receive_buffer_;
     UCXMemoryRegion send_memory_;
@@ -399,6 +446,8 @@ private:
     Clock::time_point next_receive_{Clock::now()};
     std::size_t peer_credit_{0};
     std::size_t payload_length_{0};
+    std::size_t frame_length_{0};
+    std::uint64_t sequence_{0};
     bool credit_receive_active_{false};
     bool credit_available_{false};
     bool payload_send_active_{false};
@@ -421,9 +470,10 @@ double to_mib(std::uint64_t bytes) {
 int main(int argc, char* argv[]) {
     try {
         const Arguments arguments = parse_arguments(argc, argv);
+        const bool producer = arguments.role == "producer";
         UCXTransport transport = connect_with_retry(arguments);
         exchange_and_validate_contract(
-            transport, arguments.chunk_bytes);
+            transport, arguments.chunk_bytes, producer);
         BenchmarkPeer peer{transport, arguments.chunk_bytes};
 
         const auto started = Clock::now();
@@ -434,6 +484,7 @@ int main(int argc, char* argv[]) {
         std::cout
             << "network-benchmark: connected host=" << arguments.host
             << " port=" << arguments.port
+            << " role=" << arguments.role
             << " profile=" << arguments.profile
             << " chunk=" << arguments.chunk_bytes << " bytes\n";
 
@@ -441,7 +492,7 @@ int main(int argc, char* argv[]) {
             const auto now = Clock::now();
             const Rates rates = current_rates(arguments, started);
             bool activity = transport.progress();
-            activity = peer.progress(rates, now) || activity;
+            activity = peer.progress(rates, now, producer) || activity;
 
             if (now - last_report >= std::chrono::seconds{1}) {
                 const double elapsed =

@@ -108,6 +108,7 @@ void RingWriteLease::reset() noexcept {
     ring_ = nullptr;
     position_ = 0;
     payload_ = nullptr;
+    envelope_ = nullptr;
     capacity_ = 0;
 }
 
@@ -122,6 +123,7 @@ RingWriteLease& RingWriteLease::operator=(
         ring_ = other.ring_;
         position_ = other.position_;
         payload_ = other.payload_;
+        envelope_ = other.envelope_;
         capacity_ = other.capacity_;
         other.reset();
     }
@@ -132,6 +134,18 @@ std::span<std::byte> RingWriteLease::payload() const noexcept {
     return {payload_, capacity_};
 }
 
+uestcradar::Envelope& RingWriteLease::envelope() const noexcept {
+    return *envelope_;
+}
+
+std::span<std::byte> RingWriteLease::frame_capacity() const noexcept {
+    return envelope_ == nullptr
+               ? std::span<std::byte>{}
+               : std::span<std::byte>{
+                     reinterpret_cast<std::byte*>(envelope_),
+                     kSlotHeaderSize + capacity_};
+}
+
 bool RingWriteLease::active() const noexcept {
     return ring_ != nullptr;
 }
@@ -140,6 +154,7 @@ void RingReadLease::reset() noexcept {
     ring_ = nullptr;
     position_ = 0;
     payload_ = nullptr;
+    envelope_ = nullptr;
     length_ = 0;
 }
 
@@ -153,6 +168,7 @@ RingReadLease& RingReadLease::operator=(
         ring_ = other.ring_;
         position_ = other.position_;
         payload_ = other.payload_;
+        envelope_ = other.envelope_;
         length_ = other.length_;
         other.reset();
     }
@@ -161,6 +177,18 @@ RingReadLease& RingReadLease::operator=(
 
 std::span<const std::byte> RingReadLease::payload() const noexcept {
     return {payload_, length_};
+}
+
+const uestcradar::Envelope& RingReadLease::envelope() const noexcept {
+    return *envelope_;
+}
+
+std::span<const std::byte> RingReadLease::frame() const noexcept {
+    return envelope_ == nullptr
+               ? std::span<const std::byte>{}
+               : std::span<const std::byte>{
+                     reinterpret_cast<const std::byte*>(envelope_),
+                     kSlotHeaderSize + length_};
 }
 
 bool RingReadLease::active() const noexcept {
@@ -304,8 +332,10 @@ RingResult ringbuf_reserve(
         return RingResult::would_block;
     }
     RingSlotHeader* slot = slot_header(ring, write);
+    ::new (slot) uestcradar::Envelope{};
     lease.ring_ = ring;
     lease.position_ = write;
+    lease.envelope_ = slot;
     lease.payload_ = slot_payload(slot);
     lease.capacity_ =
         static_cast<std::size_t>(ring->header->max_payload_bytes);
@@ -313,13 +343,18 @@ RingResult ringbuf_reserve(
 }
 
 RingResult ringbuf_commit(
-    RingWriteLease& lease,
-    std::size_t payload_length) noexcept {
-    if (!lease.active() || payload_length == 0 ||
-        payload_length > lease.capacity_) {
+    RingWriteLease& lease) noexcept {
+    if (!lease.active()) {
         return RingResult::invalid_argument;
     }
     RingBuffer* ring = lease.ring_;
+    const uestcradar::Envelope& envelope = lease.envelope();
+    if (envelope.type_id != ring->header->type_id ||
+        envelope.type_version != ring->header->type_version ||
+        envelope.payload_length == 0 ||
+        envelope.payload_length > lease.capacity_) {
+        return RingResult::invalid_argument;
+    }
     if (ringbuf_is_shutdown(ring)) {
         return RingResult::shutdown;
     }
@@ -328,8 +363,6 @@ RingResult ringbuf_commit(
     if (write != lease.position_) {
         return RingResult::corrupt;
     }
-    slot_header(ring, write)->payload_length =
-        static_cast<std::uint32_t>(payload_length);
     ring->header->write_position.store(write + 1, std::memory_order_release);
     lease.reset();
     return RingResult::ok;
@@ -359,11 +392,14 @@ RingResult ringbuf_acquire(
     }
     const RingSlotHeader* slot = slot_header(ring, read);
     const std::size_t length = slot->payload_length;
-    if (length == 0 || length > ring->header->max_payload_bytes) {
+    if (slot->type_id != ring->header->type_id ||
+        slot->type_version != ring->header->type_version ||
+        length == 0 || length > ring->header->max_payload_bytes) {
         return RingResult::corrupt;
     }
     lease.ring_ = ring;
     lease.position_ = read;
+    lease.envelope_ = slot;
     lease.payload_ = slot_payload(slot);
     lease.length_ = length;
     return RingResult::ok;
@@ -382,59 +418,6 @@ RingResult ringbuf_release(RingReadLease& lease) noexcept {
     ring->header->read_position.store(read + 1, std::memory_order_release);
     lease.reset();
     return RingResult::ok;
-}
-
-std::int32_t ringbuf_write(
-    RingBuffer* ring,
-    const void* data,
-    std::size_t len) {
-    if (data == nullptr || len == 0 ||
-        len > static_cast<std::size_t>(
-                  std::numeric_limits<std::int32_t>::max())) {
-        return -EINVAL;
-    }
-    RingWriteLease lease;
-    const RingResult result = ringbuf_reserve(ring, lease);
-    if (result == RingResult::would_block ||
-        result == RingResult::shutdown) {
-        return 0;
-    }
-    if (result != RingResult::ok) {
-        return -EPROTO;
-    }
-    if (len > lease.payload().size()) {
-        return -EMSGSIZE;
-    }
-    std::memcpy(lease.payload().data(), data, len);
-    return ringbuf_commit(lease, len) == RingResult::ok
-               ? static_cast<std::int32_t>(len)
-               : -EPROTO;
-}
-
-std::int32_t ringbuf_read(
-    RingBuffer* ring,
-    void* data,
-    std::size_t capacity) {
-    if (data == nullptr || capacity == 0) {
-        return -EINVAL;
-    }
-    RingReadLease lease;
-    const RingResult result = ringbuf_acquire(ring, lease);
-    if (result == RingResult::would_block ||
-        result == RingResult::shutdown) {
-        return 0;
-    }
-    if (result != RingResult::ok) {
-        return -EPROTO;
-    }
-    if (lease.payload().size() > capacity) {
-        return -EMSGSIZE;
-    }
-    std::memcpy(data, lease.payload().data(), lease.payload().size());
-    const std::size_t length = lease.payload().size();
-    return ringbuf_release(lease) == RingResult::ok
-               ? static_cast<std::int32_t>(length)
-               : -EPROTO;
 }
 
 std::uint32_t ringbuf_slot_count(const RingBuffer* ring) noexcept {

@@ -1,87 +1,55 @@
-# UESTC Radar SDK
+# UESTC Radar Worker SDK 6
 
-算法只需要两个头文件：
+SDK 6 面向算法开发者只提供两个头文件：
+
+- `data.h`：`IQFrame`、`PulseCompressionFrame`、`RDFrame` 及其业务 Metadata。
+- `sdk.h`：类型化 `Input`、`Output` 的底层声明；通常只需包含 `data.h`。
+
+> 数据格式使用约束：算法开发者必须使用 `data.h` 中已经定义的标准输入输出帧，
+> 不得在算法项目中私自声明、复制或修改数据帧格式。现有数据帧不能满足算法需求时，
+> 请联系 SDK 维护者，由维护者统一修改 `data.h`、版本化 JSON 契约、类型注册和契约
+> 测试，以保证生产者、消费者及跨语言解码端的数据布局始终一致。
+
+## 读取数据
 
 ```cpp
 #include <data.h>
-#include <sdk.h>
-```
 
-`data.h` 定义三类数据：
-
-- `IQFrame`：`ComplexInt16[channel][time]`
-- `PulseCompressionFrame`：`ComplexFloat32[channel][range_bin]`
-- `RDFrame`：`float[range_bin][doppler_bin]`
-
-典型算法：
-
-```cpp
 using namespace uestcradar;
 
 Input<IQFrame> input;
+auto iq = input.read();
+auto metadata = iq.metadata();
+auto samples = iq.data();
+```
+
+## 创建并写出数据
+
+```cpp
 Output<PulseCompressionFrame> output;
 
-for (;;) {
-    auto iq = input.read();
-    auto pulse = output.create({
-        .frame_id = iq.metadata.frame_id,
-        .timestamp_unix_ns = iq.metadata.timestamp_unix_ns,
-        .channel_count = iq.metadata.channel_count,
-        .range_bin_count = iq.metadata.samples_per_channel,
-        .pulse_index = 0,
-        .pulses_per_cpi = 128,
-        .range_resolution_m = 1.5,
-    });
+PulseCompressionMetadata metadata{
+    .channel_count = 1,
+    .range_bin_count = 1024,
+    .pulse_index = 0,
+    .pulses_per_cpi = 8,
+    .range_resolution_m = 1.5,
+};
 
-    pulse.data[0][0] = {1.0F, 0.0F};
-    output.write(pulse);
-}
+auto pulse = output.create(metadata, iq);
+// 填充 pulse.data()
+output.write(std::move(pulse));
 ```
 
-`read()` 和 `create()` 在 Ring 为空或满时阻塞。读 Frame 离开作用域自动释放；
-未提交的写 Frame 离开作用域自动取消。大块二维数据直接映射共享内存 Slot，
-SDK 只复制固定大小的 metadata。
+数据源没有上游输入时使用 `output.create(metadata)`。处理中间结果使用
+`output.create(metadata, input_frame)`，SDK 会自动关联输入与输出。未写出的输出帧会
+自动放弃，输入帧离开作用域后会自动释放。
 
-SDK 只支持 C++20，不提供旧 C 接口。
+SDK 6 继续使用既有 Ring ABI v6 和 Sidecar protocol v3，不改变物理数据格式。
+每种帧分别维护 `type_id/type_version`，`create(metadata, parent)` 只有一个通用入口，
+新增帧不会产生逐帧组合重载。
 
-构建与安装：
+## SDK 维护
 
-```bash
-cmake -S workspace/sdk -B build/sdk \
-  -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-cmake --build build/sdk --parallel
-ctest --test-dir build/sdk --output-on-failure
-cmake --install build/sdk --prefix build/sdk-install
-```
-
-安装树的公共头文件只有 `include/sdk.h` 和 `include/data.h`。
-
----
-
-## SDK 发布流程
-
-> **⚠️ 注意：本目录仅供基建维护人员阅读**
->
-> 本目录包含了雷达核心通信 SDK 的源码。算法开发人员无需自行编译 SDK，只需要基于本目录构建并发布的 `ring-algo-base` 镜像进行开发即可。
-
-### 构建并发布 SDK 基础镜像
-
-当您修改了 `sdk.cpp` 或 `sdk.h` 的底层共享内存/网络通信逻辑后，需要重新打包系统级的“算法基础镜像”并推送到私有仓库。
-
-请按照以下步骤执行发布：
-
-```bash
-# 1. 必须退回项目根目录执行构建（以包含 common/ringbuf 依赖）
-cd ../../../
-docker build -t registry.chengyistudio.com/cxx/algo-base:latest -f workspace/sdk/Dockerfile .
-
-# 2. 如果您需要将其标记为最新版本 (可选)
-docker tag registry.chengyistudio.com/cxx/algo-base:latest registry.chengyistudio.com/cxx/algo-base:latest
-
-# 3. 登录并推送至私有源
-docker login registry.chengyistudio.com
-docker push registry.chengyistudio.com/cxx/algo-base:latest
-```
-
-发布完成后，算法开发团队的 `Dockerfile` 第一行 `FROM` 语句拉取到的基础镜像（`algo-base`）就会自动包含您最新编译的 `/usr/local/lib/libuestcradar_sdk.so` 和 `/usr/local/include/uestcradar/sdk.h` 了。
-
+算法开发者无需了解数据帧的物理布局。需要新增或修改标准数据帧时，请由 SDK
+维护者按照[数据帧契约维护指南](contracts/README.md)统一修改并验证。

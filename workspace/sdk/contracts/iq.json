@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "iq",
+  "cpp_frame": "IQFrame",
+  "cpp_metadata": "IQMetadata",
+  "type_id": 1,
+  "type_version": 2,
+  "byte_order": "little_endian",
+  "metadata_size": 24,
+  "fields": [
+    {"name": "channel_count", "type": "uint32", "offset": 0},
+    {"name": "samples_per_channel", "type": "uint32", "offset": 4},
+    {"name": "sample_rate_hz", "type": "float64", "offset": 8},
+    {"name": "center_frequency_hz", "type": "float64", "offset": 16}
+  ],
+  "payload": {
+    "kind": "matrix",
+    "element_type": "complex_int16",
+    "cpp_element": "ComplexInt16",
+    "rows": "channel_count",
+    "columns": "samples_per_channel",
+    "offset": 24
+  },
+  "visualization": {
+    "kind": "waveform",
+    "row_axis": "channel",
+    "column_axis": "sample",
+    "sample_rate_field": "sample_rate_hz"
+  }
+}

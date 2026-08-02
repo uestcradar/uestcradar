@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "name": "pulse_compression",
+  "cpp_frame": "PulseCompressionFrame",
+  "cpp_metadata": "PulseCompressionMetadata",
+  "type_id": 2,
+  "type_version": 2,
+  "byte_order": "little_endian",
+  "metadata_size": 24,
+  "fields": [
+    {"name": "channel_count", "type": "uint32", "offset": 0},
+    {"name": "range_bin_count", "type": "uint32", "offset": 4},
+    {"name": "pulse_index", "type": "uint32", "offset": 8},
+    {"name": "pulses_per_cpi", "type": "uint32", "offset": 12},
+    {"name": "range_resolution_m", "type": "float64", "offset": 16}
+  ],
+  "payload": {
+    "kind": "matrix",
+    "element_type": "complex_float32",
+    "cpp_element": "ComplexFloat32",
+    "rows": "channel_count",
+    "columns": "range_bin_count",
+    "offset": 24
+  },
+  "visualization": {
+    "kind": "waveform",
+    "row_axis": "channel",
+    "column_axis": "range_bin",
+    "column_resolution_field": "range_resolution_m"
+  }
+}

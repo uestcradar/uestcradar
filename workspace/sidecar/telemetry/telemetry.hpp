@@ -8,18 +8,43 @@
 
 namespace sidecar::telemetry {
 
+enum class LinkDirection {
+    ingress,
+    egress,
+};
+
+enum class ConnectionState {
+    disabled,
+    disconnected,
+    connected,
+};
+
+enum class TransportKind {
+    tcp,
+    rdma,
+};
+
 struct RingSnapshot {
-    std::uint64_t capacity{};
-    std::uint64_t used{};
+    std::uint32_t capacity_slots{};
+    std::uint32_t used_slots{};
     std::uint64_t write_position{};
     std::uint64_t read_position{};
     bool shutdown{};
 };
 
-using SnapshotCallback = std::function<bool(RingSnapshot&)>;
+struct LinkSnapshot {
+    ConnectionState connection{ConnectionState::disconnected};
+    std::uint64_t payload_bytes_total{};
+    RingSnapshot ring;
+};
+
+using SnapshotCallback = std::function<bool(LinkSnapshot&)>;
 
 struct TelemetryTarget {
     std::string link_id;
+    std::string peer_node_id;
+    LinkDirection direction;
+    TransportKind transport;
     SnapshotCallback fetch_snapshot;
 };
 
