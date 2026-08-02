@@ -21,11 +21,12 @@ docker-compose-infra.yaml
 
 无论怎样重写算法，还必须遵守以下接口约束：
 
-- Worker 只能使用 SDK 的 `Input<IQFrame>` 和 `Output<PulseCompressionFrame>`。
+- Worker 只能使用 SDK 的 `Input<IQFrame>` 和 `Output<PulseCompressionFrame>`。具体的帧契约结构的详细说明，请参考 [SDK 接口指南](../../sdk/README.md)。
 - 每个输出帧的 `payload_length` 不得超过 **32 MiB（33,554,432 字节）**，该长度包含
   Metadata 和矩阵数据。
-- `Dockerfile` 底部四个镜像契约 Label 不得删除或改成其他类型。
-- `docker-compose-worker.yaml`里面有关共享内存/基座镜像还有platform等配置禁止修改
+- `Dockerfile` 构建必须使用官方基座镜像 `registry.chengyistudio.com/cxx/algo-base`，否则无法包含（`#include <data.h>`）及编译 SDK 库。
+- `Dockerfile` 底部四个镜像契约 Label 不得删除或修改类型（用于控制台自动识别拓扑与遥测）。
+- `docker-compose-worker.yaml` 里面有关共享内存/基座镜像还有 platform 等配置禁止修改。
 
 ### 可以自由修改或删除
 
