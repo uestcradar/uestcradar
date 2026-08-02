@@ -73,11 +73,13 @@ public:
         RingBuffer* ring,
         UCXTransport& transport,
         const UCXMemoryRegion& memory,
-        LegMetrics& metrics)
+        LegMetrics& metrics,
+        FrameTap* tap)
         : ring_(ring),
           transport_(transport),
           memory_(memory),
-          metrics_(metrics) {}
+          metrics_(metrics),
+          tap_(tap) {}
 
     ~EgressPump() {
         if (read_lease_.active()) {
@@ -134,6 +136,9 @@ public:
                 throw std::runtime_error(
                     "RawFrame exceeds peer receive slot");
             }
+            if (tap_ != nullptr) {
+                tap_->try_capture(frame);
+            }
             payload_length_ = envelope.payload_length;
             frame_length_ = frame.size();
             payload_send_ = transport_.send(
@@ -170,6 +175,7 @@ private:
     UCXTransport& transport_;
     const UCXMemoryRegion& memory_;
     LegMetrics& metrics_;
+    FrameTap* tap_;
     RingReadLease read_lease_;
     protocol::CreditBytes credit_bytes_{};
     UCXRequest credit_receive_;
@@ -188,11 +194,13 @@ public:
         RingBuffer* ring,
         UCXTransport& transport,
         const UCXMemoryRegion& memory,
-        LegMetrics& metrics)
+        LegMetrics& metrics,
+        FrameTap* tap)
         : ring_(ring),
           transport_(transport),
           memory_(memory),
-          metrics_(metrics) {}
+          metrics_(metrics),
+          tap_(tap) {}
 
     ~IngressPump() {
         ringbuf_cancel(write_lease_);
@@ -232,6 +240,11 @@ public:
                     envelope.payload_length;
                 const bool valid = frame_contract_is_valid(
                     ring_, envelope, received);
+                if (valid && tap_ != nullptr) {
+                    const auto capacity = write_lease_.frame_capacity();
+                    tap_->try_capture(std::span<const std::byte>{
+                        capacity.data(), received});
+                }
                 if (!valid ||
                     ringbuf_commit(write_lease_) !=
                         RingResult::ok) {
@@ -267,6 +280,7 @@ private:
     UCXTransport& transport_;
     const UCXMemoryRegion& memory_;
     LegMetrics& metrics_;
+    FrameTap* tap_;
     RingWriteLease write_lease_;
     protocol::CreditBytes credit_bytes_{};
     UCXRequest credit_send_;
@@ -349,7 +363,8 @@ void run_ingress_session(
     RingBuffer* input,
     UCXTransport& transport,
     const UCXMemoryRegion& input_memory,
-    LegMetrics& metrics) {
+    LegMetrics& metrics,
+    FrameTap* tap) {
     if (input == nullptr || !input_memory.valid()) {
         throw std::invalid_argument(
             "ingress requires a ring and registered memory");
@@ -357,7 +372,7 @@ void run_ingress_session(
     exchange_and_validate_contract(
         input, protocol::PortRole::consumer, transport);
     ConnectedSession connected{metrics};
-    IngressPump pump{input, transport, input_memory, metrics};
+    IngressPump pump{input, transport, input_memory, metrics, tap};
     run_session(running, input, transport, pump);
 }
 
@@ -366,7 +381,8 @@ void run_egress_session(
     RingBuffer* output,
     UCXTransport& transport,
     const UCXMemoryRegion& output_memory,
-    LegMetrics& metrics) {
+    LegMetrics& metrics,
+    FrameTap* tap) {
     if (output == nullptr || !output_memory.valid()) {
         throw std::invalid_argument(
             "egress requires a ring and registered memory");
@@ -374,7 +390,7 @@ void run_egress_session(
     exchange_and_validate_contract(
         output, protocol::PortRole::producer, transport);
     ConnectedSession connected{metrics};
-    EgressPump pump{output, transport, output_memory, metrics};
+    EgressPump pump{output, transport, output_memory, metrics, tap};
     run_session(running, output, transport, pump);
 }
 

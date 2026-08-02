@@ -107,7 +107,7 @@ node.env
     NODE_ID=node-a
     CASCADE_ROLE=source
     TYPE_ID=1
-    TYPE_VERSION=2
+    TYPE_VERSION=3
   
     # 双 Leg 角色配置：禁用上游，下游连接机器 B
     UPSTREAM_ROLE=disabled
@@ -129,8 +129,8 @@ node.env
     UCX_LOG_LEVEL=info
 
     # 共享内存配置
-    SLOT_COUNT=64
-    MAX_PAYLOAD_BYTES=1048576
+    SLOT_COUNT=8
+    MAX_PAYLOAD_BYTES=4194304
     SIDECAR_SHM_SIZE=256m
 ```
 
@@ -144,7 +144,7 @@ node.env
     NODE_ID=node-b
     CASCADE_ROLE=operator
     TYPE_ID=1
-    TYPE_VERSION=2
+    TYPE_VERSION=3
   
     # 通道角色：上游监听机器 B 本身，下游连接机器 C (192.170.2.128)
     UPSTREAM_ROLE=listen
@@ -168,8 +168,8 @@ node.env
     UCX_LOG_LEVEL=info
 
     # 共享内存配置
-    SLOT_COUNT=64
-    MAX_PAYLOAD_BYTES=1048576
+    SLOT_COUNT=8
+    MAX_PAYLOAD_BYTES=4194304
     SIDECAR_SHM_SIZE=256m
 ```
 
@@ -182,7 +182,7 @@ node.env
     NODE_ID=node-c
     CASCADE_ROLE=sink
     TYPE_ID=1
-    TYPE_VERSION=2
+    TYPE_VERSION=3
 
     # 双 Leg 角色配置
     UPSTREAM_ROLE=listen
@@ -204,8 +204,8 @@ node.env
     UCX_LOG_LEVEL=info
 
     # 共享内存配置
-    SLOT_COUNT=64
-    MAX_PAYLOAD_BYTES=1048576
+    SLOT_COUNT=8
+    MAX_PAYLOAD_BYTES=4194304
     SIDECAR_SHM_SIZE=256m
 ```
 

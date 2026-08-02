@@ -21,6 +21,7 @@ struct Field {
     std::string name;
     std::string type;
     std::size_t offset{};
+    std::size_t count{1};
     bool reserved{};
 };
 
@@ -91,6 +92,36 @@ std::uint64_t integer_value(const std::string& object, const std::string& key) {
         throw std::runtime_error("missing integer property '" + key + "'");
     }
     return std::stoull(match[1].str());
+}
+
+std::uint64_t integer_value_or(
+    const std::string& object,
+    const std::string& key,
+    std::uint64_t fallback) {
+    const std::regex pattern{"\"" + regex_escape(key) +
+        "\"\\s*:\\s*([0-9]+)"};
+    std::smatch match;
+    if (std::regex_search(object, match, pattern)) {
+        return std::stoull(match[1].str());
+    }
+    if (object.find("\"" + key + "\"") != std::string::npos) {
+        throw std::runtime_error("invalid integer property '" + key + "'");
+    }
+    return fallback;
+}
+
+std::size_t size_value(
+    const std::string& object,
+    const std::string& key,
+    std::uint64_t fallback,
+    bool required) {
+    const std::uint64_t parsed = required
+        ? integer_value(object, key)
+        : integer_value_or(object, key, fallback);
+    if (parsed > std::numeric_limits<std::size_t>::max()) {
+        throw std::runtime_error("integer property '" + key + "' is too large");
+    }
+    return static_cast<std::size_t>(parsed);
 }
 
 bool bool_value_or(
@@ -184,7 +215,8 @@ Contract parse_contract(const fs::path& path) {
         throw std::runtime_error(path.string() + ": type_version is too large");
     }
     value.type_version = static_cast<std::uint32_t>(parsed_version);
-    value.metadata_size = integer_value(value.source_json, "metadata_size");
+    value.metadata_size = size_value(
+        value.source_json, "metadata_size", 0, true);
 
     const auto fields = delimited_value(value.source_json, "fields", '[', ']');
     const std::regex object_pattern{R"(\{[^{}]*\})"};
@@ -194,7 +226,8 @@ Contract parse_contract(const fs::path& path) {
         value.fields.push_back({
             string_value(object, "name"),
             string_value(object, "type"),
-            static_cast<std::size_t>(integer_value(object, "offset")),
+            size_value(object, "offset", 0, true),
+            size_value(object, "count", 1, false),
             bool_value_or(object, "reserved", false),
         });
     }
@@ -206,7 +239,7 @@ Contract parse_contract(const fs::path& path) {
     value.cpp_element = string_value(payload, "cpp_element");
     value.rows = string_value(payload, "rows");
     value.columns = string_value(payload, "columns");
-    value.payload_offset = integer_value(payload, "offset");
+    value.payload_offset = size_value(payload, "offset", 0, true);
     const auto visualization =
         delimited_value(value.source_json, "visualization", '{', '}');
     value.visualization_kind = string_value(visualization, "kind");
@@ -216,6 +249,9 @@ Contract parse_contract(const fs::path& path) {
 void validate_contract(const Contract& value) {
     if (value.type_id == 0 || value.type_version == 0) {
         throw std::runtime_error(value.name + ": type_id and type_version must be non-zero");
+    }
+    if (value.metadata_size > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::runtime_error(value.name + ": metadata is too large");
     }
     if (value.fields.empty() || value.payload_offset != value.metadata_size) {
         throw std::runtime_error(value.name + ": invalid metadata/payload boundary");
@@ -227,7 +263,16 @@ void validate_contract(const Contract& value) {
         if (!field_names.insert(field.name).second) {
             throw std::runtime_error(value.name + ": duplicate metadata field name");
         }
-        const auto size = scalar_size(field.type);
+        const auto scalar_bytes = scalar_size(field.type);
+        if (field.count == 0 ||
+            field.count > std::numeric_limits<std::size_t>::max() /
+                scalar_bytes ||
+            field.count > std::numeric_limits<std::uint32_t>::max() ||
+            field.offset > std::numeric_limits<std::uint32_t>::max()) {
+            throw std::runtime_error(
+                value.name + ": invalid metadata field count");
+        }
+        const auto size = scalar_bytes * field.count;
         if (field.offset > value.metadata_size ||
             size > value.metadata_size - field.offset) {
             throw std::runtime_error(value.name + ": field exceeds metadata boundary");
@@ -248,6 +293,13 @@ void validate_contract(const Contract& value) {
     }
     if (!public_fields.count(value.rows) || !public_fields.count(value.columns)) {
         throw std::runtime_error(value.name + ": payload shape references an unknown field");
+    }
+    for (const auto& field : value.fields) {
+        if ((field.name == value.rows || field.name == value.columns) &&
+            field.count != 1) {
+            throw std::runtime_error(
+                value.name + ": payload shape field must be scalar");
+        }
     }
     static_cast<void>(element_size(value.element_type));
 }
@@ -312,12 +364,27 @@ std::string generate_cpp_impl(const Contract& contract) {
         << "void ContractTraits<" << contract.frame << ">::store(std::span<std::byte> payload, const Metadata& value) {\n"
         << "    require_metadata_span(payload, kMetadataBytes, kName);\n";
         for (const auto& field : contract.fields) {
-            if (field.reserved) {
-                out << "    store_wire<" << cpp_scalar(field.type) << ">(payload, "
-                    << field.offset << "U, {});\n";
+            if (field.count == 1) {
+                if (field.reserved) {
+                    out << "    store_wire<" << cpp_scalar(field.type)
+                        << ">(payload, " << field.offset << "U, {});\n";
+                } else {
+                    out << "    store_wire<" << cpp_scalar(field.type)
+                        << ">(payload, " << field.offset << "U, value."
+                        << field.name << ");\n";
+                }
             } else {
-                out << "    store_wire<" << cpp_scalar(field.type) << ">(payload, "
-                    << field.offset << "U, value." << field.name << ");\n";
+                out << "    for (std::size_t index = 0; index < "
+                    << field.count << "U; ++index) {\n"
+                    << "        store_wire<" << cpp_scalar(field.type)
+                    << ">(payload, " << field.offset << "U + index * "
+                    << scalar_size(field.type) << "U, ";
+                if (field.reserved) {
+                    out << "{}";
+                } else {
+                    out << "value." << field.name << "[index]";
+                }
+                out << ");\n    }\n";
             }
         }
         out << "}\n"
@@ -326,15 +393,43 @@ std::string generate_cpp_impl(const Contract& contract) {
             << "    require_metadata_span(payload, kMetadataBytes, kName);\n";
         for (const auto& field : contract.fields) {
             if (field.reserved) {
-                out << "    if (load_wire<" << cpp_scalar(field.type) << ">(payload, "
-                    << field.offset << "U) != 0) throw std::invalid_argument(std::string{kName} + \" reserved metadata is not zero\");\n";
+                if (field.count == 1) {
+                    out << "    if (load_wire<" << cpp_scalar(field.type)
+                        << ">(payload, " << field.offset
+                        << "U) != 0) throw std::invalid_argument(std::string{kName} + \" reserved metadata is not zero\");\n";
+                } else {
+                    out << "    for (std::size_t index = 0; index < "
+                        << field.count << "U; ++index) {\n"
+                        << "        if (load_wire<" << cpp_scalar(field.type)
+                        << ">(payload, " << field.offset << "U + index * "
+                        << scalar_size(field.type)
+                        << "U) != 0) throw std::invalid_argument(std::string{kName} + \" reserved metadata is not zero\");\n"
+                        << "    }\n";
+                }
             }
         }
         out << "    return {\n";
         for (const auto& field : contract.fields) {
             if (!field.reserved) {
-                out << "        ." << field.name << " = load_wire<"
-                    << cpp_scalar(field.type) << ">(payload, " << field.offset << "U),\n";
+                out << "        ." << field.name << " = ";
+                if (field.count == 1) {
+                    out << "load_wire<" << cpp_scalar(field.type)
+                        << ">(payload, " << field.offset << "U)";
+                } else {
+                    out << "[&] {\n"
+                        << "            std::array<" << cpp_scalar(field.type)
+                        << ", " << field.count << "U> values{};\n"
+                        << "            for (std::size_t index = 0; index < "
+                        << field.count << "U; ++index) {\n"
+                        << "                values[index] = load_wire<"
+                        << cpp_scalar(field.type) << ">(payload, "
+                        << field.offset << "U + index * "
+                        << scalar_size(field.type) << "U);\n"
+                        << "            }\n"
+                        << "            return values;\n"
+                        << "        }()";
+                }
+                out << ",\n";
             }
         }
         out << "    };\n}\n\n";
@@ -360,12 +455,89 @@ std::string generate_manifest(const std::vector<Contract>& contracts) {
     return out.str();
 }
 
+std::string generate_preview_contracts(
+    const std::vector<Contract>& contracts) {
+    const auto field_for = [](const Contract& contract, const std::string& name)
+        -> const Field& {
+        const auto found = std::find_if(
+            contract.fields.begin(), contract.fields.end(),
+            [&](const Field& field) { return field.name == name; });
+        if (found == contract.fields.end()) {
+            throw std::runtime_error(
+                contract.name + ": preview dimension field is missing");
+        }
+        return *found;
+    };
+    const auto scalar_name = [](const std::string& type) {
+        static const std::map<std::string, std::string> names{
+            {"uint32", "uint32"}, {"uint64", "uint64"},
+            {"int16", "int16"}, {"float32", "float32"},
+            {"float64", "float64"},
+        };
+        return names.at(type);
+    };
+    const auto element_name = [](const std::string& type) {
+        static const std::map<std::string, std::string> names{
+            {"complex_int16", "complex_int16"},
+            {"complex_float32", "complex_float32"},
+            {"float32", "float32"},
+        };
+        return names.at(type);
+    };
+
+    std::ostringstream out;
+    out << "// Generated by contract-codegen. Do not edit.\n"
+        << "#pragma once\n\n"
+        << "#include <array>\n#include <cstddef>\n#include <cstdint>\n\n"
+        << "namespace uestcradar::preview_contracts {\n\n"
+        << "enum class Scalar : std::uint8_t { uint32, uint64, int16, float32, float64 };\n"
+        << "enum class Element : std::uint8_t { complex_int16, complex_float32, float32 };\n"
+        << "enum class Visualization : std::uint8_t { waveform, heatmap };\n\n"
+        << "struct Contract {\n"
+        << "    std::uint64_t type_id;\n"
+        << "    std::uint32_t type_version;\n"
+        << "    std::uint32_t metadata_bytes;\n"
+        << "    std::uint32_t element_bytes;\n"
+        << "    std::uint32_t rows_offset;\n"
+        << "    Scalar rows_type;\n"
+        << "    std::uint32_t columns_offset;\n"
+        << "    Scalar columns_type;\n"
+        << "    std::uint32_t channel_index_offset;\n"
+        << "    Element element;\n"
+        << "    Visualization visualization;\n"
+        << "};\n\n"
+        << "inline constexpr std::uint32_t no_channel_index = 0xffffffffU;\n"
+        << "inline constexpr std::array<Contract, " << contracts.size()
+        << "> catalog{{\n";
+    for (const auto& contract : contracts) {
+        const Field& rows = field_for(contract, contract.rows);
+        const Field& columns = field_for(contract, contract.columns);
+        std::uint32_t channel_offset = 0xffffffffU;
+        const auto channel = std::find_if(
+            contract.fields.begin(), contract.fields.end(),
+            [](const Field& field) { return field.name == "channel_index"; });
+        if (channel != contract.fields.end()) {
+            channel_offset = static_cast<std::uint32_t>(channel->offset);
+        }
+        out << "    Contract{" << contract.type_id << "ULL, "
+            << contract.type_version << "U, " << contract.metadata_size
+            << "U, " << element_size(contract.element_type) << "U, "
+            << rows.offset << "U, Scalar::" << scalar_name(rows.type) << ", "
+            << columns.offset << "U, Scalar::" << scalar_name(columns.type)
+            << ", " << channel_offset << "U, Element::"
+            << element_name(contract.element_type) << ", Visualization::"
+            << contract.visualization_kind << "},\n";
+    }
+    out << "}};\n\n}  // namespace uestcradar::preview_contracts\n";
+    return out.str();
+}
+
 std::string generate_go(const std::vector<Contract>& contracts) {
     std::ostringstream out;
     out << "// Code generated by contract-codegen. DO NOT EDIT.\n"
         << "package contracts\n\n"
         << "import (\n  \"encoding/binary\"\n  \"fmt\"\n  \"math\"\n)\n\n"
-        << "type Field struct { Name, Type string; Offset uint32; Reserved bool }\n"
+        << "type Field struct { Name, Type string; Offset, Count uint32; Reserved bool }\n"
         << "type Contract struct { Name string; TypeID uint64; TypeVersion uint32; MetadataBytes, ElementBytes uint32; ElementType, Rows, Columns, Visualization string; Fields []Field }\n\n"
         << "var Catalog = map[uint64]Contract{\n";
     for (const auto& contract : contracts) {
@@ -378,7 +550,8 @@ std::string generate_go(const std::vector<Contract>& contracts) {
             << "\", Visualization: \"" << contract.visualization_kind << "\", Fields: []Field{";
         for (const auto& field : contract.fields) {
             out << "{Name: \"" << field.name << "\", Type: \"" << field.type
-                << "\", Offset: " << field.offset << ", Reserved: "
+                << "\", Offset: " << field.offset << ", Count: "
+                << field.count << ", Reserved: "
                 << (field.reserved ? "true" : "false") << "},";
         }
         out << "}},\n";
@@ -387,18 +560,14 @@ std::string generate_go(const std::vector<Contract>& contracts) {
         << "func DecodeMetadata(typeID uint64, version uint32, payload []byte) (map[string]any, error) {\n"
         << "  c, ok := Catalog[typeID]; if !ok || c.TypeVersion != version { return nil, fmt.Errorf(\"unsupported contract %d/%d\", typeID, version) }\n"
         << "  if len(payload) < int(c.MetadataBytes) { return nil, fmt.Errorf(\"truncated %s metadata\", c.Name) }\n"
-        << "  result := make(map[string]any)\n  for _, f := range c.Fields {\n    var v any\n    switch f.Type {\n"
-        << "    case \"uint32\": v = binary.LittleEndian.Uint32(payload[f.Offset:f.Offset+4])\n"
-        << "    case \"uint64\": v = binary.LittleEndian.Uint64(payload[f.Offset:f.Offset+8])\n"
-        << "    case \"int16\": v = int16(binary.LittleEndian.Uint16(payload[f.Offset:f.Offset+2]))\n"
-        << "    case \"float32\": v = math.Float32frombits(binary.LittleEndian.Uint32(payload[f.Offset:f.Offset+4]))\n"
-        << "    case \"float64\": v = math.Float64frombits(binary.LittleEndian.Uint64(payload[f.Offset:f.Offset+8]))\n"
-        << "    default: return nil, fmt.Errorf(\"unsupported field type %s\", f.Type)\n    }\n"
+        << "  result := make(map[string]any)\n  for _, f := range c.Fields {\n    values := make([]any, f.Count)\n    size, ok := scalarBytes(f.Type); if !ok { return nil, fmt.Errorf(\"unsupported field type %s\", f.Type) }\n    for i := uint32(0); i < f.Count; i++ { offset := f.Offset + i*size; values[i] = decodeScalar(f.Type, payload[offset:offset+size]) }\n    var v any = values\n    if f.Count == 1 { v = values[0] }\n"
         << "    if f.Reserved { if !numericZero(v) { return nil, fmt.Errorf(\"non-zero reserved field %s\", f.Name) }; continue }; result[f.Name] = v\n"
         << "  }\n  rows, ok := dimension(result[c.Rows]); if !ok { return nil, fmt.Errorf(\"invalid %s rows\", c.Name) }; columns, ok := dimension(result[c.Columns]); if !ok { return nil, fmt.Errorf(\"invalid %s columns\", c.Name) }\n"
         << "  if rows == 0 || columns == 0 || rows > (^uint64(0))/columns || rows*columns > (^uint64(0)-uint64(c.MetadataBytes))/uint64(c.ElementBytes) { return nil, fmt.Errorf(\"invalid %s dimensions\", c.Name) }\n"
         << "  expected := uint64(c.MetadataBytes) + rows*columns*uint64(c.ElementBytes); if expected != uint64(len(payload)) { return nil, fmt.Errorf(\"%s payload length mismatch\", c.Name) }; return result, nil\n}\n\n"
-        << "func numericZero(value any) bool { switch v := value.(type) { case uint32: return v == 0; case uint64: return v == 0; case int16: return v == 0; case float32: return v == 0; case float64: return v == 0 }; return false }\n"
+        << "func scalarBytes(fieldType string) (uint32, bool) { switch fieldType { case \"uint32\", \"float32\": return 4, true; case \"uint64\", \"float64\": return 8, true; case \"int16\": return 2, true }; return 0, false }\n"
+        << "func decodeScalar(fieldType string, payload []byte) any { switch fieldType { case \"uint32\": return binary.LittleEndian.Uint32(payload); case \"uint64\": return binary.LittleEndian.Uint64(payload); case \"int16\": return int16(binary.LittleEndian.Uint16(payload)); case \"float32\": return math.Float32frombits(binary.LittleEndian.Uint32(payload)); case \"float64\": return math.Float64frombits(binary.LittleEndian.Uint64(payload)) }; panic(\"unsupported scalar type\") }\n"
+        << "func numericZero(value any) bool { switch v := value.(type) { case uint32: return v == 0; case uint64: return v == 0; case int16: return v == 0; case float32: return v == 0; case float64: return v == 0; case []any: for _, item := range v { if !numericZero(item) { return false } }; return true }; return false }\n"
         << "func dimension(value any) (uint64, bool) { switch v := value.(type) { case uint32: return uint64(v), true; case uint64: return v, true; case int16: return uint64(v), v >= 0 }; return 0, false }\n";
     return out.str();
 }
@@ -406,7 +575,7 @@ std::string generate_go(const std::vector<Contract>& contracts) {
 std::string generate_typescript(const std::vector<Contract>& contracts) {
     std::ostringstream out;
     out << "// Generated by contract-codegen. Do not edit.\n"
-        << "export interface ContractField { name: string; type: string; offset: number; reserved: boolean }\n"
+        << "export interface ContractField { name: string; type: string; offset: number; count: number; reserved: boolean }\n"
         << "export interface ContractDescriptor { name: string; typeId: bigint; typeVersion: number; metadataBytes: number; elementBytes: number; elementType: string; rows: string; columns: string; visualization: string; fields: readonly ContractField[] }\n"
         << "export const contracts: ReadonlyMap<bigint, ContractDescriptor> = new Map([\n";
     for (const auto& contract : contracts) {
@@ -419,24 +588,27 @@ std::string generate_typescript(const std::vector<Contract>& contracts) {
             << "\", visualization: \"" << contract.visualization_kind << "\", fields: [";
         for (const auto& field : contract.fields) {
             out << "{name: \"" << field.name << "\", type: \"" << field.type
-                << "\", offset: " << field.offset << ", reserved: "
+                << "\", offset: " << field.offset << ", count: "
+                << field.count << ", reserved: "
                 << (field.reserved ? "true" : "false") << "},";
         }
         out << "]}],\n";
     }
     out << "]);\n\n"
-        << "export function decodeMetadata(typeId: bigint, typeVersion: number, payload: Uint8Array): Readonly<Record<string, number | bigint>> {\n"
+        << "export type MetadataValue = number | bigint | readonly (number | bigint)[];\n"
+        << "export function decodeMetadata(typeId: bigint, typeVersion: number, payload: Uint8Array): Readonly<Record<string, MetadataValue>> {\n"
         << "  const c = contracts.get(typeId); if (!c || c.typeVersion !== typeVersion) throw new Error(`unsupported contract ${typeId}/${typeVersion}`);\n"
         << "  if (payload.byteLength < c.metadataBytes) throw new Error(`truncated ${c.name} metadata`);\n"
-        << "  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength); const result: Record<string, number | bigint> = {};\n"
-        << "  for (const f of c.fields) { let value: number | bigint; switch (f.type) {\n"
-        << "    case \"uint32\": value = view.getUint32(f.offset, true); break; case \"uint64\": value = view.getBigUint64(f.offset, true); break;\n"
-        << "    case \"int16\": value = view.getInt16(f.offset, true); break; case \"float32\": value = view.getFloat32(f.offset, true); break; case \"float64\": value = view.getFloat64(f.offset, true); break;\n"
-        << "    default: throw new Error(`unsupported field type ${f.type}`); }\n"
-        << "    if (f.reserved) { if (value !== 0 && value !== 0n) throw new Error(`non-zero reserved field ${f.name}`); } else result[f.name] = value;\n"
+        << "  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength); const result: Record<string, MetadataValue> = {};\n"
+        << "  for (const f of c.fields) { const size = scalarBytes(f.type); const values: (number | bigint)[] = [];\n"
+        << "    for (let index = 0; index < f.count; ++index) values.push(decodeScalar(view, f.type, f.offset + index * size));\n"
+        << "    const value: MetadataValue = f.count === 1 ? values[0] : values;\n"
+        << "    if (f.reserved) { if (values.some(item => item !== 0 && item !== 0n)) throw new Error(`non-zero reserved field ${f.name}`); } else result[f.name] = value;\n"
         << "  }\n  const rows = Number(result[c.rows]); const columns = Number(result[c.columns]); const expected = c.metadataBytes + rows * columns * c.elementBytes;\n"
         << "  if (!Number.isSafeInteger(rows) || !Number.isSafeInteger(columns) || rows <= 0 || columns <= 0 || !Number.isSafeInteger(expected) || expected !== payload.byteLength) throw new Error(`${c.name} payload length mismatch`);\n"
-        << "  return result;\n}\n";
+        << "  return result;\n}\n\n"
+        << "function scalarBytes(fieldType: string): number { switch (fieldType) { case \"uint32\": case \"float32\": return 4; case \"uint64\": case \"float64\": return 8; case \"int16\": return 2; default: throw new Error(`unsupported field type ${fieldType}`); } }\n"
+        << "function decodeScalar(view: DataView, fieldType: string, offset: number): number | bigint { switch (fieldType) { case \"uint32\": return view.getUint32(offset, true); case \"uint64\": return view.getBigUint64(offset, true); case \"int16\": return view.getInt16(offset, true); case \"float32\": return view.getFloat32(offset, true); case \"float64\": return view.getFloat64(offset, true); default: throw new Error(`unsupported field type ${fieldType}`); } }\n";
     return out.str();
 }
 
@@ -483,6 +655,9 @@ int main(int argc, char** argv) {
                 generate_cpp_impl(contract));
         }
         write_file(output_dir / "contracts.manifest.json", generate_manifest(contracts));
+        write_file(
+            output_dir / "preview_contracts.generated.hpp",
+            generate_preview_contracts(contracts));
         write_file(output_dir / "contracts.generated.go", generate_go(contracts));
         write_file(output_dir / "contracts.generated.ts", generate_typescript(contracts));
         return 0;

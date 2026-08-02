@@ -1,50 +1,56 @@
 #pragma once
 
+#include "rd_contract.hpp"
+
 #include <data.h>
 
+#include <QVector>
+
+#include <algorithm>
+#include <climits>
 #include <cmath>
-#include <complex>
 #include <cstddef>
 #include <cstdint>
-#include <numbers>
 #include <span>
 #include <stdexcept>
-#include <vector>
 
 namespace radar_qt_example {
 
-inline constexpr std::uint32_t kPulsesPerCpi = 8;
-
-struct RdResult {
-    std::size_t peak_range_bin{};
-    std::size_t peak_doppler_bin{};
-    float peak_magnitude{};
-};
-
 class CpiBuffer {
 public:
+    explicit CpiBuffer(std::uint32_t range_bin_count = kRangeBinCount)
+        : range_bin_count_(range_bin_count) {
+        if (range_bin_count_ == 0 ||
+            range_bin_count_ > static_cast<std::size_t>(INT_MAX) /
+                kPulsesPerCpi) {
+            throw std::invalid_argument("CPI range-bin count is invalid");
+        }
+    }
+
     void push(
-        std::uint32_t pulse_index,
-        std::uint32_t pulses_per_cpi,
+        const uestcradar::PulseCompressionMetadata& metadata,
         std::span<const uestcradar::ComplexFloat32> range_bins) {
-        if (pulses_per_cpi != kPulsesPerCpi || range_bins.empty()) {
-            throw std::invalid_argument("unexpected CPI shape");
+        if (metadata.channel_count != kChannelCount ||
+            metadata.range_bin_count != range_bin_count_ ||
+            metadata.pulses_per_cpi != kPulsesPerCpi ||
+            metadata.range_resolution_m != kRangeResolutionM ||
+            range_bins.size() != range_bin_count_) {
+            throw std::invalid_argument(
+                "PulseCompressionFrame does not match the developer-base contract");
         }
-        if (pulse_index == 0) {
-            range_bin_count_ = range_bins.size();
-            samples_.assign(
-                kPulsesPerCpi * range_bin_count_, {});
-            received_pulses_ = 0;
+        if (metadata.pulse_index != received_pulses_) {
+            throw std::invalid_argument(
+                "pulse sequence is missing, duplicated, or out of order");
         }
-        if (range_bin_count_ != range_bins.size() ||
-            pulse_index != received_pulses_) {
-            throw std::invalid_argument("pulse sequence is not continuous");
+        if (received_pulses_ == 0) {
+            samples_.resize(static_cast<int>(
+                range_bin_count_ * kPulsesPerCpi));
         }
 
-        for (std::size_t range = 0; range < range_bins.size(); ++range) {
-            samples_[pulse_index * range_bin_count_ + range] =
-                range_bins[range];
-        }
+        const auto destination = samples_.begin() +
+            static_cast<std::ptrdiff_t>(
+                metadata.pulse_index * range_bin_count_);
+        std::copy(range_bins.begin(), range_bins.end(), destination);
         ++received_pulses_;
     }
 
@@ -52,55 +58,58 @@ public:
         return received_pulses_ == kPulsesPerCpi;
     }
 
-    [[nodiscard]] std::size_t range_bin_count() const noexcept {
+    [[nodiscard]] std::uint32_t range_bin_count() const noexcept {
         return range_bin_count_;
     }
 
-    [[nodiscard]] uestcradar::ComplexFloat32 sample(
+    [[nodiscard]] const uestcradar::ComplexFloat32& sample(
         std::size_t pulse,
         std::size_t range) const {
-        return samples_.at(pulse * range_bin_count_ + range);
+        if (!ready() || pulse >= kPulsesPerCpi ||
+            range >= range_bin_count_) {
+            throw std::out_of_range("CPI sample is unavailable");
+        }
+        return samples_.at(static_cast<int>(
+            pulse * range_bin_count_ + range));
     }
 
-    void clear() noexcept {
+    void clear() {
         samples_.clear();
-        range_bin_count_ = 0;
         received_pulses_ = 0;
     }
 
 private:
-    std::vector<uestcradar::ComplexFloat32> samples_;
-    std::size_t range_bin_count_{};
+    QVector<uestcradar::ComplexFloat32> samples_;
+    std::uint32_t range_bin_count_;
     std::uint32_t received_pulses_{};
 };
 
+struct RdResult {
+    std::size_t peak_range_bin{};
+    std::size_t peak_doppler_bin{};
+    float peak_magnitude{};
+};
+
+// This is intentionally a fast placeholder, not an FFT/DFT implementation.
+// Replace the function body with the real Qt5 Range-Doppler algorithm.
 inline RdResult compute_rd(
-    const CpiBuffer& cpi,
-    uestcradar::Array2D<float> rd) {
-    if (!cpi.ready() || rd.rows() != cpi.range_bin_count() ||
-        rd.columns() != kPulsesPerCpi) {
-        throw std::invalid_argument("RD output shape does not match CPI");
+    const CpiBuffer& pulse_cpi,
+    uestcradar::Array2D<float> rd_map) {
+    if (!pulse_cpi.ready() ||
+        rd_map.rows() != pulse_cpi.range_bin_count() ||
+        rd_map.columns() != kDopplerBinCount) {
+        throw std::invalid_argument("RD output shape does not match the CPI");
     }
 
     RdResult result;
-    for (std::size_t range = 0; range < rd.rows(); ++range) {
+    for (std::size_t range = 0; range < rd_map.rows(); ++range) {
         for (std::size_t doppler = 0;
-             doppler < rd.columns();
+             doppler < rd_map.columns();
              ++doppler) {
-            std::complex<float> sum;
-            for (std::size_t pulse = 0;
-                 pulse < kPulsesPerCpi;
-                 ++pulse) {
-                const auto value = cpi.sample(pulse, range);
-                const float angle =
-                    -2.0F * std::numbers::pi_v<float> *
-                    static_cast<float>(doppler * pulse) /
-                    static_cast<float>(kPulsesPerCpi);
-                sum += std::complex<float>{value.i, value.q} *
-                       std::polar(1.0F, angle);
-            }
-            const float magnitude = std::abs(sum);
-            rd[range][doppler] = magnitude;
+            const auto& sample = pulse_cpi.sample(
+                doppler % kPulsesPerCpi, range);
+            const auto magnitude = std::hypot(sample.i, sample.q);
+            rd_map[range][doppler] = magnitude;
             if (magnitude > result.peak_magnitude) {
                 result = {range, doppler, magnitude};
             }

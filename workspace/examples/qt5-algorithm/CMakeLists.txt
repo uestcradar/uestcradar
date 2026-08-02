@@ -1,20 +1,39 @@
 cmake_minimum_required(VERSION 3.16)
-project(qt5_algorithm_example LANGUAGES CXX)
+project(uestcradar_qt5_rd_developer_base LANGUAGES CXX)
 
 include(CTest)
-find_package(Qt5 COMPONENTS Core REQUIRED)
+find_package(Qt5 REQUIRED COMPONENTS Core)
 find_package(cycomm_sdk CONFIG REQUIRED)
+option(BUILD_INFRA "Build the black-box source and QA sink" ON)
+
+function(configure_sdk_executable target)
+    target_link_libraries(${target} PRIVATE cycomm::sdk)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+endfunction()
 
 add_executable(qt5-algorithm src/main.cpp)
-target_link_libraries(qt5-algorithm PRIVATE Qt5::Core cycomm::sdk)
-target_compile_features(qt5-algorithm PRIVATE cxx_std_20)
-target_compile_options(qt5-algorithm PRIVATE -Wall -Wextra -Wpedantic)
+configure_sdk_executable(qt5-algorithm)
+target_link_libraries(qt5-algorithm PRIVATE Qt5::Core)
+
+if(BUILD_INFRA AND
+   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/infra/pc_signalsource.cpp")
+    add_executable(pc-signalsource src/infra/pc_signalsource.cpp)
+    configure_sdk_executable(pc-signalsource)
+
+    add_executable(rd-sink src/infra/rd_sink.cpp)
+    configure_sdk_executable(rd-sink)
+endif()
 
 if(BUILD_TESTING)
     add_executable(rd-algorithm-test src/rd_algorithm_test.cpp)
-    target_link_libraries(rd-algorithm-test PRIVATE cycomm::sdk)
-    target_compile_features(rd-algorithm-test PRIVATE cxx_std_20)
-    target_compile_options(
-        rd-algorithm-test PRIVATE -Wall -Wextra -Wpedantic)
+    configure_sdk_executable(rd-algorithm-test)
+    target_link_libraries(rd-algorithm-test PRIVATE Qt5::Core)
     add_test(NAME rd-algorithm-test COMMAND rd-algorithm-test)
+
+    if(TARGET pc-signalsource)
+        add_executable(infra-test src/infra/infra_test.cpp)
+        configure_sdk_executable(infra-test)
+        add_test(NAME infra-test COMMAND infra-test)
+    endif()
 endif()

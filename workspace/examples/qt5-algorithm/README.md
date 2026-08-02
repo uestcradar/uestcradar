@@ -1,121 +1,130 @@
-# UESTC Radar - Qt5 距离-多普勒算法开发模板
+# Qt5 距离多普勒（RDMap）算法开发基座
 
-本目录是 Qt5 雷达算法开发模板，演示一条连续的 **脉冲压缩数据 → RD 图**处理流。
-示例每收齐 8 个脉冲生成一张 RD 图，并持续打印矩阵尺寸和峰值位置。
+本目录可以整体复制到任意开发目录后独立使用。它不依赖真实雷达硬件：
+`docker-compose-infra.yaml` 启动黑盒脉压数据源、和 RD 数据格式校验端，`docker-compose-worker.yaml` 只构建和运行开发者自己的 Qt5 RD Worker。测试源在内存中随机生成 脉压数据。一个 CPI 是连续的64 个标准帧，每帧包含 `1 × 108375` 个 `ComplexFloat32`数据
 
-## 开发全流程概览
+## 修改边界
 
-```mermaid
-graph TD
-    A[第一步: 启动算法开发环境] --> B[第二步: 编写算法]
-    B --> C[第三步: 构建算法镜像]
-    C --> D[第四步: 运行与调试]
-    D --> E[第五步: 发布算法镜像]
-```
+> 如果下面的边界不能满足算法需求时，请联系 SDK 维护者提出需求，由维护者统一修改测试基座，以保证上下游的数据布局始终一致。
 
-## 第一步：启动算法开发环境
+### 禁止修改
 
-在本目录执行一条命令：
-
-```bash
-docker-compose -f docker-compose.infra.yaml up -d --no-build
-```
-
-启动后，连续脉冲压缩测试数据已准备好。
-
-## 第二步：编写算法
-
-算法入口位于 `src/main.cpp`，数学实现位于 `src/my_rd_algorithm.hpp`。Qt 日志与容器
-生命周期不会改变 SDK 的使用方式：
-
-```cpp
-#include <data.h>
-#include "my_rd_algorithm.hpp"
-
-using namespace uestcradar;
-
-Input<PulseCompressionFrame> input;
-Output<RDFrame> output;
-CpiBuffer cpi;
-
-while (true) {
-    // 1. 读取脉冲压缩数据并加入 CPI。
-    auto pulse = input.read();
-    auto pulse_metadata = pulse.metadata();
-    cpi.push(pulse_metadata.pulse_index,
-             pulse_metadata.pulses_per_cpi,
-             pulse.data()[0]);
-
-    if (!cpi.ready()) {
-        continue;
-    }
-
-    // 2. 填写本算法输出数据的业务参数。
-    RDMetadata metadata{
-        .channel_index = 0,
-        .range_bin_count = static_cast<std::uint32_t>(
-            cpi.range_bin_count()),
-        .doppler_bin_count = 8,
-        .range_resolution_m = pulse_metadata.range_resolution_m,
-        .velocity_resolution_mps = 0.5,
-    };
-    // 多帧合成一帧 RD 时，这里传本次 CPI 中最后读取到的脉压帧。
-    auto rd = output.create(metadata, pulse);
-
-    // 3. 执行算法并写出 RD 图。
-    auto result = compute_rd(cpi, rd.data());
-    qInfo() << "RD peak="
-            << result.peak_range_bin
-            << result.peak_doppler_bin;
-    output.write(std::move(rd));
-    cpi.clear();
-}
-```
-
-开发自己的算法时，主要替换 `src/my_rd_algorithm.hpp` 中 `compute_rd()` 的实现。
-示例只使用 QtCore，保留了最小的 `QCoreApplication` 与 `qInfo()` 日志逻辑。
-
-## 第三步：构建算法镜像
-
-```bash
-docker build --pull -t my-radar-qt5-algorithm:dev .
-```
-
-## 第四步：运行与调试
-
-```bash
-export QT5_ALGORITHM_IMAGE=my-radar-qt5-algorithm:dev
-docker-compose -f docker-compose.infra.yaml up -d --no-build qt5-algorithm
-docker-compose -f docker-compose.infra.yaml logs -f qt5-algorithm rd-sink
-```
-
-正常日志示例：
+复制目录后，以下黑盒基础设施契约文件禁止修改：
 
 ```text
-[qt-algorithm] pulse compression -> RD ready frames=0
-[qt-algorithm] produced=1 RD=64 x 8 peak=17,2
-[sink] type=rd received=1 shape=64x8 peak=17,2
+docker-compose-infra.yaml
 ```
 
-进入容器交互调试：
+无论如何重构算法工程，还必须保留这些接口边界：
+
+- 输入必须是 `Input<PulseCompressionFrame>`，输出必须是`Output<RDFrame>` 。输入输出的具体帧契约结构的详细说明，请参考 [SDK 接口指南](../../sdk/README.md)
+- 输出矩阵在 SDK 中必尺寸为 `108375 × 65`：行是距离门，列是多普勒单元。
+- 单个输出帧不得超过 **32 MiB（33,554,432 字节）**。限制包含 32 字节 Metadata和矩阵；当前标准帧恰好是 **28,177,532 字节**。
+- `Dockerfile` 构建必须使用官方基座镜像 `registry.chengyistudio.com/cxx/algo-base`（或 `qt5-algo-base`），否则无法包含（`#include <data.h>`）及编译 SDK 库。
+- `Dockerfile` 底部四个镜像契约 Label 必须保持为 `worker/v2`、`operator`、`2:2`和 `3:2`，不得删除或修改类型。
+- Worker 运行时必须继续加入 `uestcradar-qt5-rd-sidecar` 的 IPC namespace，并使用 `/uestcradar_qt5_algorithm_up`、`/uestcradar_qt5_algorithm_down` 两个 SHM 名称。
+
+### 可以自由修改或删除
+
+除`docker-compose-infra.yaml`文件和接口约束外，算法代码、测试、CMake、Dockerfile 以及`docker-compose-worker.yaml` 的工程组织方式都可自由修改删除。建议把
+
+### 第一步：启动黑盒测试基座
 
 ```bash
-docker-compose -f docker-compose.infra.yaml run --rm --no-deps \
-  --entrypoint /bin/bash qt5-algorithm
-/app/qt5-algorithm --log-every 1
+cp -a /path/to/uestcradar/workspace/examples/qt5-algorithm ~/my-rd-algorithm
+cd ~/my-rd-algorithm
+docker compose -f docker-compose-infra.yaml up -d
 ```
 
-停止环境：
+不要在这个命令中合并 Worker Compose。基础镜像是 ARM64；x86_64 主机如未注册QEMU，先执行一次：
 
 ```bash
-docker-compose -f docker-compose.infra.yaml down
+docker run --privileged --rm tonistiigi/binfmt --install arm64
 ```
 
-## 第五步：发布算法镜像
+### 第二步：编写 Qt5 距离多普勒算法
+
+入口是 `src/main.cpp`，算法函数是 `src/my_rd_algorithm.hpp`。入口保留
+`QCoreApplication` 和 `qInfo()`，主处理路径只有三步：
+
+```cpp
+// 1. 读数据并缓存；连续收齐 64 帧后得到完整 CPI。
+auto pulse = input.read();
+auto pulse_metadata = pulse.metadata();
+cpi.push(pulse_metadata, pulse.data()[0]);
+if (!cpi.ready()) continue;
+
+// 2. 显式填写 RDMetadata 并创建一个不超过 32 MiB 的 RDFrame。
+RDMetadata metadata{
+    .channel_index = 0,
+    .range_bin_count = static_cast<std::uint32_t>(cpi.range_bin_count()),
+    .doppler_bin_count = 65,
+    .range_resolution_m = pulse_metadata.range_resolution_m,
+    .velocity_resolution_mps = 0.5,
+};
+auto rd = output.create(metadata, pulse);
+
+// 3. 计算、查看峰值并提交 RDMap。
+auto result = compute_rd(cpi, rd.data());
+qInfo() << "RD peak=" << result.peak_range_bin << result.peak_doppler_bin;
+output.write(std::move(rd));
+cpi.clear();
+```
+
+SDK 帧 API 的完整说明见 [SDK 接口指南](../../sdk/README.md)。
+
+### 第三步：构建本地 RD 算法镜像
 
 ```bash
-docker tag my-radar-qt5-algorithm:dev \
-  registry.chengyistudio.com/cxx/my-radar-qt5-algorithm:v1.0.0
-docker login registry.chengyistudio.com
-docker push registry.chengyistudio.com/cxx/my-radar-qt5-algorithm:v1.0.0
+docker compose -f docker-compose-worker.yaml build
+```
+
+本地开发镜像为 `uestcradar/rd-algorithm:dev`。该命令不会构建或重启黑盒 Infra。
+
+### 第四步：挂载运行并查看 PASS 日志
+
+前台启动 Qt5 Worker：
+
+```bash
+docker compose -f docker-compose-worker.yaml up
+```
+
+另一个终端查看随机源和 QA Sink：
+
+```bash
+docker compose -f docker-compose-infra.yaml logs -f pc-signalsource rd-sink
+```
+
+结构校验通过时会持续看到：
+
+```text
+[PASSED] RDMap Frame Verification Success! sha256=<64-character-digest>
+```
+
+修改代码后使用可单独重启 Worker，无需重启测试基座。：
+
+```bash
+docker compose -f docker-compose-worker.yaml up --build
+```
+
+停止时先停 Worker，再停黑盒基础设施：
+
+```bash
+docker compose -f docker-compose-worker.yaml down
+docker compose -f docker-compose-infra.yaml down
+```
+
+### 第五步：发布 RD 算法镜像
+
+发布名称固定为：
+
+```text
+registry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0
+```
+
+执行：
+
+```bash
+docker tag uestcradar/rd-algorithm:dev registry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0
+docker push registry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0
 ```

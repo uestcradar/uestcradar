@@ -29,6 +29,7 @@ constexpr std::uint64_t kWarmup = 0;
 constexpr std::uint64_t kMeasure = 1;
 constexpr std::uint64_t kEnd = 2;
 constexpr std::size_t kHistogramBuckets = 1'000'002;
+constexpr std::size_t kIQWireMetadataBytes = 2136;
 
 struct TestControl {
     std::uint64_t sequence{};
@@ -154,7 +155,7 @@ Arguments parse_arguments(int argc, char* argv[]) {
             "--test must be correctness or benchmark");
     }
     constexpr std::size_t minimum =
-        sizeof(IQMetadata) + sizeof(TestControl) + sizeof(ComplexInt16);
+        kIQWireMetadataBytes + sizeof(TestControl) + sizeof(ComplexInt16);
     if (result.payload_bytes < minimum ||
         result.payload_bytes > INT32_MAX || result.frames == 0 ||
         result.duration_seconds <= 0.0) {
@@ -164,12 +165,12 @@ Arguments parse_arguments(int argc, char* argv[]) {
 }
 
 std::size_t samples_for_payload(std::size_t requested_bytes) {
-    return (requested_bytes - sizeof(IQMetadata)) /
+    return (requested_bytes - kIQWireMetadataBytes) /
            sizeof(ComplexInt16);
 }
 
 std::size_t actual_payload_bytes(std::size_t samples) {
-    return sizeof(IQMetadata) + samples * sizeof(ComplexInt16);
+    return kIQWireMetadataBytes + samples * sizeof(ComplexInt16);
 }
 
 std::uint32_t mix(std::uint32_t value) noexcept {
@@ -233,10 +234,19 @@ void write_frame(
     std::uint64_t phase,
     const Arguments& arguments) {
     const IQMetadata metadata{
+        .cpi_index = sequence,
         .channel_count = 1,
         .samples_per_channel = static_cast<std::uint32_t>(samples),
+        .pulse_count = 1,
+        .wave_process_type = 0,
+        .velocity_oversampling = 1,
         .sample_rate_hz = 1.0,
-        .center_frequency_hz = 0.0,
+        .nominal_carrier_frequency_hz = 1.0,
+        .bandwidth_hz = 1.0,
+        .pulse_width_s = 1.0,
+        .nominal_prt_s = 1.0,
+        .observation_max_range_m = 1.0,
+        .dequantization_scale = 1.0,
     };
     auto frame = output.create(metadata);
     fill_payload(

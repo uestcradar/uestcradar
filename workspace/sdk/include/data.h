@@ -2,6 +2,7 @@
 
 #include <sdk.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -9,6 +10,8 @@
 #include <stdexcept>
 
 namespace uestcradar {
+
+inline constexpr std::size_t kMaxPulsesPerCpi = 64;
 
 struct ComplexInt16 {
     std::int16_t i{};
@@ -41,10 +44,23 @@ private:
 };
 
 struct IQMetadata {
+    std::uint64_t cpi_index{};
     std::uint32_t channel_count{};
     std::uint32_t samples_per_channel{};
+    std::uint32_t pulse_count{};
+    std::uint32_t wave_process_type{};
+    std::uint32_t velocity_oversampling{};
     double sample_rate_hz{};
-    double center_frequency_hz{};
+    double nominal_carrier_frequency_hz{};
+    double bandwidth_hz{};
+    double pulse_width_s{};
+    double nominal_prt_s{};
+    double observation_max_range_m{};
+    double dequantization_scale{};
+    std::array<double, kMaxPulsesPerCpi> pulse_time_offset_s{};
+    std::array<double, kMaxPulsesPerCpi> pulse_phase_rad{};
+    std::array<double, kMaxPulsesPerCpi> pulse_frequency_hz{};
+    std::array<double, kMaxPulsesPerCpi> coherent_weight{};
 };
 
 struct PulseCompressionMetadata {

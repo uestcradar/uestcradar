@@ -39,6 +39,7 @@ if(NOT CYCOMM_GENERATED_CONTRACT_SOURCES)
 endif()
 set(CYCOMM_GENERATED_CONTRACTS
     "${CYCOMM_GENERATED_DIR}/contract_traits.generated.hpp"
+    "${CYCOMM_GENERATED_DIR}/preview_contracts.generated.hpp"
     "${CYCOMM_GENERATED_DIR}/contracts.manifest.json"
     "${CYCOMM_GENERATED_DIR}/contracts.generated.go"
     "${CYCOMM_GENERATED_DIR}/contracts.generated.ts"
@@ -170,6 +171,7 @@ install(FILES
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(FILES
     "${CYCOMM_GENERATED_DIR}/contracts.manifest.json"
+    "${CYCOMM_GENERATED_DIR}/preview_contracts.generated.hpp"
     "${CYCOMM_GENERATED_DIR}/contracts.generated.go"
     "${CYCOMM_GENERATED_DIR}/contracts.generated.ts"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/cycomm_sdk/contracts")

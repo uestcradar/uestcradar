@@ -1,23 +1,22 @@
 #include <data.h>
 
-#include "my_waveform.hpp"
+#include "cpi_data.hpp"
 
-#include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <utility>
 
 namespace {
 
 struct Options {
-    std::string type{"iq"};
+    std::filesystem::path data_root{"/data"};
     std::uint64_t frames{0};
-    double rate_hz{20.0};
 };
 
 std::uint64_t parse_uint64(const char* value, const char* option) {
@@ -33,53 +32,20 @@ Options parse_options(int argc, char** argv) {
     Options options;
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument{argv[index]};
-        if (argument == "--type" && index + 1 < argc) {
-            options.type = argv[++index];
+        if (argument == "--data-root" && index + 1 < argc) {
+            options.data_root = argv[++index];
+        } else if (argument == "--data-dir" && index + 1 < argc) {
+            const std::filesystem::path legacy = argv[++index];
+            options.data_root = legacy.filename() == "CPI0"
+                ? legacy.parent_path()
+                : legacy;
         } else if (argument == "--frames" && index + 1 < argc) {
             options.frames = parse_uint64(argv[++index], "--frames");
-        } else if (argument == "--rate-hz" && index + 1 < argc) {
-            options.rate_hz = std::stod(argv[++index]);
         } else {
             throw std::invalid_argument("unknown or incomplete option");
         }
     }
-    if ((options.type != "iq" && options.type != "pulse") ||
-        options.rate_hz <= 0.0) {
-        throw std::invalid_argument("type or rate is invalid");
-    }
     return options;
-}
-
-void send_iq(uestcradar::Output<uestcradar::IQFrame>& output) {
-    const auto metadata = radar_example::iq_metadata();
-    auto iq = output.create(metadata);
-    radar_example::fill_iq(iq);
-    output.write(std::move(iq));
-}
-
-void send_pulse(
-    uestcradar::Output<uestcradar::PulseCompressionFrame>& output,
-    std::uint64_t sequence) {
-    const auto metadata = radar_example::pulse_metadata(sequence);
-    auto pulse = output.create(metadata);
-    radar_example::fill_pulse(pulse);
-    output.write(std::move(pulse));
-}
-
-template <class Send>
-void run_source(const Options& options, Send send) {
-    const auto interval = std::chrono::duration<double>(
-        1.0 / options.rate_hz);
-    for (std::uint64_t sequence = 1;
-         options.frames == 0 || sequence <= options.frames;
-         ++sequence) {
-        send(sequence);
-        if (sequence == 1 || sequence % 20 == 0) {
-            std::cout << "[source] sent type=" << options.type
-                      << " sequence=" << sequence << '\n';
-        }
-        std::this_thread::sleep_for(interval);
-    }
 }
 
 }  // namespace
@@ -88,21 +54,37 @@ int main(int argc, char** argv) {
     try {
         std::cout << std::unitbuf;
         const Options options = parse_options(argc, argv);
-        std::cout << "[source] type=" << options.type
-                  << " rate_hz=" << options.rate_hz
+        const auto cpis = radar_example::load_cpi_sequence(options.data_root);
+        uestcradar::Output<uestcradar::IQFrame> output;
+
+        std::cout << "[source] IQ v3 offline CPI sequence ready"
+                  << " data_root=" << options.data_root
+                  << " offline_cpis=" << cpis.size()
+                  << " samples=" << cpis.front().metadata.samples_per_channel
+                  << " pulses=" << cpis.front().metadata.pulse_count
                   << " frames=" << options.frames << '\n';
 
-        if (options.type == "iq") {
-            uestcradar::Output<uestcradar::IQFrame> output;
-            run_source(options, [&](std::uint64_t) { send_iq(output); });
-        } else {
-            uestcradar::Output<uestcradar::PulseCompressionFrame> output;
-            run_source(options, [&](std::uint64_t sequence) {
-                send_pulse(output, sequence);
-            });
+        std::uint64_t sent = 0;
+        while (options.frames == 0 || sent < options.frames) {
+            const std::size_t offline_index =
+                static_cast<std::size_t>(sent % cpis.size());
+            const auto& cpi = cpis[offline_index];
+            auto metadata = cpi.metadata;
+            metadata.cpi_index = sent;
+            auto frame = output.create(metadata);
+            radar_example::copy_cpi_samples(cpi, frame);
+            output.write(std::move(frame));
+            if (sent == 0 || (sent + 1) % 20 == 0) {
+                std::cout << "[source] sent_frames=" << sent + 1
+                          << " cpi_index=" << sent
+                          << " offline_cpi=CPI" << offline_index
+                          << " cs16_bytes=" << cpi.cs16.size() << '\n';
+            }
+            if (sent == std::numeric_limits<std::uint64_t>::max()) {
+                throw std::overflow_error("global cpi_index exhausted");
+            }
+            ++sent;
         }
-
-        std::cout << "[source] completed frames=" << options.frames << '\n';
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[source] error=" << error.what() << '\n';

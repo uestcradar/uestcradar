@@ -6,6 +6,7 @@
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 struct RingBuffer;
 
@@ -15,6 +16,13 @@ class UCXTransport;
 }  // namespace sidecar::network
 
 namespace sidecar::forwarder {
+
+class FrameTap {
+public:
+    virtual ~FrameTap() = default;
+    virtual void try_capture(
+        std::span<const std::byte> frame) noexcept = 0;
+};
 
 struct LegMetrics {
     alignas(64) std::atomic<std::uint64_t> payload_bytes_total{0};
@@ -36,14 +44,16 @@ void run_ingress_session(
     RingBuffer* input,
     network::UCXTransport& transport,
     const network::UCXMemoryRegion& input_memory,
-    LegMetrics& metrics);
+    LegMetrics& metrics,
+    FrameTap* tap = nullptr);
 
 void run_egress_session(
     volatile std::sig_atomic_t& running,
     RingBuffer* output,
     network::UCXTransport& transport,
     const network::UCXMemoryRegion& output_memory,
-    LegMetrics& metrics);
+    LegMetrics& metrics,
+    FrameTap* tap = nullptr);
 
 [[nodiscard]] DroppedFrames drop_stale_frames(
     RingBuffer* output) noexcept;

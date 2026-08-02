@@ -3,6 +3,7 @@
 #include "ringbuf/ringbuf.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -18,9 +19,10 @@ namespace {
 constexpr std::uint64_t kIQTypeId = 1;
 constexpr std::uint64_t kPulseCompressionTypeId = 2;
 constexpr std::uint64_t kRDTypeId = 3;
-constexpr std::uint32_t kIQVersion = 2;
+constexpr std::uint32_t kIQVersion = 3;
 constexpr std::uint32_t kPulseCompressionVersion = 2;
 constexpr std::uint32_t kRDVersion = 2;
+constexpr std::size_t kIQMetadataBytes = 2136;
 
 class OwnedRing {
 public:
@@ -55,16 +57,88 @@ void require(bool condition, const char* message) {
 
 std::uint32_t iq_payload_bytes(const uestcradar::IQMetadata& metadata) {
     return static_cast<std::uint32_t>(
-        sizeof(metadata) + metadata.channel_count *
+        kIQMetadataBytes + metadata.channel_count *
             metadata.samples_per_channel *
             sizeof(uestcradar::ComplexInt16));
+}
+
+uestcradar::IQMetadata test_iq_metadata() {
+    uestcradar::IQMetadata metadata{
+        .cpi_index = 17,
+        .channel_count = 2,
+        .samples_per_channel = 3,
+        .pulse_count = 64,
+        .wave_process_type = 4,
+        .velocity_oversampling = 2,
+        .sample_rate_hz = 2.5e6,
+        .nominal_carrier_frequency_hz = 1.2e9,
+        .bandwidth_hz = 2.0e6,
+        .pulse_width_s = 90.0e-6,
+        .nominal_prt_s = 361.25e-6,
+        .observation_max_range_m = 200.0e3,
+        .dequantization_scale = 1.0 / 3.0e9,
+    };
+    for (std::size_t index = 0;
+         index < uestcradar::kMaxPulsesPerCpi;
+         ++index) {
+        metadata.pulse_time_offset_s[index] = index * 0.001;
+        metadata.pulse_phase_rad[index] = index * -0.01;
+        metadata.pulse_frequency_hz[index] = 1.2e9 + index * 1000.0;
+        metadata.coherent_weight[index] = 1.0 / (index + 1.0);
+    }
+    return metadata;
+}
+
+template <class T>
+void store_test_wire(
+    std::span<std::byte> payload,
+    std::size_t offset,
+    const T& value) {
+    std::memcpy(payload.data() + offset, &value, sizeof(value));
+}
+
+void store_iq_metadata(
+    std::span<std::byte> payload,
+    const uestcradar::IQMetadata& metadata) {
+    store_test_wire(payload, 0, metadata.cpi_index);
+    store_test_wire(payload, 8, metadata.channel_count);
+    store_test_wire(payload, 12, metadata.samples_per_channel);
+    store_test_wire(payload, 16, metadata.pulse_count);
+    store_test_wire(payload, 20, metadata.wave_process_type);
+    store_test_wire(payload, 24, metadata.velocity_oversampling);
+    const std::uint32_t reserved = 0;
+    store_test_wire(payload, 28, reserved);
+    store_test_wire(payload, 32, metadata.sample_rate_hz);
+    store_test_wire(
+        payload, 40, metadata.nominal_carrier_frequency_hz);
+    store_test_wire(payload, 48, metadata.bandwidth_hz);
+    store_test_wire(payload, 56, metadata.pulse_width_s);
+    store_test_wire(payload, 64, metadata.nominal_prt_s);
+    store_test_wire(payload, 72, metadata.observation_max_range_m);
+    store_test_wire(payload, 80, metadata.dequantization_scale);
+    for (std::size_t index = 0;
+         index < uestcradar::kMaxPulsesPerCpi;
+         ++index) {
+        store_test_wire(
+            payload, 88 + index * sizeof(double),
+            metadata.pulse_time_offset_s[index]);
+        store_test_wire(
+            payload, 600 + index * sizeof(double),
+            metadata.pulse_phase_rad[index]);
+        store_test_wire(
+            payload, 1112 + index * sizeof(double),
+            metadata.pulse_frequency_hz[index]);
+        store_test_wire(
+            payload, 1624 + index * sizeof(double),
+            metadata.coherent_weight[index]);
+    }
 }
 
 void seed_iq(
     RingBuffer* ring,
     std::uint64_t frame_id,
     std::uint64_t timestamp = 123456) {
-    const uestcradar::IQMetadata metadata{2, 3, 2.5e6, 1.2e9};
+    const uestcradar::IQMetadata metadata = test_iq_metadata();
     RingWriteLease lease;
     require(
         ringbuf_reserve(ring, lease) == RingResult::ok,
@@ -76,9 +150,9 @@ void seed_iq(
         .type_version = kIQVersion,
         .payload_length = iq_payload_bytes(metadata),
     };
-    std::memcpy(lease.payload().data(), &metadata, sizeof(metadata));
+    store_iq_metadata(lease.payload(), metadata);
     auto* samples = reinterpret_cast<uestcradar::ComplexInt16*>(
-        lease.payload().data() + sizeof(metadata));
+        lease.payload().data() + kIQMetadataBytes);
     for (std::size_t index = 0; index < 6; ++index) {
         samples[index] = {
             static_cast<std::int16_t>(index + 1),
@@ -104,6 +178,12 @@ void test_typed_input_and_lifetime(const std::string& prefix) {
         require(
             metadata.channel_count == 2 &&
                 metadata.samples_per_channel == 3 &&
+                metadata.cpi_index == 17 &&
+                metadata.pulse_count == 64 &&
+                metadata.pulse_time_offset_s[63] == 0.063 &&
+                metadata.pulse_phase_rad[7] == -0.07 &&
+                metadata.pulse_frequency_hz[9] == 1.2e9 + 9000.0 &&
+                metadata.coherent_weight[3] == 0.25 &&
                 iq.data().rows() == 2 &&
                 iq.data().columns() == 3 &&
                 iq.data()[1][2].i == 6,
@@ -112,7 +192,7 @@ void test_typed_input_and_lifetime(const std::string& prefix) {
         const auto* shared_samples =
             reinterpret_cast<const uestcradar::ComplexInt16*>(
                 upstream.get()->slots + sizeof(uestcradar::Envelope) +
-                sizeof(uestcradar::IQMetadata));
+                kIQMetadataBytes);
         require(
             shared_samples[0].i == 321 && shared_samples[0].q == -123,
             "typed IQ data was copied instead of viewing the RingBuffer Slot");
@@ -129,6 +209,61 @@ void test_typed_input_and_lifetime(const std::string& prefix) {
         ringbuf_reserve(upstream.get(), reusable) == RingResult::ok,
         "input Slot was not released by IQFrame destructor");
     ringbuf_cancel(reusable);
+}
+
+void test_iq_v3_golden_wire(const std::string& prefix) {
+    OwnedRing downstream{prefix + "_iq_v3_down", kIQTypeId, kIQVersion};
+    ::setenv(
+        "UESTCRADAR_DOWNSTREAM_SHM_NAME",
+        downstream.name().c_str(),
+        1);
+    uestcradar::Output<uestcradar::IQFrame> output;
+    const auto metadata = test_iq_metadata();
+    auto frame = output.create(metadata);
+    for (std::size_t index = 0; index < frame.data().values().size(); ++index) {
+        frame.data().values()[index] = {
+            static_cast<std::int16_t>(index + 10),
+            static_cast<std::int16_t>(-static_cast<int>(index + 10)),
+        };
+    }
+    output.write(std::move(frame));
+
+    RingReadLease lease;
+    require(
+        ringbuf_acquire(downstream.get(), lease) == RingResult::ok,
+        "could not read generated IQ v3 frame");
+    require(
+        lease.envelope().type_id == kIQTypeId &&
+            lease.envelope().type_version == kIQVersion &&
+            lease.envelope().payload_length ==
+                kIQMetadataBytes + 6 * sizeof(uestcradar::ComplexInt16) &&
+            lease.payload().size() ==
+                kIQMetadataBytes + 6 * sizeof(uestcradar::ComplexInt16),
+        "IQ v3 Envelope or payload length is incorrect");
+
+    std::uint32_t reserved{};
+    double time63{};
+    double phase7{};
+    double frequency9{};
+    double weight3{};
+    std::memcpy(&reserved, lease.payload().data() + 28, sizeof(reserved));
+    std::memcpy(&time63, lease.payload().data() + 88 + 63 * 8, 8);
+    std::memcpy(&phase7, lease.payload().data() + 600 + 7 * 8, 8);
+    std::memcpy(&frequency9, lease.payload().data() + 1112 + 9 * 8, 8);
+    std::memcpy(&weight3, lease.payload().data() + 1624 + 3 * 8, 8);
+    const auto* samples = reinterpret_cast<const uestcradar::ComplexInt16*>(
+        lease.payload().data() + kIQMetadataBytes);
+    require(
+        reserved == 0 &&
+            time63 == metadata.pulse_time_offset_s[63] &&
+            phase7 == metadata.pulse_phase_rad[7] &&
+            frequency9 == metadata.pulse_frequency_hz[9] &&
+            weight3 == metadata.coherent_weight[3] &&
+            samples[0].i == 10 && samples[5].q == -15,
+        "IQ v3 golden wire offsets are incorrect");
+    require(
+        ringbuf_release(lease) == RingResult::ok,
+        "could not release generated IQ v3 frame");
 }
 
 void test_operator_inherits_trace(const std::string& prefix) {
@@ -313,6 +448,29 @@ void test_contract_rejection(const std::string& prefix) {
     }
     require(frame_rejected, "typed Input accepted malformed data");
 
+    OwnedRing reserved_ring{
+        prefix + "_reserved_iq", kIQTypeId, kIQVersion};
+    ::setenv(
+        "UESTCRADAR_UPSTREAM_SHM_NAME",
+        reserved_ring.name().c_str(),
+        1);
+    seed_iq(reserved_ring.get(), 2);
+    std::uint32_t nonzero = 1;
+    std::memcpy(
+        reserved_ring.get()->slots + sizeof(uestcradar::Envelope) + 28,
+        &nonzero,
+        sizeof(nonzero));
+    uestcradar::Input<uestcradar::IQFrame> reserved_input;
+    bool reserved_rejected = false;
+    try {
+        static_cast<void>(reserved_input.read());
+    } catch (const std::invalid_argument&) {
+        reserved_rejected = true;
+    }
+    require(
+        reserved_rejected,
+        "typed Input accepted non-zero IQ reserved metadata");
+
     OwnedRing rd_output{prefix + "_bad_metadata", kRDTypeId, kRDVersion};
     ::setenv(
         "UESTCRADAR_DOWNSTREAM_SHM_NAME", rd_output.name().c_str(), 1);
@@ -339,6 +497,7 @@ int main() {
         const std::string prefix =
             "/uestcradar_sdk_v5_test_" + std::to_string(::getpid());
         test_typed_input_and_lifetime(prefix);
+        test_iq_v3_golden_wire(prefix);
         test_operator_inherits_trace(prefix);
         test_source_generates_trace(prefix);
         test_contract_rejection(prefix);

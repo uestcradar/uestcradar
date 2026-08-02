@@ -181,7 +181,7 @@ docker buildx imagetools inspect "${LATEST_IMAGE}"
 SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
 CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker:latest
 TYPE_ID=1
-TYPE_VERSION=2
+TYPE_VERSION=3
 ```
 
 以后发布新版本不再修改 env。Docker 18.09 不会因为远端 Tag 变化自动替换本地镜像，
