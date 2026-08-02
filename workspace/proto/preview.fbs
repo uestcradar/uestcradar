@@ -1,0 +1,109 @@
+namespace uestcradar.preview;
+
+enum Leg : ubyte {
+  Unknown = 0,
+  Input = 1,
+  Output = 2
+}
+
+enum ValueEncoding : ubyte {
+  Unknown = 0,
+  ComplexInt8 = 1,
+  ComplexFloat16 = 2,
+  Float16 = 3
+}
+
+table StreamDescriptor {
+  leg:Leg;
+  frame_type_id:ulong;
+  frame_type_version:uint;
+}
+
+table SidecarHello {
+  node_id:string;
+  instance_id:string;
+  streams:[StreamDescriptor];
+}
+
+table StreamSelector {
+  subscription_id:ulong;
+  node_id:string;
+  leg:Leg;
+  frame_type_id:ulong;
+  frame_type_version:uint;
+  requested_fps:float = 30.0;
+}
+
+table SubscriptionUpdate {
+  version:ulong;
+  selectors:[StreamSelector];
+}
+
+table WaveformChannel {
+  channel_index:uint;
+  bucket_count:uint;
+  scale:float = 1.0;
+  min_offsets:[ubyte];
+  max_offsets:[ubyte];
+  values:[ubyte];
+}
+
+table WaveformPreview {
+  channels:[WaveformChannel];
+}
+
+table HeatmapPreview {
+  channel_index:uint;
+  rows:uint;
+  columns:uint;
+  max_offsets:[ubyte];
+  values:[ubyte];
+}
+
+union PreviewBody {
+  WaveformPreview,
+  HeatmapPreview
+}
+
+table PreviewFrame {
+  node_id:string;
+  instance_id:string;
+  leg:Leg;
+  frame_type_id:ulong;
+  frame_type_version:uint;
+  frame_id:ulong;
+  timestamp_ns:ulong;
+  original_rows:uint;
+  original_columns:uint;
+  pool_rows:uint;
+  pool_columns:uint;
+  encoding:ValueEncoding;
+  metadata:[ubyte];
+  body:PreviewBody;
+}
+
+table StreamStatus {
+  node_id:string;
+  leg:Leg;
+  frame_type_id:ulong;
+  frame_type_version:uint;
+  actual_fps:float;
+  snapshot_drops:ulong;
+  encode_drops:ulong;
+  network_drops:ulong;
+}
+
+union MessagePayload {
+  SidecarHello,
+  SubscriptionUpdate,
+  PreviewFrame,
+  StreamStatus
+}
+
+table PreviewMessage {
+  protocol_version:ushort = 1;
+  payload:MessagePayload;
+}
+
+root_type PreviewMessage;
+file_identifier "UPRV";

@@ -28,7 +28,9 @@ FROM --platform=$TARGETPLATFORM node:20-bookworm-slim AS node-runtime
 FROM --platform=$TARGETPLATFORM golang:${GO_VERSION}-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends protobuf-compiler \
+    && apt-get install -y --no-install-recommends \
+       flatbuffers-compiler \
+       protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=tool-builder \

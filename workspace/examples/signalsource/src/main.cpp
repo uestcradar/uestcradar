@@ -2,22 +2,27 @@
 
 #include "my_waveform.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace {
 
 struct Options {
     std::string type{"iq"};
     std::uint64_t frames{0};
-    double rate_hz{20.0};
+    double rate_hz{30.0};
+    std::uint32_t channels{4};
+    std::uint32_t samples_per_channel{1'277'952};
 };
 
 std::uint64_t parse_uint64(const char* value, const char* option) {
@@ -27,6 +32,14 @@ std::uint64_t parse_uint64(const char* value, const char* option) {
         throw std::invalid_argument(std::string{"invalid "} + option);
     }
     return result;
+}
+
+std::uint32_t parse_uint32(const char* value, const char* option) {
+    const auto result = parse_uint64(value, option);
+    if (result == 0 || result > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument(std::string{"invalid "} + option);
+    }
+    return static_cast<std::uint32_t>(result);
 }
 
 Options parse_options(int argc, char** argv) {
@@ -39,6 +52,11 @@ Options parse_options(int argc, char** argv) {
             options.frames = parse_uint64(argv[++index], "--frames");
         } else if (argument == "--rate-hz" && index + 1 < argc) {
             options.rate_hz = std::stod(argv[++index]);
+        } else if (argument == "--channels" && index + 1 < argc) {
+            options.channels = parse_uint32(argv[++index], "--channels");
+        } else if (argument == "--samples-per-channel" && index + 1 < argc) {
+            options.samples_per_channel = parse_uint32(
+                argv[++index], "--samples-per-channel");
         } else {
             throw std::invalid_argument("unknown or incomplete option");
         }
@@ -50,10 +68,14 @@ Options parse_options(int argc, char** argv) {
     return options;
 }
 
-void send_iq(uestcradar::Output<uestcradar::IQFrame>& output) {
-    const auto metadata = radar_example::iq_metadata();
+void send_iq(
+    uestcradar::Output<uestcradar::IQFrame>& output,
+    const Options& options,
+    const std::vector<uestcradar::ComplexInt16>& waveform) {
+    const auto metadata = radar_example::iq_metadata(
+        options.channels, options.samples_per_channel);
     auto iq = output.create(metadata);
-    radar_example::fill_iq(iq);
+    std::copy(waveform.begin(), waveform.end(), iq.data().values().begin());
     output.write(std::move(iq));
 }
 
@@ -68,8 +90,10 @@ void send_pulse(
 
 template <class Send>
 void run_source(const Options& options, Send send) {
-    const auto interval = std::chrono::duration<double>(
-        1.0 / options.rate_hz);
+    const auto interval = std::chrono::duration_cast<
+        std::chrono::steady_clock::duration>(
+        std::chrono::duration<double>(1.0 / options.rate_hz));
+    auto next = std::chrono::steady_clock::now();
     for (std::uint64_t sequence = 1;
          options.frames == 0 || sequence <= options.frames;
          ++sequence) {
@@ -78,7 +102,8 @@ void run_source(const Options& options, Send send) {
             std::cout << "[source] sent type=" << options.type
                       << " sequence=" << sequence << '\n';
         }
-        std::this_thread::sleep_for(interval);
+        next += interval;
+        std::this_thread::sleep_until(next);
     }
 }
 
@@ -90,11 +115,18 @@ int main(int argc, char** argv) {
         const Options options = parse_options(argc, argv);
         std::cout << "[source] type=" << options.type
                   << " rate_hz=" << options.rate_hz
-                  << " frames=" << options.frames << '\n';
+                  << " frames=" << options.frames
+                  << " channels=" << options.channels
+                  << " samples_per_channel="
+                  << options.samples_per_channel << '\n';
 
         if (options.type == "iq") {
             uestcradar::Output<uestcradar::IQFrame> output;
-            run_source(options, [&](std::uint64_t) { send_iq(output); });
+            const auto waveform = radar_example::make_iq_waveform(
+                options.channels, options.samples_per_channel);
+            run_source(options, [&](std::uint64_t) {
+                send_iq(output, options, waveform);
+            });
         } else {
             uestcradar::Output<uestcradar::PulseCompressionFrame> output;
             run_source(options, [&](std::uint64_t sequence) {
