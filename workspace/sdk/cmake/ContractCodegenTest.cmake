@@ -29,14 +29,24 @@ foreach(required
 endforeach()
 
 file(READ "${TEST_ROOT}/valid/contracts.generated.go" go_decoder)
-foreach(required "DecodeMetadata" "payload length mismatch" "LittleEndian")
+foreach(required
+    "DecodeMetadata"
+    "payload length mismatch"
+    "LittleEndian"
+    "Count: 64"
+    "pulse_time_offset_s")
     string(FIND "${go_decoder}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "generated Go decoder is missing ${required}")
     endif()
 endforeach()
 file(READ "${TEST_ROOT}/valid/contracts.generated.ts" ts_decoder)
-foreach(required "decodeMetadata" "payload length mismatch" "DataView")
+foreach(required
+    "decodeMetadata"
+    "payload length mismatch"
+    "DataView"
+    "count: 64"
+    "MetadataValue")
     string(FIND "${ts_decoder}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "generated TypeScript decoder is missing ${required}")
@@ -69,7 +79,7 @@ endif()
 file(MAKE_DIRECTORY "${TEST_ROOT}/overlap-contracts")
 file(READ "${SDK_SOURCE_DIR}/contracts/iq.json" overlap_json)
 string(REPLACE
-    "\"samples_per_channel\", \"type\": \"uint32\", \"offset\": 4"
+    "\"samples_per_channel\", \"type\": \"uint32\", \"offset\": 12"
     "\"samples_per_channel\", \"type\": \"uint32\", \"offset\": 0"
     overlap_json "${overlap_json}")
 file(WRITE "${TEST_ROOT}/overlap-contracts/iq.json" "${overlap_json}")
@@ -82,6 +92,35 @@ execute_process(
 if(overlap_result EQUAL 0)
     message(FATAL_ERROR "overlapping wire fields were accepted")
 endif()
+
+foreach(case_name zero-count overflowing-array malformed-count)
+    file(MAKE_DIRECTORY "${TEST_ROOT}/${case_name}-contracts")
+    file(READ "${SDK_SOURCE_DIR}/contracts/iq.json" invalid_json)
+    if(case_name STREQUAL "zero-count")
+        string(REPLACE "\"count\": 64" "\"count\": 0"
+            invalid_json "${invalid_json}")
+    elseif(case_name STREQUAL "overflowing-array")
+        string(REPLACE
+            "\"count\": 64, \"offset\": 1624"
+            "\"count\": 65, \"offset\": 1624"
+            invalid_json "${invalid_json}")
+    else()
+        string(REPLACE "\"count\": 64" "\"count\": \"64\""
+            invalid_json "${invalid_json}")
+    endif()
+    file(WRITE "${TEST_ROOT}/${case_name}-contracts/iq.json"
+        "${invalid_json}")
+    file(WRITE "${TEST_ROOT}/${case_name}.def"
+        "UESTCRADAR_CONTRACT(iq, IQFrame, IQMetadata)\n")
+    execute_process(
+        COMMAND "${CODEGEN}" "${TEST_ROOT}/${case_name}.def"
+            "${TEST_ROOT}/${case_name}-contracts"
+            "${TEST_ROOT}/${case_name}"
+        RESULT_VARIABLE invalid_result)
+    if(invalid_result EQUAL 0)
+        message(FATAL_ERROR "${case_name} contract was accepted")
+    endif()
+endforeach()
 
 file(MAKE_DIRECTORY "${TEST_ROOT}/version-contracts")
 foreach(contract iq pulse_compression rd)
@@ -106,7 +145,7 @@ file(READ "${TEST_ROOT}/version/contract_iq.generated.cpp" iq_traits)
 file(READ "${TEST_ROOT}/version/contract_pulse_compression.generated.cpp"
     pulse_traits)
 file(READ "${TEST_ROOT}/version/contract_rd.generated.cpp" rd_traits)
-if(NOT iq_traits MATCHES "type_version.*return 2U" OR
+if(NOT iq_traits MATCHES "type_version.*return 3U" OR
    NOT pulse_traits MATCHES "type_version.*return 2U" OR
    NOT rd_traits MATCHES "type_version.*return 3U")
     message(FATAL_ERROR "RD version change affected an unrelated contract")

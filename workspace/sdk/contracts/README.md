@@ -73,10 +73,12 @@ payload_length == metadata_size + rows * columns * sizeof(element)
 
 ```cpp
 struct IQMetadata {
+    std::uint64_t cpi_index;
     std::uint32_t channel_count;
     std::uint32_t samples_per_channel;
+    std::uint32_t pulse_count;
+    // 其余雷达标量参数及四个 std::array<double, 64>
     double sample_rate_hz;
-    double center_frequency_hz;
 };
 
 class IQFrame {
@@ -92,18 +94,18 @@ public:
 {
   "cpp_frame": "IQFrame",
   "cpp_metadata": "IQMetadata",
-  "metadata_size": 24,
+  "metadata_size": 2136,
   "fields": [
-    {"name": "channel_count", "type": "uint32", "offset": 0},
-    {"name": "samples_per_channel", "type": "uint32", "offset": 4},
-    {"name": "sample_rate_hz", "type": "float64", "offset": 8},
-    {"name": "center_frequency_hz", "type": "float64", "offset": 16}
+    {"name": "cpi_index", "type": "uint64", "offset": 0},
+    {"name": "channel_count", "type": "uint32", "offset": 8},
+    {"name": "samples_per_channel", "type": "uint32", "offset": 12},
+    {"name": "pulse_time_offset_s", "type": "float64", "count": 64, "offset": 88}
   ],
   "payload": {
     "cpp_element": "ComplexInt16",
     "rows": "channel_count",
     "columns": "samples_per_channel",
-    "offset": 24
+    "offset": 2136
   }
 }
 ```
@@ -113,8 +115,8 @@ public:
 ```text
 矩阵元素数     = 4 * 1024
 矩阵字节数     = 4 * 1024 * sizeof(ComplexInt16)
-payload_length = 24 + 矩阵字节数
-data() 起点    = Envelope Payload 起点 + 24
+payload_length = 2136 + 矩阵字节数
+data() 起点    = Envelope Payload 起点 + 2136
 ```
 
 ## 为什么不依赖 C++ 内存布局

@@ -45,7 +45,8 @@ output.write(std::move(pulse));
 `output.create(metadata, input_frame)`，SDK 会自动关联输入与输出。未写出的输出帧会
 自动放弃，输入帧离开作用域后会自动释放。
 
-SDK 6 继续使用既有 Ring ABI v6 和 Sidecar protocol v3，不改变物理数据格式。
+SDK 6 继续使用既有 Ring ABI v6 和 Sidecar protocol v3。IQFrame 当前契约为
+`type_id=1/type_version=3`，一帧承载完整 CPI 连续回波及最多 64 组逐脉冲参数。
 每种帧分别维护 `type_id/type_version`，`create(metadata, parent)` 只有一个通用入口，
 新增帧不会产生逐帧组合重载。
 

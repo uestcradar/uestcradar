@@ -17,14 +17,14 @@ services:
       SIDECAR_DOWNSTREAM_DATA_PATH: functional
       SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_example_iq_source_up
       SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_example_iq_source_down
-      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
-      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
       SIDECAR_UPSTREAM_TYPE_ID: "1"
-      SIDECAR_UPSTREAM_TYPE_VERSION: "2"
-      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
-      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_UPSTREAM_TYPE_VERSION: "3"
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
       SIDECAR_DOWNSTREAM_TYPE_ID: "1"
-      SIDECAR_DOWNSTREAM_TYPE_VERSION: "2"
+      SIDECAR_DOWNSTREAM_TYPE_VERSION: "3"
       UCX_TLS: tcp,self
       TELEMETRY_HOST: 127.0.0.1
 
@@ -35,10 +35,12 @@ services:
     ipc: service:sidecar-source
     environment:
       UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_example_iq_source_down
+    volumes:
+      - ${CPI0_DATA_DIR:-/opt/uestcradar/CPI0}:/data/CPI0:ro
     entrypoint: ["/app/signalsource"]
     command:
-      - --type
-      - iq
+      - --data-dir
+      - /data/CPI0
       - --rate-hz
       - ${RATE_HZ:-20}
       - --frames
@@ -66,12 +68,12 @@ services:
       SIDECAR_DOWNSTREAM_DATA_PATH: functional
       SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_example_algorithm_up
       SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_example_algorithm_down
-      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
-      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
       SIDECAR_UPSTREAM_TYPE_ID: "1"
-      SIDECAR_UPSTREAM_TYPE_VERSION: "2"
-      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
-      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_UPSTREAM_TYPE_VERSION: "3"
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
       SIDECAR_DOWNSTREAM_TYPE_ID: "2"
       SIDECAR_DOWNSTREAM_TYPE_VERSION: "2"
       UCX_TLS: tcp,self
@@ -87,7 +89,7 @@ services:
       UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_example_algorithm_down
     command:
       - --frames
-      - ${OUTPUT_FRAMES:-0}
+      - ${CPI_FRAMES:-0}
       - --log-every
       - ${LOG_EVERY:-20}
     depends_on:
@@ -109,12 +111,12 @@ services:
       SIDECAR_DOWNSTREAM_ROLE: disabled
       SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_example_pulse_sink_up
       SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_example_pulse_sink_down
-      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
-      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
       SIDECAR_UPSTREAM_TYPE_ID: "2"
       SIDECAR_UPSTREAM_TYPE_VERSION: "2"
-      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
-      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
       SIDECAR_DOWNSTREAM_TYPE_ID: "2"
       SIDECAR_DOWNSTREAM_TYPE_VERSION: "2"
       UCX_TLS: tcp,self
@@ -132,10 +134,8 @@ services:
       - --type
       - pulse
       - --frames
-      - ${OUTPUT_FRAMES:-0}
+      - ${SINK_FRAMES:-0}
       - --log-every
       - ${LOG_EVERY:-20}
-      - --expect-range
-      - "0"
     depends_on:
       - sidecar-sink

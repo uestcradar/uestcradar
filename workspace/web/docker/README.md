@@ -55,5 +55,10 @@ docker run -d \
   --name uestcradar-web \
   --network host \
   -e TELEMETRY_ADVERTISE_HOST=192.162.2.64 \
+  -e TELEMETRY_TLS_CERT_FILE=/etc/uestcradar/tls/tls.crt \
+  -e TELEMETRY_TLS_KEY_FILE=/etc/uestcradar/tls/tls.key \
+  -v /etc/uestcradar/tls:/etc/uestcradar/tls:ro \
   registry.chengyistudio.com/cxx/web:latest
+
+docker start uestcradar-web
 ```

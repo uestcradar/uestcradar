@@ -35,10 +35,8 @@ services:
     ipc: service:sidecar-source
     environment:
       UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_example_pc_source_down
-    entrypoint: ["/app/signalsource"]
+    entrypoint: ["/app/pulse-source"]
     command:
-      - --type
-      - pulse
       - --rate-hz
       - ${RATE_HZ:-20}
       - --frames

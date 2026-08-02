@@ -20,10 +20,19 @@ inline uestcradar::IQMetadata iq_metadata(
     std::uint32_t channels,
     std::uint32_t samples_per_channel) {
     return {
+        .cpi_index = 0,
         .channel_count = channels,
         .samples_per_channel = samples_per_channel,
+        .pulse_count = 1,
+        .wave_process_type = 0,
+        .velocity_oversampling = 1,
         .sample_rate_hz = 1.0e6,
-        .center_frequency_hz = 10.0e9,
+        .nominal_carrier_frequency_hz = 10.0e9,
+        .bandwidth_hz = 1.0e6,
+        .pulse_width_s = 1.0e-6,
+        .nominal_prt_s = 1.0e-3,
+        .observation_max_range_m = 1.0e3,
+        .dequantization_scale = 1.0,
     };
 }
 

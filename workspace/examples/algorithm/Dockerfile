@@ -15,5 +15,5 @@ ENTRYPOINT ["/app/algorithm"]
 
 LABEL io.uestcradar.contract="worker/v2" \
       io.uestcradar.roles="operator" \
-      io.uestcradar.input="1:2" \
+      io.uestcradar.input="1:3" \
       io.uestcradar.output="2:2"
