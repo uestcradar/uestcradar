@@ -89,6 +89,7 @@ end
 
 N_cur = size(cur, 2);
 
+cur_align = cur;  % 未清零副本，供子采样对齐估计使用
 if preprocess_cfg.do_dw_blank
     cur(preproc_state.dw_lo:preproc_state.dw_hi, :) = 0;
 end
@@ -103,7 +104,16 @@ clear cur;
 if preprocess_cfg.do_subsample_align
     if estimate_alignment && ~preproc_state.align_ready
         n_pre = min(512, N_cur);
-        PC_pre = PC_full(:, 1:n_pre);
+        % 若直达波已被清零，从副本重新做匹配滤波以准确估计子采样偏移
+        if preprocess_cfg.do_dw_blank
+            if preprocess_cfg.do_fast_dc_remove
+                cur_align = cur_align - mean(cur_align, 1);
+            end
+            PC_align = ifft(bsxfun(@times, fft(cur_align, rd_ctx.pri_len, 1), rd_ctx.conj_ref_freq), rd_ctx.pri_len, 1);
+            PC_pre = PC_align(:, 1:n_pre);
+        else
+            PC_pre = PC_full(:, 1:n_pre);
+        end
         PC_pre = PC_pre - mean(PC_pre, 1);
         energy_pre = mean(abs(PC_pre).^2, 2);
         y1_p = energy_pre(rd_ctx.pri_len);
@@ -118,7 +128,7 @@ if preprocess_cfg.do_subsample_align
         preproc_state.align_ready = true;
         status_cb(sprintf('[预处理] 对齐偏移=%d 点，子采样修正量=%.4f', ...
             preproc_state.dw_offset, preproc_state.global_delta_p));
-        clear PC_pre energy_pre;
+        clear PC_align PC_pre energy_pre cur_align;
     end
 
     if abs(preproc_state.global_delta_p) > 1e-4

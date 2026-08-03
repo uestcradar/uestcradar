@@ -56,6 +56,8 @@
 | 文件 | 作用 |
 |---|---|
 | `batch_parse_bin.m` | 原始 bin 解析：交织 → 单通道 mat |
+| `batch_parse_bin_new.m` | 新版 bin 解析（支持 metadata 自动识别） |
+| `build_beam_schedule_from_meta.m` | 从 RX metadata.json 自动构建波位排布 |
 | `preprocess.m` | 预处理入口（init / chunk），含直达波对齐、距离压缩、频偏补偿 |
 | `align_direct_wave_range.m` | 直达波定位与距离零点校准 |
 | `process_rd_beam.m` | 波位模式 RD：按偏移量跳读，每驻留独立 CPI |
@@ -63,7 +65,6 @@
 | `dbscan_cluster.m` | 逐帧 DBSCAN 聚类（像素空间） |
 | `mono_angle.m` | 测角统一入口：线性 k_mono / LUT 生成 / LUT 查表 + 2D 解耦 |
 | `fuse_beam_plots.m` | 三级跨波位融合（旁瓣抑制 → 邻域加权 → 网格 DBSCAN） |
-| `parse_beam_schedule.m` | 波位排布文件解析 |
 | `track_init.m` | 航迹管理器初始化，定义航迹结构体 |
 | `tracker_3D_EKF.m` | 6D 笛卡尔 EKF：CV 模型 + GNN 数据关联 + M/N 航迹管理 |
 

@@ -70,7 +70,7 @@ status_cb(sprintf('[RD Beam %d] 输出文件：%s', beam_id, out_file));
 % ---- 帧间间隔与帧数（由主流程根据波位数决定）----
 pulses_per_dwell = rd_ctx.n_cpi;
 pri_len = rd_ctx.pri_len;
-pulses_per_scan = rd_ctx.pulses_per_scan;   % 单波位=连续流，多波位=槽位间隔
+pulses_per_scan = rd_ctx.pulses_per_scan;
 total_frames = rd_ctx.total_blocks;
 
 % ---- 逐通道处理 ----
@@ -97,27 +97,58 @@ for channel_idx = 1:numel(channel_ids)
     mf.(output_names{channel_idx})(rd_ctx.max_calc_samples, rd_ctx.n_cpi, total_frames) = complex(single(0), single(0));
 
     for k = 1:total_frames
-        % 本波位在连续 PRI 流中的位置（1-based）
-        % 扫描 k: 从 (k-1)*pulses_per_scan 开始
-        % 波位 beam_id: 偏移 (beam_id-1)*pulses_per_dwell
-        start_pri = (k - 1) * pulses_per_scan + (beam_id - 1) * pulses_per_dwell + 1;
+        % 波位分组、扫描重复：第 k 轮扫描中的 PRI 位置
+        % 一轮扫描 = 所有波位各一段连续帧
+        skip_pri = 0;
+        if isfield(rd_ctx, 'skip_pri'), skip_pri = rd_ctx.skip_pri; end
+        if isfield(rd_ctx, 'initial_scan_pri') && rd_ctx.initial_scan_pri ~= 0
+            pri_base = rd_ctx.initial_scan_pri + (k - 1) * pulses_per_scan;
+        else
+            pri_base = (k - 1) * pulses_per_scan;
+        end
+        start_pri = skip_pri + pri_base + rd_ctx.beam_start_offset + 1;
         end_pri   = start_pri + pulses_per_dwell - 1;
         N_cur = pulses_per_dwell;
 
-        % 样本级偏移
-        samp_s = channel_preproc_state.dw_offset + (start_pri - 1) * pri_len + 1;
-        samp_e = channel_preproc_state.dw_offset + end_pri * pri_len;
+        % 严格按 PRI 边界读取（不加 dw_offset，避免跨波位混入相邻 PRI）
+        samp_s = (start_pri - 1) * pri_len + 1;
+        samp_e = end_pri * pri_len;
 
-        % 末尾保护
+        % 末尾保护：不完整 CPI 直接跳过
         total_samples_in_mat = double(parse_bundle.rx_param.total_samples);
-        if samp_e > total_samples_in_mat
-            excess = samp_e - total_samples_in_mat;
-            samp_s = samp_s - excess;
-            samp_e = total_samples_in_mat;
+        if samp_s < 1 || samp_e > total_samples_in_mat
+            status_cb(sprintf('[RD Beam %d] 扫描 %d 数据不完整（samp %d:%d / %d），跳过', ...
+                beam_id, k, samp_s, samp_e, total_samples_in_mat));
+            continue;
         end
 
-        % 从通道 mat 文件读取当前驻留段
+        % 波位归属验证：首尾 PRI 的元数据角度必须匹配期望波位
+        if isfield(parse_bundle, 'beam_meta') && ~isempty(parse_bundle.beam_meta)
+            bm = parse_bundle.beam_meta;
+            check_pri = [start_pri, start_pri + floor(pulses_per_dwell/2), end_pri];  % 首、中、尾三个 PRI
+            for pi = 1:numel(check_pri)
+                pi_idx = check_pri(pi);
+                if pi_idx > numel(bm.meta_valid) || ~bm.meta_valid(pi_idx)
+                    continue;  % 元数据无效，跳过检查
+                end
+                az_ok = abs(double(bm.az_deg(pi_idx)) - beam_az) < 0.5;
+                el_ok = abs(double(bm.el_deg(pi_idx)) - beam_el) < 0.5;
+                if ~az_ok || ~el_ok
+                    error('process_rd_beam:BeamMixing', ...
+                        '[RD Beam %d] 扫描 %d PRI=%d: 元数据角度=(%.2f, %.2f), 期望=(%.2f, %.2f)', ...
+                        beam_id, k, pi_idx, ...
+                        double(bm.az_deg(pi_idx)), double(bm.el_deg(pi_idx)), ...
+                        beam_az, beam_el);
+                end
+            end
+        end
+
+        % 从通道 mat 文件读取当前驻留段，逐 PRI 循环移位对齐直达波
         cur = reshape(single(mf_rx.(channel_var_name)(samp_s:samp_e, 1)), pri_len, N_cur);
+        d = mod(double(channel_preproc_state.dw_offset), pri_len);
+        if d ~= 0
+            cur = cur([d+1:pri_len, 1:d], :);
+        end
 
         % 预处理（距离压缩 + 对齐 + 频偏补偿）
         [PC_corr, channel_preproc_state] = preprocess( ...
