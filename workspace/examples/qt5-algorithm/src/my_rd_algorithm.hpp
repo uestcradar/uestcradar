@@ -7,44 +7,36 @@
 #include <QVector>
 
 #include <algorithm>
-#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <span>
 #include <stdexcept>
+#include <vector>
 
 namespace radar_qt_example {
 
 class CpiBuffer {
 public:
-    explicit CpiBuffer(std::uint32_t range_bin_count = kRangeBinCount)
-        : range_bin_count_(range_bin_count) {
-        if (range_bin_count_ == 0 ||
-            range_bin_count_ > static_cast<std::size_t>(INT_MAX) /
-                kPulsesPerCpi) {
-            throw std::invalid_argument("CPI range-bin count is invalid");
-        }
-    }
-
     void push(
         const uestcradar::PulseCompressionMetadata& metadata,
         std::span<const uestcradar::ComplexFloat32> range_bins) {
-        if (metadata.channel_count != kChannelCount ||
-            metadata.range_bin_count != range_bin_count_ ||
-            metadata.pulses_per_cpi != kPulsesPerCpi ||
-            metadata.range_resolution_m != kRangeResolutionM ||
-            range_bins.size() != range_bin_count_) {
-            throw std::invalid_argument(
-                "PulseCompressionFrame does not match the developer-base contract");
-        }
-        if (metadata.pulse_index != received_pulses_) {
-            throw std::invalid_argument(
-                "pulse sequence is missing, duplicated, or out of order");
+        validate_frame(metadata, range_bins);
+
+        if (metadata.pulse_index == 0 && received_pulses_ != 0) {
+            clear();
         }
         if (received_pulses_ == 0) {
-            samples_.resize(static_cast<int>(
-                range_bin_count_ * kPulsesPerCpi));
+            if (metadata.pulse_index != 0) {
+                return;
+            }
+            begin_cpi(metadata);
+        } else if (!matches_current_cpi(metadata) ||
+                   metadata.pulse_index != received_pulses_) {
+            clear();
+            return;
         }
 
         const auto destination = samples_.begin() +
@@ -62,6 +54,10 @@ public:
         return range_bin_count_;
     }
 
+    [[nodiscard]] double range_resolution_m() const noexcept {
+        return range_resolution_m_;
+    }
+
     [[nodiscard]] const uestcradar::ComplexFloat32& sample(
         std::size_t pulse,
         std::size_t range) const {
@@ -75,12 +71,44 @@ public:
 
     void clear() {
         samples_.clear();
+        range_bin_count_ = 0;
+        range_resolution_m_ = 0.0;
         received_pulses_ = 0;
     }
 
 private:
+    static void validate_frame(
+        const uestcradar::PulseCompressionMetadata& metadata,
+        std::span<const uestcradar::ComplexFloat32> range_bins) {
+        if (metadata.channel_count != kChannelCount ||
+            metadata.pulses_per_cpi != kPulsesPerCpi ||
+            metadata.pulse_index >= kPulsesPerCpi ||
+            metadata.range_bin_count == 0 ||
+            metadata.range_bin_count > kMaxRangeBinCount ||
+            !std::isfinite(metadata.range_resolution_m) ||
+            metadata.range_resolution_m <= 0.0 ||
+            range_bins.size() != metadata.range_bin_count) {
+            throw std::invalid_argument(
+                "PulseCompressionFrame does not match the developer-base contract");
+        }
+    }
+
+    void begin_cpi(const uestcradar::PulseCompressionMetadata& metadata) {
+        range_bin_count_ = metadata.range_bin_count;
+        range_resolution_m_ = metadata.range_resolution_m;
+        samples_.resize(static_cast<int>(
+            static_cast<std::size_t>(range_bin_count_) * kPulsesPerCpi));
+    }
+
+    [[nodiscard]] bool matches_current_cpi(
+        const uestcradar::PulseCompressionMetadata& metadata) const noexcept {
+        return metadata.range_bin_count == range_bin_count_ &&
+            metadata.range_resolution_m == range_resolution_m_;
+    }
+
     QVector<uestcradar::ComplexFloat32> samples_;
-    std::uint32_t range_bin_count_;
+    std::uint32_t range_bin_count_{};
+    double range_resolution_m_{};
     std::uint32_t received_pulses_{};
 };
 
@@ -116,6 +144,52 @@ inline RdResult compute_rd(
         }
     }
     return result;
+}
+
+inline void save_rd_map_pgm(
+    uestcradar::Array2D<float> rd_map,
+    const std::filesystem::path& output_path) {
+    if (rd_map.rows() == 0 || rd_map.columns() == 0) {
+        throw std::invalid_argument("RD output is empty");
+    }
+
+    const auto values = rd_map.values();
+    const auto [minimum, maximum] = std::minmax_element(
+        values.begin(), values.end());
+    if (!std::isfinite(*minimum) || !std::isfinite(*maximum)) {
+        throw std::invalid_argument("RD output contains a non-finite value");
+    }
+
+    std::vector<unsigned char> pixels(values.size(), 0);
+    if (*maximum > *minimum) {
+        const float scale = 255.0F / (*maximum - *minimum);
+        std::transform(
+            values.begin(), values.end(), pixels.begin(),
+            [&](float value) {
+                return static_cast<unsigned char>(std::clamp(
+                    std::lround((value - *minimum) * scale), 0L, 255L));
+            });
+    }
+
+    if (!output_path.parent_path().empty()) {
+        std::filesystem::create_directories(output_path.parent_path());
+    }
+    auto temporary_path = output_path;
+    temporary_path += ".tmp";
+    std::ofstream output(temporary_path, std::ios::binary | std::ios::trunc);
+    if (!output) {
+        throw std::runtime_error("cannot create RDMap PGM output");
+    }
+    output << "P5\n" << rd_map.columns() << ' ' << rd_map.rows()
+           << "\n255\n";
+    output.write(
+        reinterpret_cast<const char*>(pixels.data()),
+        static_cast<std::streamsize>(pixels.size()));
+    output.close();
+    if (!output) {
+        throw std::runtime_error("cannot write RDMap PGM output");
+    }
+    std::filesystem::rename(temporary_path, output_path);
 }
 
 }  // namespace radar_qt_example

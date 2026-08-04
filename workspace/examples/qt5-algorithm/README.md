@@ -1,7 +1,7 @@
 # Qt5 距离多普勒（RDMap）算法开发基座
 
 本目录可以整体复制到任意开发目录后独立使用。它不依赖真实雷达硬件：
-`docker-compose-infra.yaml` 启动黑盒脉压数据源、和 RD 数据格式校验端，`docker-compose-worker.yaml` 只构建和运行开发者自己的 Qt5 RD Worker。测试源在内存中随机生成 脉压数据。一个 CPI 是连续的64 个标准帧，每帧包含 `1 × 108375` 个 `ComplexFloat32`数据
+`docker-compose-infra.yaml` 启动包含真实 CPI0～CPI9 数据的完整黑盒数据流，`docker-compose-worker.yaml` 只构建和运行开发者自己的 Qt5 RD Worker。开发链路为 `SignalSource → PulseCompression → RDMap（待开发）→ Sink`，一个 CPI 由连续的 64 个标准脉压帧组成。
 
 ## 修改边界
 
@@ -18,11 +18,11 @@ docker-compose-infra.yaml
 无论如何重构算法工程，还必须保留这些接口边界：
 
 - 输入必须是 `Input<PulseCompressionFrame>`，输出必须是`Output<RDFrame>` 。输入输出的具体帧契约结构的详细说明，请参考 [SDK 接口指南](../../sdk/README.md)
-- 输出矩阵在 SDK 中必尺寸为 `108375 × 65`：行是距离门，列是多普勒单元。
-- 单个输出帧不得超过 **32 MiB（33,554,432 字节）**。限制包含 32 字节 Metadata和矩阵；当前标准帧恰好是 **28,177,532 字节**。
+- 输出矩阵的行数使用输入帧中的真实距离门数量，列数固定为 `65` 个多普勒单元。
+- 单个输出帧不得超过 **32 MiB（33,554,432 字节）**，该限制包含 32 字节 Metadata 和矩阵数据。
 - `Dockerfile` 构建必须使用官方基座镜像 `registry.chengyistudio.com/cxx/algo-base`（或 `qt5-algo-base`），否则无法包含（`#include <data.h>`）及编译 SDK 库。
 - `Dockerfile` 底部四个镜像契约 Label 必须保持为 `worker/v2`、`operator`、`2:2`和 `3:2`，不得删除或修改类型。
-- Worker 运行时必须继续加入 `uestcradar-qt5-rd-sidecar` 的 IPC namespace，并使用 `/uestcradar_qt5_algorithm_up`、`/uestcradar_qt5_algorithm_down` 两个 SHM 名称。
+- `docker-compose-worker.yaml` 中的运行接口和 `/uestcradar_qt5_algorithm_up`、`/uestcradar_qt5_algorithm_down` 两个通道名称不得修改。
 
 ### 可以自由修改或删除
 
@@ -89,17 +89,19 @@ docker compose -f docker-compose-worker.yaml build
 docker compose -f docker-compose-worker.yaml up
 ```
 
-另一个终端查看随机源和 QA Sink：
+另一个终端查看真实数据流和 QA Sink：
 
 ```bash
-docker compose -f docker-compose-infra.yaml logs -f pc-signalsource rd-sink
+docker compose -f docker-compose-infra.yaml logs -f signalsource pulsecompression rd-sink
 ```
 
 结构校验通过时会持续看到：
 
 ```text
-[PASSED] RDMap Frame Verification Success! sha256=<64-character-digest>
+[PASSED] RDFrame received=<n> shape=<range>x65 peak_range=<r> peak_doppler=<d> magnitude=<v>
 ```
+
+最新一帧 RDMap 同时保存在 `output/rdmap_result.pgm`。
 
 修改代码后使用可单独重启 Worker，无需重启测试基座。：
 

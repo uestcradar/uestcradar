@@ -1,4 +1,3 @@
-#include "pc_generator.hpp"
 #include "rd_verifier.hpp"
 
 #include <data.h>
@@ -6,7 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
-#include <span>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -29,51 +28,6 @@ void require_throws(Function&& function, const char* message) {
     throw std::runtime_error(message);
 }
 
-bool equal_samples(
-    std::span<const uestcradar::ComplexFloat32> left,
-    std::span<const uestcradar::ComplexFloat32> right) {
-    if (left.size() != right.size()) {
-        return false;
-    }
-    for (std::size_t index = 0; index < left.size(); ++index) {
-        if (left[index].i != right[index].i ||
-            left[index].q != right[index].q) {
-            return false;
-        }
-    }
-    return true;
-}
-
-void test_random_generator() {
-    radar_qt_example::RandomPulseGenerator left(1234);
-    radar_qt_example::RandomPulseGenerator right(1234);
-    radar_qt_example::RandomPulseGenerator other(5678);
-    std::vector<uestcradar::ComplexFloat32> left_values(32);
-    std::vector<uestcradar::ComplexFloat32> right_values(32);
-    std::vector<uestcradar::ComplexFloat32> other_values(32);
-    left.fill(left_values);
-    right.fill(right_values);
-    other.fill(other_values);
-    require(equal_samples(left_values, right_values),
-            "fixed source seed is not reproducible");
-    require(!equal_samples(left_values, other_values),
-            "different source seeds produced the same sequence");
-}
-
-void test_pulse_metadata() {
-    for (std::uint32_t pulse = 0;
-         pulse < radar_qt_example::kPulsesPerCpi;
-         ++pulse) {
-        const auto metadata = radar_qt_example::describe_pulse(pulse);
-        require(metadata.channel_count == 1 &&
-                    metadata.range_bin_count == 108375 &&
-                    metadata.pulse_index == pulse &&
-                    metadata.pulses_per_cpi == 64 &&
-                    metadata.range_resolution_m == 1.376,
-                "generated PulseCompression metadata is invalid");
-    }
-}
-
 void test_rd_verifier_and_sha256() {
     const std::string abc{"abc"};
     require(
@@ -82,21 +36,34 @@ void test_rd_verifier_and_sha256() {
             "b00361a396177a9cb410ff61f20015ad",
         "SHA-256 implementation failed its known-answer test");
 
+    constexpr std::uint32_t range_bins = 22196;
     const uestcradar::RDMetadata metadata{
         .channel_index = 0,
-        .range_bin_count = radar_qt_example::kRangeBinCount,
+        .range_bin_count = range_bins,
         .doppler_bin_count = radar_qt_example::kDopplerBinCount,
-        .range_resolution_m = radar_qt_example::kRangeResolutionM,
+        .range_resolution_m = 4.8828125,
         .velocity_resolution_mps =
             radar_qt_example::kVelocityResolutionMps,
     };
-    std::vector<float> samples(radar_qt_example::kRdSampleCount, 1.0F);
-    const auto digest = radar_qt_example::verify_rd_frame(
+    std::vector<float> samples(
+        static_cast<std::size_t>(range_bins) *
+            radar_qt_example::kDopplerBinCount,
+        1.0F);
+    const std::size_t peak_range = 20480;
+    const std::size_t peak_doppler = 32;
+    samples[peak_range * radar_qt_example::kDopplerBinCount +
+            peak_doppler] = 10.0F;
+    const auto verification = radar_qt_example::verify_rd_frame(
         metadata,
         samples,
-        radar_qt_example::kRangeBinCount,
+        range_bins,
         radar_qt_example::kDopplerBinCount);
-    require(digest.size() == 64, "RD fingerprint is not SHA-256");
+    require(verification.digest.size() == 64,
+            "RD fingerprint is not SHA-256");
+    require(verification.peak_range_bin == peak_range &&
+                verification.peak_doppler_bin == peak_doppler &&
+                verification.peak_magnitude == 10.0F,
+            "RD peak location is invalid");
 
     auto invalid = metadata;
     invalid.doppler_bin_count = 64;
@@ -105,18 +72,27 @@ void test_rd_verifier_and_sha256() {
             static_cast<void>(radar_qt_example::verify_rd_frame(
                 invalid,
                 samples,
-                radar_qt_example::kRangeBinCount,
+                range_bins,
                 radar_qt_example::kDopplerBinCount));
         },
         "invalid RD metadata was accepted");
+
+    samples.front() = std::numeric_limits<float>::infinity();
+    require_throws(
+        [&] {
+            static_cast<void>(radar_qt_example::verify_rd_frame(
+                metadata,
+                samples,
+                range_bins,
+                radar_qt_example::kDopplerBinCount));
+        },
+        "non-finite RD data was accepted");
 }
 
 }  // namespace
 
 int main() {
     try {
-        test_random_generator();
-        test_pulse_metadata();
         test_rd_verifier_and_sha256();
         std::cout << "infra-test: PASS\n";
         return 0;

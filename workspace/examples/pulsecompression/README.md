@@ -1,10 +1,6 @@
 # PulseCompression 算法开发基座
 
-本目录可以整体复制到任意开发目录后独立使用
-
-`docker-compose-infra.yaml` 提供黑盒测试基础设施；`docker-compose-worker.yaml` 只负责构建和
-
-启动开发者自己的 PulseCompression Worker。两者必须分开启动。
+本目录可以整体复制到任意开发目录后独立使用`docker-compose-infra.yaml` 提供黑盒测试基础设施；`docker-compose-worker.yaml` 只负责构建和启动开发者自己的 PulseCompression Worker。两者必须分开启动。
 
 示例算法仅将完整 CPI 的 CS16 按 `dequantization_scale` 转成 ComplexFloat32，用来证明
 SignalSource 输入正确。它不是脉冲压缩算法。

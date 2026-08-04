@@ -3,8 +3,11 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace {
@@ -27,50 +30,60 @@ void require_throws(Function&& function, const char* message) {
 
 uestcradar::PulseCompressionMetadata test_metadata(
     std::uint32_t pulse_index,
-    std::uint32_t range_bins) {
+    std::uint32_t range_bins,
+    double range_resolution_m = 4.8828125) {
     return {
         .channel_count = radar_qt_example::kChannelCount,
         .range_bin_count = range_bins,
         .pulse_index = pulse_index,
         .pulses_per_cpi = radar_qt_example::kPulsesPerCpi,
-        .range_resolution_m = radar_qt_example::kRangeResolutionM,
+        .range_resolution_m = range_resolution_m,
     };
 }
 
 void test_contract_sizes() {
-    require(radar_qt_example::kPulseFrameBytes == 867024,
-            "PulseCompressionFrame byte count changed");
-    require(radar_qt_example::kRdFrameBytes == 28177532,
-            "RDFrame byte count changed");
-    require(radar_qt_example::kRdFrameBytes <=
-                radar_qt_example::kMaxFrameBytes,
-            "RDFrame exceeds 32 MiB");
+    require(radar_qt_example::rd_frame_bytes(22196) == 5770992,
+            "current real-data RDFrame byte count is invalid");
+    require(radar_qt_example::rd_frame_bytes(33293) == 8656212,
+            "extended-window RDFrame byte count is invalid");
+    require(radar_qt_example::rd_frame_bytes(
+                radar_qt_example::kMaxRangeBinCount) <=
+            radar_qt_example::kMaxFrameBytes,
+            "maximum RDFrame exceeds 32 MiB");
 }
 
-void test_sequence_validation() {
+void test_sequence_resynchronization() {
     constexpr std::uint32_t range_bins = 4;
     std::vector<uestcradar::ComplexFloat32> samples(range_bins);
-    radar_qt_example::CpiBuffer starts_late(range_bins);
-    require_throws(
-        [&] { starts_late.push(test_metadata(1, range_bins), samples); },
-        "a CPI starting at pulse 1 was accepted");
+    radar_qt_example::CpiBuffer starts_late;
+    starts_late.push(test_metadata(1, range_bins), samples);
+    require(!starts_late.ready() && starts_late.range_bin_count() == 0,
+            "a partial CPI was not ignored");
 
-    radar_qt_example::CpiBuffer missing(range_bins);
+    radar_qt_example::CpiBuffer missing;
     missing.push(test_metadata(0, range_bins), samples);
-    require_throws(
-        [&] { missing.push(test_metadata(2, range_bins), samples); },
-        "a CPI with a missing pulse was accepted");
+    missing.push(test_metadata(2, range_bins), samples);
+    require(missing.range_bin_count() == 0,
+            "an incomplete CPI was not discarded");
+    missing.push(test_metadata(0, range_bins, 2.5), samples);
+    for (std::uint32_t pulse = 1;
+         pulse < radar_qt_example::kPulsesPerCpi;
+         ++pulse) {
+        missing.push(test_metadata(pulse, range_bins, 2.5), samples);
+    }
+    require(missing.ready() && missing.range_resolution_m() == 2.5,
+            "CPI did not recover at the next pulse zero");
 
-    radar_qt_example::CpiBuffer duplicate(range_bins);
-    duplicate.push(test_metadata(0, range_bins), samples);
+    auto invalid = test_metadata(0, range_bins);
+    invalid.range_bin_count = radar_qt_example::kMaxRangeBinCount + 1;
     require_throws(
-        [&] { duplicate.push(test_metadata(0, range_bins), samples); },
-        "a CPI with a duplicate pulse was accepted");
+        [&] { missing.push(invalid, samples); },
+        "an oversized RD input shape was accepted");
 }
 
 void test_placeholder_algorithm() {
     constexpr std::uint32_t range_bins = 8;
-    radar_qt_example::CpiBuffer cpi(range_bins);
+    radar_qt_example::CpiBuffer cpi;
     for (std::uint32_t pulse = 0;
          pulse < radar_qt_example::kPulsesPerCpi;
          ++pulse) {
@@ -96,6 +109,24 @@ void test_placeholder_algorithm() {
             "65th Doppler bin did not wrap to pulse zero");
     require(result.peak_range_bin == range_bins - 1,
             "placeholder peak result is invalid");
+
+    const auto output = std::filesystem::current_path() /
+        "rd-algorithm-test-output.pgm";
+    std::filesystem::remove(output);
+    radar_qt_example::save_rd_map_pgm(
+        {rd.data(), range_bins, radar_qt_example::kDopplerBinCount}, output);
+    std::ifstream image(output, std::ios::binary);
+    std::string magic;
+    std::size_t width = 0;
+    std::size_t height = 0;
+    int maximum = 0;
+    image >> magic >> width >> height >> maximum;
+    require(magic == "P5" &&
+                width == radar_qt_example::kDopplerBinCount &&
+                height == range_bins && maximum == 255,
+            "RDMap PGM dimensions are invalid");
+    image.close();
+    std::filesystem::remove(output);
 }
 
 }  // namespace
@@ -103,7 +134,7 @@ void test_placeholder_algorithm() {
 int main() {
     try {
         test_contract_sizes();
-        test_sequence_validation();
+        test_sequence_resynchronization();
         test_placeholder_algorithm();
         std::cout << "rd-algorithm-test: PASS\n";
         return 0;
