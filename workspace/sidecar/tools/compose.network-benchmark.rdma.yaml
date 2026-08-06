@@ -1,7 +1,9 @@
+version: "2.4"
+
 services:
   sidecar-test:
     environment:
-      SIDECAR_UCX_DATA_PATH: strict-rdma
+      SIDECAR_DOWNSTREAM_DATA_PATH: strict-rdma
       UCX_PROTO_INFO: "y"
     devices:
       - /dev/infiniband:/dev/infiniband

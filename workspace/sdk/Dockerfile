@@ -11,7 +11,7 @@ RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy \
 
 # 2. 拷贝底层依赖与 SDK 源码并执行编译
 WORKDIR /src
-COPY workspace/common/ringbuf/ ./common/ringbuf/
+COPY workspace/common/ ./common/
 COPY workspace/sdk/ ./sdk/
 RUN cmake -S sdk -B sdk-build \
        -DCMAKE_BUILD_TYPE=Release \
@@ -23,6 +23,8 @@ RUN cmake -S sdk -B sdk-build \
 # 最终交付的“算法底层基座镜像”
 # ==============================================================================
 FROM ${BASE_IMAGE} AS algo-base
+
+LABEL io.uestcradar.contract="algo-base/v2"
 
 ENV DEBIAN_FRONTEND=noninteractive
 

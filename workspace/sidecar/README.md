@@ -1,209 +1,205 @@
-# Sidecar 通信代理架构设计规范 (Sidecar Architecture)
+# Sidecar 双 Leg 网关
 
-> 架构原则：**依赖解耦 (Dependency Decoupling)** 与 **组合根模式 (Composition Root Pattern)**
->
-> 核心目标：模块物理解耦、接口最窄化、控制逻辑统一由 `main.cpp` 组装，支持多 Sidecar 跨节点级联。
-
----
-
-## 1. 物理架构拓扑与多 Sidecar 协同关系
-
-在分布式流水线集群中，**每台物理节点/容器独立运行一个 Sidecar 通信代理**。多个 Sidecar 之间通过极简网络模块 (`network/`) 构成点对点的串行数据传输链路：
+Sidecar 是载荷无关的 C++ 数据网关。单个进程拥有两个彼此独立的网络 Leg 和
+两个 fixed-slot SPSC 共享内存 Ring：
 
 ```text
- 节点 1 (Node A)                                            节点 2 (Node B)
-┌──────────────────────────────────────┐                   ┌──────────────────────────────────────┐
-│ 算法进程 A (Worker A)                 │                   │ 算法进程 B (Worker B)                 │
-└──────────────────┬───────────────────┘                   └──────────────────▲───────────────────┘
-                   │ POSIX Shm (/upstreambuf)                                 │ POSIX Shm (/downstreambuf)
-┌──────────────────▼───────────────────┐                   ┌──────────────────┴───────────────────┐
-│ Sidecar 代理 A (Agent A)             │                   │ Sidecar 代理 B (Agent B)             │
-│                                      │                   │                                      │
-│  [ringbuf 模块]                      │                   │  [ringbuf 模块]                      │
-│        │ (零拷贝读取)                 │                   │        ▲ (零拷贝写入)                │
-│        ▼                             │                   │        │                             │
-│  [forwarder 模块]                    │                   │  [forwarder 模块]                    │
-│   (死循环搬运 / 依赖注入)             │                   │   (死循环搬运 / 依赖注入)             │
-│        │                             │                   │        ▲                             │
-│        ▼                             │                   │        │                             │
-│  [network 模块]                      │   物理 RDMA/UCX   │  [network 模块]                      │
-│   (UCP Tag Send) ────────────────────┼───────────────────┼───► (UCP Tag Recv)                   │
-└──────────────────┬───────────────────┘                   └──────────────────┬───────────────────┘
-                   │ 100ms 单向 UDP                                           │ 100ms 单向 UDP
-                   ▼                                                          ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                              中央监控服务 (telemetry-web 容器)                                  │
-└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+上游 Sidecar -> UCX -> Upstream Leg -> Input SHM -> Worker
+Worker -> Output SHM -> Downstream Leg -> UCX -> 下游 Sidecar
 ```
 
----
+中间算子节点不再需要两个 Sidecar 容器。Upstream 只负责入站，Downstream
+只负责出站；每条 Leg 可独立 `disabled`、`listen` 或 `connect`，因此同一二进制
+原生支持 Source、Operator 和 Sink。
 
-## 2. 多个 Sidecar 代理之间的物理关系与协同规则
+## 模块边界
 
-多个 Sidecar 代理之间（例如 Sidecar A ➔ Sidecar B ➔ Sidecar C）遵循以下纯粹的物理协同规则：
+- `main.cpp`：组合根。解析配置，创建两块 SHM，启动 Telemetry 和两个 Leg
+  线程，分别管理建链、重试和 UCX 内存注册。
+- `forwarder/`：连接 Ring 与 UCX 的单向数据泵；不创建 endpoint 或 SHM，
+  不解析 Payload。
+- `network/`：UCX UCP Tag 传输和 `ucp_mem_map` 封装；不依赖 RingBuffer。
+- `telemetry/`：只读采样两块 Ring 的水位，不进入主数据路径。
+- `../common/ringbuf/`：Sidecar 与 Worker SDK 共享的 SHM ABI。
 
-1. **点对点对等关系 (Peer-to-Peer)**：
-   - 各节点 Sidecar 物理地位对等，不设立主从 (Master-Slave) 节点；
-   - 依赖静态配置（如 `PEER_HOST`, `PEER_PORT`）建立专用的点对点 RDMA/UCX 通信通道。
-2. **单向物理数据管道 (Unidirectional Data Pipe)**：
-   - Sidecar 从本机 worker 写入的 `/downstreambuf` 零拷贝读取数据，通过 `forwarder` 泵入网络；
-   - Sidecar 从网络接收字节流，通过 `forwarder` 直接写入本机 `/upstreambuf` 给 worker 消费。
-3. **解耦的旁路监控拓扑 (Decoupled Telemetry)**：
-   - 多个 Sidecar 分别独立向中央 `telemetry-web` 节点点对点发送 100ms UDP 监控快照；
-   - 中央监控节点仅为只读观察者，Sidecar 之间的主通信链路完全脱离监控节点的干预。
+基础设施模块 `network` 与 `ringbuf` 禁止互相依赖。所有资源所有权仍集中在
+`main.cpp`，算法逻辑只允许出现在 Worker 或 `tools/` 测试程序中。
 
----
+## Leg 配置
 
-## 3. 内部模块职责与物理解耦边界
+Sidecar 启动时总会创建两块 SHM 并启动 Telemetry。Worker 可以稍后启动，通过
+SDK 自动等待并挂载。网络配置如下：
 
-系统的物理指挥官 `main.cpp`（组合根 Composition Root）负责在启动时统一实例化 RingBuffer、UCXTransport、注册内存、Forwarder 与 Telemetry。
+| 配置 | 含义 |
+| --- | --- |
+| `SIDECAR_UPSTREAM_ROLE` | `disabled` / `listen` / `connect`，默认 `listen` |
+| `SIDECAR_DOWNSTREAM_ROLE` | `disabled` / `listen` / `connect`，默认 `disabled` |
+| `SIDECAR_<LEG>_BIND_HOST` | listen 地址，默认 `0.0.0.0` |
+| `SIDECAR_<LEG>_PEER_HOST` | connect 地址，默认 `127.0.0.1` |
+| `SIDECAR_<LEG>_PEER_NODE_ID` | 遥测拓扑中的对端节点 ID |
+| `SIDECAR_<LEG>_PORT` | 独立端口；Upstream 默认 13337，Downstream 默认 13338 |
+| `SIDECAR_<LEG>_CONNECT_TIMEOUT_MS` | 单次建链超时，默认 2000 ms |
+| `SIDECAR_<LEG>_DATA_PATH` | `functional` 强制 TCP；`strict-rdma` 强制 RC/RDMA |
+| `SIDECAR_<LEG>_SHM_NAME` | Sidecar 创建的显式 SHM 名称 |
 
-```text
-                                  main.cpp (组合根 Composition Root)
-                              ┌──────────────────────────────────────┐
-                              │ - 读取环境变量与节点参数            │
-                              │ - 实例化并依赖注入 (DI) 各独立模块   │
-                              │ - 统一捕获信号 (SIGINT/SIGTERM)      │
-                              └──────┬───────────┬───────────┬───────┘
-                                     │           │           │
-                   ┌─────────────────┘           │           └─────────────────┐
-                   │ (后台旁路运行)              │ (句柄与资源注入)            │ (句柄与资源注入)
-                   ▼                             ▼                             ▼
-   ┌───────────────────────────────┐ ┌───────────────────────────────┐ ┌───────────────────────────────┐
-   │  telemetry 模块 (旁路导出)    │ │    forwarder 模块 (数据泵)    │ │   底层基础设施 (Ring/Net)     │
-   ├───────────────────────────────┤ ├───────────────────────────────┤ ├───────────────────────────────┤
-   │ - 纯粹负责 100ms UDP 指标导出 │ │ - 纯粹负责 while 循环高性能搬运│ │ - ringbuf: 纯处理 POSIX Shm │
-   │ - 绝对不持有用主 Data Buffer  │ │ - 专注 CPU 绑核与背压调优     │ │ - network: 纯处理原生 UCX   │
-   │ - 彻底不感知网络/Shm 实现     │ │ - 负责缝合桥接 Ring 与 Net 接口│ │ - 此二者互相绝对物理隔离隔离 │
-   └───────────────────────────────┘ └───────────────────────────────┘ └───────────────────────────────┘
-```
+这里 `<LEG>` 是 `UPSTREAM` 或 `DOWNSTREAM`。每块 Ring 另有：
 
-### 3.1 `common/ringbuf/` 模块（本机 Shm 数据面基础设施）
+- `SIDECAR_<LEG>_SLOT_COUNT`
+- `SIDECAR_<LEG>_MAX_PAYLOAD_BYTES`
+- `SIDECAR_<LEG>_TYPE_ID`
+- `SIDECAR_<LEG>_TYPE_VERSION`
 
-* **物理使命**：提供共享内存缓冲区的创建、映射与无锁零拷贝读写；
-* **解耦规则**：纯粹处理本机内存，100% 不感知网络模块、Telemetry 模块以及 Forwarder 的存在。
+Worker SDK 使用 `UESTCRADAR_UPSTREAM_SHM_NAME` 和
+`UESTCRADAR_DOWNSTREAM_SHM_NAME`；Compose 必须把它们设为对应 Sidecar SHM
+名称。旧的 `SIDECAR_UCX_*` 含义含混，现已被明确拒绝，而不是静默映射。
 
-### 3.2 `network/` 模块（跨机物理传输通道 基础设施）
+拓扑配置：
 
-* **物理使命**：封装最基础的 UCX (UCP) / libibverbs 原生底层 API（`ucp_init`, `ucp_tag_send_nbx` 等）；
-* **解耦规则**：仅专注于字节流在物理网卡间的搬运，不理解 Payload 业务含义，不与 `ringbuf` 产生交叉依赖。
+| 节点 | Upstream | Downstream |
+| --- | --- | --- |
+| Source | disabled | listen/connect |
+| Operator | listen/connect | listen/connect |
+| Sink | listen/connect | disabled |
 
-### 3.3 `telemetry/` 模块（旁路观察者）
+listen/connect 只决定谁发起连接，不改变数据方向。
 
-* **物理使命**：定时（100ms）调用 `main.cpp` 注入的快照回调，打包非阻塞 UDP 发往中央 Web 监控节点；
-* **解耦规则**：不引用 `ringbuf`，不调用共享内存 API。崩溃或丢包绝不回压主数据链路，由 `main.cpp` 拉起为后台旁路线程。
+## 实时语义与背压
 
-### 3.4 `forwarder/` 模块（转发引擎/数据泵）
+建链后双方交换单端口契约：Producer 的 `type_id/type_version` 必须与 Consumer
+一致，且 Producer 最大帧长不能超过 Consumer Slot。每条连接最多一个 Credit
+和一个 Payload 在途。Consumer 只有成功预留 Input Slot 后才发 Credit，所以
+Ring 满会自然逐级背压；Payload 直接收发于已经注册的 Ring Slot。
 
-* **物理使命**：充当高速公路的“搬运工”，将 `ringbuf` 与 `network` 的读写 API 无缝桥接在一起，在极其紧凑的死循环中极限压榨 CPU 完成搬运。
-* **解耦规则**：遵循奥卡姆剃刀，不负责底层资源生命周期的创建与销毁（如不由它去调 `shm_open`），所有资源通过 `main.cpp` 注入。只做盲目的字节搬运，坚决不含业务解析。
+系统采用实时流语义，不增加应用层 ACK、重传、去重或历史帧恢复：
 
-### 3.5 `main.cpp`（物理组合根 Composition Root）
+- 入站连接失败时取消尚未提交的 Input Slot。
+- 出站连接失败时释放当前读租约，并丢弃断链期间积压的 Output 帧。
+- 单 Leg 建链或重连失败只重试该线程，不销毁另一 Leg、SHM、Telemetry 或进程。
+- 恢复连接后只传新产生的实时帧。
 
-* **物理使命**：全局唯一的物理控制中心，负责解析配置、创建底层句柄，然后将句柄注入给 `forwarder` 和 `telemetry`；全盘接管进程生命周期。
-* **解耦红线**：严禁在此堆砌任何雷达业务的模拟数据生产与消费逻辑。临时网络仿真仅可作为 `tools/` 的可替换测试适配器，由 `main.cpp` 注入既有 RingBuffer 后调用。
+TCP/UCX 负责连接存续期内的可靠字节传输。上述策略有意避免雷达历史数据在
+恢复后形成无意义的突发积压。
 
----
+## 链路遥测
 
-## 4. 目录与物理文件结构
+Sidecar 每 100ms 从独立线程旁路读取两个 Leg 的连接原子状态、累计 Payload 字节和
+Ring 头。节点 Offline 只由中央 Collector 的 3 秒心跳租约决定；Sidecar 在线但
+Leg 未连接时只上报 `disconnected`。Ring 水位超过 70% 由 Collector 判为节点
+Warning，Leg 状态不参与节点 Offline 判定。
 
-```text
-workspace/sidecar/
-├── README.md               # 本架构设计规范文档
-├── main.cpp                # 唯一组合根：配置、资源组装与主循环
-├── telemetry/              # 监控
-│   ├── README.md           # 监控模块极简设计规范
-│   ├── telemetry.hpp
-│   └── telemetry.cpp
-├── tools/                  # 外部全链路测试工具
-│   ├── network_benchmark.cpp
-│   └── compose.network-benchmark.yaml
-├── network/                # 极简 UCX / RDMA 物理网络搬运模块
-│   ├── README.md           # 网络模块极简设计规范
-│   ├── ucx_transport.hpp   # UCXTransport 声明
-│   ├── ucx_transport.cpp   # 最基础 UCX/UCP API 调用
-│   ├── transport_test.cpp  # 独立功能测试
-│   └── benchmark.cpp       # 双端吞吐与 RTT 基线
-└── forwarder/              # 数据转发引擎/搬运工
-    ├── README.md           # 转发引擎模块设计规范（奥卡姆剃刀法则）
-    ├── forwarder.hpp       # 引擎接口与状态声明
-    ├── forwarder.cpp       # 引擎双向状态机
-    ├── forwarder_protocol.hpp
-    └── forwarder_test.cpp
-```
+## 零拷贝边界
 
-`ringbuf` 的物理位置为 `workspace/common/ringbuf/`，它是 Sidecar 与 SDK 共享的 ABI 契约，不属于任一方的私有实现。
+Worker 与 Sidecar 之间通过 Ring Slot 就地读写。UCX Payload Send/Receive 也
+直接指向同一映射，并传入 `ucp_mem_map` 得到的 memh，不创建中间 Payload
+数组。`functional` 模式强制 TCP，仅证明功能；只有 `strict-rdma` 在可用 RC
+设备、锁页权限和 UCX zcopy/rendezvous 协议都验证后，才能把结果标记为 RDMA
+DMA 零拷贝。
 
----
-
-## 5. 架构约束与红线 (Architecture Rules)
-
-1. **零横向交叉依赖红线**：基础设施层的 `ringbuf` 与 `network` 之间**绝对禁止出现任何形式的头文件互相 `#include`**；
-2. **严格层级规则**：仅允许处于应用调度层的 `forwarder`、`main.cpp` 和测试期 `tools/` 适配器引用基础设施层的头文件（允许向下依赖）。
-3. **极致轻量红线**：网络模块只允许封装最底层的 UCX 原生 API，绝不引入复杂的 RPC 框架或动态路由表。
-4. **控制反转 (IoC)**：所有底层资源建立与销毁，必须统一发生于 `main.cpp`（组合根）中，严禁在 `forwarder` 中私下创建共享内存或网卡端点。
-
----
-
-## 6. 当前启动模型
-
-`sidecar` 不接收模式参数。进程启动后创建 upstream 和 downstream 两个
-fixed-slot SPSC 记录环，在后台持续尝试建立双向 UCX endpoint，并立即启动
-Telemetry。Forwarder 使用 credit 协调接收 Slot，网络只搬运 Slot 的有效
-Payload；发送完成后释放源 Slot，接收成功且长度合法后提交目标 Slot。
-
-Compose 为每个节点启动一个 Sidecar 和一个共享 IPC namespace 的实际 worker：
+## 构建与测试
 
 ```bash
-SLOT_COUNT=64 MAX_PAYLOAD_BYTES=262144 \
-docker compose -f workspace/sidecar/tools/compose.e2e-benchmark.yaml \
-  up --build --abort-on-container-exit
+cmake -S workspace/sidecar -B build/sidecar -DBUILD_TESTING=ON
+cmake --build build/sidecar --parallel
+ctest --test-dir build/sidecar --output-on-failure
+
+workspace/sidecar/tools/run_cascade_test.sh correctness
+workspace/sidecar/tools/run_cascade_test.sh benchmark
 ```
 
-每个方向通过以下环境变量配置，不新增配置文件：
+## Ubuntu ARM64 镜像发布
 
-- `SIDECAR_{UPSTREAM,DOWNSTREAM}_SLOT_COUNT`
-- `SIDECAR_{UPSTREAM,DOWNSTREAM}_MAX_PAYLOAD_BYTES`
-- `SIDECAR_{UPSTREAM,DOWNSTREAM}_TYPE_ID`
-- `SIDECAR_{UPSTREAM,DOWNSTREAM}_TYPE_VERSION`
-- `UESTCRADAR_{UPSTREAM,DOWNSTREAM}_SHM_NAME`
-- `SIDECAR_UCX_ROLE`、`SIDECAR_UCX_{BIND_HOST,PEER_HOST,PORT}`
-- `SIDECAR_UCX_CONNECT_TIMEOUT_MS`、`SIDECAR_UCX_DATA_PATH`
+生产测试使用仓库中已经固定 Digest 的 Ubuntu `build-base` 和 `runtime-base`。
+只有基础依赖、UCX、编译器或系统包发生变化时，才需要更新两个基础镜像。SDK 5
+只收敛 Worker 的公开 C++ 接口，RawFrame ABI、Ring ABI、Contract 和 Sidecar
+协议均未改变，因此 Sidecar 与两个基础镜像无需随本次 SDK 升级重建；算法镜像、
+signalsource 和 cascade-worker 需要基于 SDK 5 重新构建。
 
-原生 `UCX_TLS` 等 UCX 参数保持原名。`shm_size` 至少应覆盖两个 Ring 的
-`4096 + slot_count × align64(64 + max_payload_bytes)` 之和并留余量。
-端点暂不可用时 Sidecar 保持 Ring 和遥测存活，在后台重试。
+每次发布同时维护两个 Tag：
 
-端到端 Benchmark 的生产速率可用 `RATE_MIB_S` 限制；非零时按
-`WAVE_PERIOD_SECONDS` 制造波峰波谷。容器分别输出 producer 与 consumer 的
-JSON 指标。Docker Compose 用同一宿主机的 monotonic clock 统计单向延迟；跨
-物理机执行 P50/P99 前必须先使用 PTP 等方式校时。
+- `dual-leg-${GIT_SHA}-arm64`：不可覆盖的版本 Tag，用于审计和回滚。
+- `latest`：可变测试 Tag，每次发布覆盖，服务器的 env 只需配置一次。
 
----
-
-## 7. Sidecar 镜像构建与发布流程
-
-> **⚠️ 注意：本目录仅供基建维护人员阅读**
->
-> 本目录包含了雷达分布式通信代理 Sidecar 的源码。算法开发与部署人员无需自行编译源码，只需要拉取构建发布的 `sidecar` 镜像即可在基础设施 Compose 环境或 Kubernetes 中运行。
-
-### 构建并发布 Sidecar 运行镜像
-
-当您修改了 `sidecar` 的底层 UCX 网络传输、Forwarder 转发引擎或 Telemetry 监控逻辑后，需要重新打包 Sidecar 运行镜像并推送到私有仓库。
-
-请按照以下步骤执行发布：
+在仓库根目录执行：
 
 ```bash
-# 1. 必须退回项目根目录执行构建（以包含 common/ringbuf、sdk 及 proto 依赖）
-cd ../../../
-docker build --target runtime -t registry.chengyistudio.com/cxx/sidecar:latest -f workspace/sidecar/Dockerfile .
+GIT_SHA="$(git rev-parse --short HEAD)"
+SIDECAR_REPO=registry.chengyistudio.com/cxx/sidecar
+VERSION_IMAGE="${SIDECAR_REPO}:dual-leg-${GIT_SHA}-arm64"
+LATEST_IMAGE="${SIDECAR_REPO}:latest"
+CASCADE_REPO=registry.chengyistudio.com/cxx/cascade-worker
+CASCADE_VERSION_IMAGE="${CASCADE_REPO}:raw-frame-${GIT_SHA}-arm64"
+CASCADE_LATEST_IMAGE="${CASCADE_REPO}:latest"
 
-# 2. 标记特定的稳定版本号 (推荐)
-docker tag registry.chengyistudio.com/cxx/sidecar:latest registry.chengyistudio.com/cxx/sidecar:0.1.0
+docker buildx build \
+  --builder default \
+  --platform linux/arm64 \
+  --target runtime \
+  -f workspace/sidecar/Dockerfile \
+  -t "${VERSION_IMAGE}" \
+  --load \
+  .
 
-# 3. 登录并推送至私有镜像源
-docker login registry.chengyistudio.com
-docker push registry.chengyistudio.com/cxx/sidecar:latest
+docker image inspect "${VERSION_IMAGE}" \
+  --format 'id={{.Id}} arch={{.Architecture}} os={{.Os}}'
+
+docker run --rm --platform linux/arm64 \
+  --entrypoint sh "${VERSION_IMAGE}" \
+  -c 'test "$(uname -m)" = aarch64 && ucx_info -v && ldd /app/sidecar'
+
+docker buildx build \
+  --builder default \
+  --platform linux/arm64 \
+  --target cascade-worker \
+  -f workspace/sidecar/Dockerfile \
+  -t "${CASCADE_VERSION_IMAGE}" \
+  --load \
+  .
+
+docker tag "${VERSION_IMAGE}" "${LATEST_IMAGE}"
+docker tag "${CASCADE_VERSION_IMAGE}" "${CASCADE_LATEST_IMAGE}"
+docker push "${VERSION_IMAGE}"
+docker push "${LATEST_IMAGE}"
+docker push "${CASCADE_VERSION_IMAGE}"
+docker push "${CASCADE_LATEST_IMAGE}"
 ```
 
-发布完成后，算法模块的 `docker-compose.infra.yaml` 配置文件即可直接拉取并运行最新版本的 Sidecar 代理了。
+推送日志会返回 Registry Digest。可用以下命令回读确认：
+
+```bash
+docker buildx imagetools inspect "${LATEST_IMAGE}"
+```
+
+> [!IMPORTANT]
+> `latest` 会被覆盖，适合持续生产测试，但不能作为审计依据。测试结果必须同时记录
+> 对应的版本 Tag 或 `repository@sha256:...` Digest。
+
+### 服务器固定使用 latest
+
+每台服务器的 env 只配置一次：
+
+```env
+SIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
+CASCADE_IMAGE=registry.chengyistudio.com/cxx/cascade-worker:latest
+TYPE_ID=1
+TYPE_VERSION=3
+```
+
+以后发布新版本不再修改 env。Docker 18.09 不会因为远端 Tag 变化自动替换本地镜像，
+因此每次测试前显式拉取 `latest`，然后强制重建 Sidecar 容器：
+
+```bash
+docker pull "$SIDECAR_IMAGE"
+docker pull "$CASCADE_IMAGE"
+
+docker-compose --env-file "$ENV_FILE" -p "$PROJECT" \
+  -f "$COMPOSE" up -d --no-build --force-recreate sidecar-node worker-node
+
+docker-compose --env-file "$ENV_FILE" -p "$PROJECT" \
+  -f "$COMPOSE" logs --no-color sidecar-node
+```
+
+该流程兼容 Docker Engine 18.09 和 `docker-compose` v1，不使用 `docker compose`、
+`init: true` 或 `up --pull never`。
+
+本地三节点 Compose 与测试参数见 [tools/README.md](tools/README.md)，三台 RDMA
+主机计划见 [tools/DISTRIBUTED_CASCADE_TEST.md](tools/DISTRIBUTED_CASCADE_TEST.md)。

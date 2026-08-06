@@ -1,36 +1,39 @@
-# ==============================================================================
-# 第一阶段：编译阶段 (Builder)
-# 基于最新发布的 algo-base 镜像，该镜像已预装了 cycomm_sdk 头文件和 CMake 配置
-# ==============================================================================
-FROM registry.chengyistudio.com/cxx/algo-base:latest AS builder
+# syntax=docker/dockerfile:1
+ARG ALGO_BASE=registry.chengyistudio.com/cxx/algo-base:latest
 
-# 安装 Qt5 Core 开发包
-RUN apt-get update && apt-get install -y --no-install-recommends \
+FROM ${ALGO_BASE} AS builder
+
+RUN sed -i \
+        's|http://ports.ubuntu.com/ubuntu-ports/|http://mirrors.aliyun.com/ubuntu-ports/|g' \
+        /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
     qtbase5-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
-COPY . .
+COPY CMakeLists.txt ./
+COPY src/ ./src/
 
-WORKDIR /build
-# 使用 CMake 编译 Qt5 工程
-RUN cmake /src \
-    -DCMAKE_BUILD_TYPE=Release \
-    && make -j$(nproc)
+RUN cmake -S /src -B /build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTING=ON \
+        -DBUILD_INFRA=OFF \
+    && cmake --build /build --parallel \
+        --target qt5-algorithm rd-algorithm-test \
+    && ctest --test-dir /build --output-on-failure
 
-# ==============================================================================
-# 第二阶段：运行阶段 (Runtime)
-# 同样基于 algo-base，保证底层运行时库的一致性，补充 Qt5 运行库
-# ==============================================================================
-FROM registry.chengyistudio.com/cxx/algo-base:latest
+FROM ${ALGO_BASE}
 
-# 仅安装运行所需的库 (libqt5core5a)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libqt5core5a \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /build/qt5_algo .
+COPY --from=builder /build/qt5-algorithm /app/qt5-algorithm
 
-# 设定程序的入口点
-ENTRYPOINT ["/app/qt5_algo"]
+ENTRYPOINT ["/app/qt5-algorithm"]
+
+LABEL io.uestcradar.contract="worker/v2" \
+      io.uestcradar.roles="operator" \
+      io.uestcradar.input="2:2" \
+      io.uestcradar.output="3:2"

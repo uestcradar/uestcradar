@@ -8,33 +8,43 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
+	"uestcradar/telemetry/internal/orchestration"
+	previewserver "uestcradar/telemetry/internal/preview"
 	pb "uestcradar/telemetry/internal/telemetrypb"
 	webassets "uestcradar/telemetry/web"
 )
 
 const (
 	nodeLeaseTTL     = 3 * time.Second
-	nodeScanInterval = 500 * time.Millisecond
+	nodeScanInterval = 100 * time.Millisecond
 )
 
-// Config controls UDP ingestion, HTTP serving, and bounded history.
+// Config controls UDP ingestion and HTTP/WebSocket serving.
 type Config struct {
-	UDPAddress  string
-	HTTPAddress string
-	HistorySize int
+	UDPAddress        string
+	PreviewTCPAddress string
+	HTTPAddress       string
+	TLSCertFile       string
+	TLSKeyFile        string
+	AdvertiseHost     string
+	AllowInsecureHTTP bool
 }
 
 // ConfigFromEnv returns server configuration from environment variables.
 func ConfigFromEnv() Config {
 	return Config{
-		UDPAddress:  envOr("TELEMETRY_UDP_ADDR", ":9900"),
-		HTTPAddress: envOr("TELEMETRY_HTTP_ADDR", ":8080"),
-		HistorySize: intOr("HISTORY_SIZE", 600),
+		UDPAddress:        envOr("TELEMETRY_UDP_ADDR", ":9900"),
+		PreviewTCPAddress: envOr("PREVIEW_TCP_ADDR", ":9901"),
+		HTTPAddress:       envOr("TELEMETRY_HTTP_ADDR", ":8080"),
+		TLSCertFile:       os.Getenv("TELEMETRY_TLS_CERT_FILE"),
+		TLSKeyFile:        os.Getenv("TELEMETRY_TLS_KEY_FILE"),
+		AdvertiseHost:     os.Getenv("TELEMETRY_ADVERTISE_HOST"),
+		AllowInsecureHTTP: os.Getenv("TELEMETRY_ALLOW_INSECURE_HTTP") == "true",
 	}
 }
 
@@ -43,20 +53,36 @@ func Run(parent context.Context, config Config) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
-	store := NewStore(config.HistorySize)
-	go scanNodeLeases(ctx, store, nodeLeaseTTL, nodeScanInterval)
+	store := NewStore()
+	hub := NewHub(store)
+	secureHTTP := config.TLSCertFile != "" && config.TLSKeyFile != ""
+	if !secureHTTP && !config.AllowInsecureHTTP && !loopbackAddress(config.HTTPAddress) {
+		return fmt.Errorf("TLS certificate and key are required for non-loopback HTTP")
+	}
+	orchestrator := orchestration.NewService(config.AdvertiseHost, secureHTTP)
+	preview := previewserver.NewService()
+	go hub.Run(ctx)
+	go scanNodeLeases(ctx, store, hub, nodeLeaseTTL, nodeScanInterval)
 
 	httpServer := &http.Server{
 		Addr:              config.HTTPAddress,
-		Handler:           newHTTPHandler(store),
+		Handler:           newHTTPHandler(store, hub, orchestrator, preview),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	errorsChannel := make(chan error, 2)
+	errorsChannel := make(chan error, 3)
 	go func() {
-		errorsChannel <- receiveUDP(ctx, config.UDPAddress, store)
+		errorsChannel <- preview.RunTCP(ctx, config.PreviewTCPAddress)
 	}()
 	go func() {
-		err := httpServer.ListenAndServe()
+		errorsChannel <- receiveUDP(ctx, config.UDPAddress, store, hub)
+	}()
+	go func() {
+		var err error
+		if secureHTTP {
+			err = httpServer.ListenAndServeTLS(config.TLSCertFile, config.TLSKeyFile)
+		} else {
+			err = httpServer.ListenAndServe()
+		}
 		if errors.Is(err, http.ErrServerClosed) {
 			err = nil
 		}
@@ -84,21 +110,32 @@ func Run(parent context.Context, config Config) error {
 	return runError
 }
 
-func newHTTPHandler(store *Store) http.Handler {
+func newHTTPHandler(store *Store, hub *Hub, orchestrationHandlers ...http.Handler) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if _, err := writer.Write(webassets.Index); err != nil {
-			return
-		}
-	})
-	mux.HandleFunc("/api/metrics", func(writer http.ResponseWriter, _ *http.Request) {
-		writeJSON(writer, store.MetricsSnapshot())
+	mux.HandleFunc("/api/snapshot", func(writer http.ResponseWriter, _ *http.Request) {
+		writeJSON(writer, store.Snapshot(time.Now()))
 	})
 	mux.HandleFunc("/api/nodes", func(writer http.ResponseWriter, _ *http.Request) {
-		writeJSON(writer, store.NodesSnapshot())
+		writeJSON(writer, store.Snapshot(time.Now()).Nodes)
 	})
+	mux.HandleFunc("/ws", hub.ServeWebSocket)
+	if len(orchestrationHandlers) > 0 && orchestrationHandlers[0] != nil {
+		mux.Handle("/api/v1/", orchestrationHandlers[0])
+	}
+	if len(orchestrationHandlers) > 1 && orchestrationHandlers[1] != nil {
+		mux.Handle("/ws/frames", orchestrationHandlers[1])
+	}
+	mux.Handle("/", http.FileServer(http.FS(webassets.Files())))
 	return mux
+}
+
+func loopbackAddress(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+	host = strings.Trim(host, "[]")
+	return host == "localhost" || net.ParseIP(host).IsLoopback()
 }
 
 func writeJSON(writer http.ResponseWriter, value any) {
@@ -111,6 +148,7 @@ func writeJSON(writer http.ResponseWriter, value any) {
 func scanNodeLeases(
 	ctx context.Context,
 	store *Store,
+	hub *Hub,
 	ttl time.Duration,
 	interval time.Duration,
 ) {
@@ -119,14 +157,21 @@ func scanNodeLeases(
 	for {
 		select {
 		case now := <-ticker.C:
-			store.MarkOffline(now, ttl)
+			if store.MarkOffline(now, ttl) {
+				hub.Notify()
+			}
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func receiveUDP(ctx context.Context, address string, store *Store) error {
+func receiveUDP(
+	ctx context.Context,
+	address string,
+	store *Store,
+	hub *Hub,
+) error {
 	connection, err := net.ListenPacket("udp", address)
 	if err != nil {
 		return fmt.Errorf("listen UDP: %w", err)
@@ -160,8 +205,8 @@ func receiveUDP(ctx context.Context, address string, store *Store) error {
 			continue
 		}
 		receivedAt := time.Now()
-		for _, metric := range packet.Rings {
-			store.Update(metric, receivedAt)
+		if store.UpdateHeartbeat(packet.Heartbeat, receivedAt) {
+			hub.Notify()
 		}
 	}
 }
@@ -171,16 +216,4 @@ func envOr(name string, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-func intOr(name string, fallback int) int {
-	value := os.Getenv(name)
-	if value == "" {
-		return fallback
-	}
-	result, err := strconv.Atoi(value)
-	if err != nil || result < 1 {
-		return fallback
-	}
-	return result
 }
