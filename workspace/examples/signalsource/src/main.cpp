@@ -57,13 +57,6 @@ int main(int argc, char** argv) {
         const auto cpis = radar_example::load_cpi_sequence(options.data_root);
         uestcradar::Output<uestcradar::IQFrame> output;
 
-        std::cout << "[source] IQ v3 offline CPI sequence ready"
-                  << " data_root=" << options.data_root
-                  << " offline_cpis=" << cpis.size()
-                  << " samples=" << cpis.front().metadata.samples_per_channel
-                  << " pulses=" << cpis.front().metadata.pulse_count
-                  << " frames=" << options.frames << '\n';
-
         std::uint64_t sent = 0;
         while (options.frames == 0 || sent < options.frames) {
             const std::size_t offline_index =

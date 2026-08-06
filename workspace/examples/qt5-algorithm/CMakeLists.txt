@@ -16,11 +16,7 @@ add_executable(qt5-algorithm src/main.cpp)
 configure_sdk_executable(qt5-algorithm)
 target_link_libraries(qt5-algorithm PRIVATE Qt5::Core)
 
-if(BUILD_INFRA AND
-   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/infra/pc_signalsource.cpp")
-    add_executable(pc-signalsource src/infra/pc_signalsource.cpp)
-    configure_sdk_executable(pc-signalsource)
-
+if(BUILD_INFRA)
     add_executable(rd-sink src/infra/rd_sink.cpp)
     configure_sdk_executable(rd-sink)
 endif()
@@ -31,7 +27,7 @@ if(BUILD_TESTING)
     target_link_libraries(rd-algorithm-test PRIVATE Qt5::Core)
     add_test(NAME rd-algorithm-test COMMAND rd-algorithm-test)
 
-    if(TARGET pc-signalsource)
+    if(TARGET rd-sink)
         add_executable(infra-test src/infra/infra_test.cpp)
         configure_sdk_executable(infra-test)
         add_test(NAME infra-test COMMAND infra-test)

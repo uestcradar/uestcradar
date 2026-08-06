@@ -50,7 +50,7 @@ services:
         condition: service_healthy
 
   signalsource:
-    image: ${SIGNALSOURCE_IMAGE:-registry.chengyistudio.com/cxx/worker:signalsource-latest@sha256:c6833658a15367f4c4b115fa6391f563af26c7a04853519379f424da72c5feb9}
+    image: ${SIGNALSOURCE_IMAGE:-registry.chengyistudio.com/cxx/worker:signalsource-latest@sha256:9a3faffdcbd186c3aa0c024770f58eba4e3a7c25556e2b5847c3e32e9abb319c}
     platform: linux/arm64
     network_mode: host
     ipc: service:sidecar-a
@@ -130,20 +130,25 @@ services:
       retries: 90
 
   signalsink:
-    image: ${SIGNALSOURCE_IMAGE:-registry.chengyistudio.com/cxx/worker:signalsource-latest@sha256:c6833658a15367f4c4b115fa6391f563af26c7a04853519379f424da72c5feb9}
+    image: ${SIGNALSINK_IMAGE:-registry.chengyistudio.com/cxx/worker:signalsink-latest@sha256:b9d0b9468b56050f2c75d4218596b4ffd3dcf37e302ad3fb2ac8ebacea6c2eaa}
     platform: linux/arm64
     network_mode: host
     ipc: service:sidecar-c
     environment:
       UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_local_sink_up
-    entrypoint: ["/app/frame-sink"]
     command:
-      - --type
-      - pulse
       - --frames
       - "${SINK_FRAMES:-0}"
       - --log-every
       - "10"
+      - --target-range
+      - "20480"
+      - --target-half-width
+      - "8"
+      - --target-min-snr-db
+      - "10"
+      - --pulses-per-cpi
+      - "64"
     depends_on:
       sidecar-c:
         condition: service_healthy

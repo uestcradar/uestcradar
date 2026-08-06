@@ -18,16 +18,17 @@ RUN cmake -S /src -B /build \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_TESTING=ON \
     && cmake --build /build --parallel \
-        --target pc-signalsource rd-sink infra-test \
+        --target rd-sink infra-test \
     && /build/infra-test
 
 FROM ${ALGO_BASE}
 
 WORKDIR /app
-COPY --from=builder /build/pc-signalsource /app/pc-signalsource
 COPY --from=builder /build/rd-sink /app/rd-sink
 
+ENTRYPOINT ["/app/rd-sink"]
+
 LABEL io.uestcradar.contract="worker/v2" \
-      io.uestcradar.roles="source,sink" \
+      io.uestcradar.roles="sink" \
       io.uestcradar.input="3:2" \
-      io.uestcradar.output="2:2"
+      io.uestcradar.output="3:2"

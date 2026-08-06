@@ -56,12 +56,16 @@ int main(int argc, char** argv) {
              ++received) {
             auto frame = input.read();
             const auto data = frame.data();
-            const auto digest = radar_qt_example::verify_rd_frame(
+            const auto verification = radar_qt_example::verify_rd_frame(
                 frame.metadata(), data.values(), data.rows(), data.columns());
             if (received == 1 || received % options.log_every == 0) {
                 std::cout
-                    << "[PASSED] RDMap Frame Verification Success! sha256="
-                    << digest << " received=" << received << '\n';
+                    << "[PASSED] RDFrame received=" << received
+                    << " shape=" << data.rows() << 'x' << data.columns()
+                    << " peak_range=" << verification.peak_range_bin
+                    << " peak_doppler=" << verification.peak_doppler_bin
+                    << " magnitude=" << verification.peak_magnitude
+                    << " sha256=" << verification.digest << '\n';
             }
         }
         return 0;
