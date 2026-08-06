@@ -1,6 +1,8 @@
 # PulseCompression 算法开发基座
 
-本目录可以整体复制到任意开发目录后独立使用`docker-compose-infra.yaml` 提供黑盒测试基础设施；`docker-compose-worker.yaml` 只负责构建和启动开发者自己的 PulseCompression Worker。两者必须分开启动。
+本目录可以整体复制到任意开发目录后独立使用。`docker-compose-infra.yaml`
+提供黑盒数据源、Sidecar和独立 SignalSink；`docker-compose-worker.yaml` 只负责构建
+和启动开发者自己的 PulseCompression Worker。两者必须分开启动。
 
 示例算法仅将完整 CPI 的 CS16 按 `dequantization_scale` 转成 ComplexFloat32，用来证明
 SignalSource 输入正确。它不是脉冲压缩算法。
@@ -112,7 +114,28 @@ docker compose -f docker-compose-worker.yaml up
 docker compose -f docker-compose-infra.yaml logs -f signalsource signalsink
 ```
 
-通用 SignalSink 持续打印接收到的 PulseCompressionFrame 尺寸和峰值。示例代码还会校验CPI0–CPI9 的 IQ Metadata、64 元素脉冲参数、CS16 数据和循环顺序；SignalSink 可用于确认输出帧持续到达。
+示例Worker会校验CPI0–CPI9的 IQ Metadata、64元素脉冲参数、CS16数据和循环
+顺序，并打印：
+
+```text
+[pulsecompression] PASS processed=<n> ...
+```
+
+它只是反量化占位实现，输出Metadata中的`pulses_per_cpi=1`，因此独立SignalSink
+会明确跳过目标门控：
+
+```text
+[sink] target_validation=SKIPPED ... pulses_per_cpi=1
+```
+
+真实脉压算法应为每个CPI输出`pulse_index=0..63`的64个脉压帧。SignalSink会在
+20480±8门内进行10 dB门控SNR校验，每个完整CPI应持续输出：
+
+```text
+[sink] target_summary ... pulses=64 detected=64 missed=0 status=PASS
+```
+
+门控Sink源码和镜像工程位于`infra/sink`，与SignalSource完全独立。
 
 修改代码后只需重新执行：
 
@@ -133,6 +156,19 @@ docker compose -f docker-compose-infra.yaml down
 ```
 
 QEMU 环境只用于功能和正确性验证，不作为吞吐性能基准。
+
+需要执行“任意目标漏检立即失败”的640脉冲严格验收时，先停止常驻Sink以避免
+两个消费者读取同一Ring，再运行一次性Sink：
+
+```bash
+docker compose -f docker-compose-infra.yaml stop signalsink
+docker compose -f docker-compose-infra.yaml run --rm --no-deps signalsink \
+  --frames 640 --log-every 64 \
+  --target-range 20480 --target-half-width 8 \
+  --target-min-snr-db 10 --pulses-per-cpi 64 \
+  --fail-on-target-miss
+docker compose -f docker-compose-infra.yaml up -d signalsink
+```
 
 ### 第五步：发布正式镜像
 

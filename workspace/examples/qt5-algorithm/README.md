@@ -1,7 +1,11 @@
 # Qt5 距离多普勒（RDMap）算法开发基座
 
 本目录可以整体复制到任意开发目录后独立使用。它不依赖真实雷达硬件：
-`docker-compose-infra.yaml` 启动包含真实 CPI0～CPI9 数据的完整黑盒数据流，`docker-compose-worker.yaml` 只构建和运行开发者自己的 Qt5 RD Worker。开发链路为 `SignalSource → PulseCompression → RDMap（待开发）→ Sink`，一个 CPI 由连续的 64 个标准脉压帧组成。
+`docker-compose-infra.yaml` 启动包含真实 CPI0～CPI9 数据的完整黑盒数据流，
+`docker-compose-worker.yaml` 只构建和运行开发者自己的 Qt5 RD Worker。开发链路为
+`纯 SignalSource → PulseCompression → RDMap（待开发）→ RD Sink`，一个CPI由
+连续的64个标准脉压帧组成。末端Sink消费`RDFrame(3:2)`，与PulseCompression
+示例使用的门控SignalSink职责独立。
 
 ## 修改边界
 
