@@ -1,20 +1,20 @@
 function analyze_bin_gui
-%ANALYZE_BIN_GUI Select and scan one continuous CYHD BIN capture.
-%   Run ANALYZE_BIN_GUI from MATLAB.  Selecting a BIN starts scanning and
-%   writes <bin-stem>_record_info.mat beside the selected source file.
+%ANALYZE_BIN_GUI Validate and convert one continuous CYHD BIN capture.
 
     bgColor = [0.95, 0.96, 0.98];
     panelColor = [1.00, 1.00, 1.00];
     textColor = [0.10, 0.12, 0.16];
     secondaryColor = [0.35, 0.38, 0.45];
+    selectedBinPath = '';
+    cachedRecordInfo = struct([]);
 
     fig = uifigure( ...
-        'Name', 'CYHD BIN 数据质量检查', ...
-        'Position', [180, 120, 920, 620], ...
+        'Name', 'CYHD BIN 校验与保存', ...
+        'Position', [180, 90, 920, 700], ...
         'Color', bgColor);
 
-    rootGrid = uigridlayout(fig, [4, 1]);
-    rootGrid.RowHeight = {64, 28, 42, '1x'};
+    rootGrid = uigridlayout(fig, [5, 1]);
+    rootGrid.RowHeight = {64, 66, 28, 42, '1x'};
     rootGrid.Padding = [14, 14, 14, 14];
     rootGrid.RowSpacing = 10;
 
@@ -30,7 +30,7 @@ function analyze_bin_gui
 
     selectButton = uibutton(pathGrid, 'push', ...
         'Text', '选择 BIN 文件...', ...
-        'ButtonPushedFcn', @selectAndScan, ...
+        'ButtonPushedFcn', @selectFile, ...
         'BackgroundColor', [0.18, 0.42, 0.76], ...
         'FontColor', [1, 1, 1], ...
         'FontWeight', 'bold');
@@ -39,6 +39,44 @@ function analyze_bin_gui
         'Editable', 'off', ...
         'FontColor', secondaryColor, ...
         'BackgroundColor', [0.98, 0.98, 0.98]);
+
+    actionPanel = uipanel(rootGrid, ...
+        'Title', '操作', ...
+        'BackgroundColor', panelColor, ...
+        'ForegroundColor', textColor, ...
+        'FontWeight', 'bold');
+    actionGrid = uigridlayout(actionPanel, [1, 5]);
+    actionGrid.ColumnWidth = {70, 130, '1x', 150, 150};
+    actionGrid.Padding = [8, 4, 8, 4];
+    actionGrid.ColumnSpacing = 8;
+
+    uilabel(actionGrid, ...
+        'Text', 'PRI点数:', ...
+        'HorizontalAlignment', 'right', ...
+        'FontColor', textColor, ...
+        'FontWeight', 'bold');
+    priField = uieditfield(actionGrid, 'numeric', ...
+        'Value', 4096, ...
+        'Limits', [1, Inf], ...
+        'RoundFractionalValues', 'on', ...
+        'ValueDisplayFormat', '%.0f');
+    uilabel(actionGrid, ...
+        'Text', 'BIN内固定；保存矩阵为 [慢时间PRI × 快时间点]', ...
+        'FontColor', secondaryColor);
+    validateButton = uibutton(actionGrid, 'push', ...
+        'Text', '校验文件', ...
+        'Enable', 'off', ...
+        'ButtonPushedFcn', @runValidation, ...
+        'BackgroundColor', [0.20, 0.55, 0.34], ...
+        'FontColor', [1, 1, 1], ...
+        'FontWeight', 'bold');
+    saveButton = uibutton(actionGrid, 'push', ...
+        'Text', '保存数据 MAT', ...
+        'Enable', 'off', ...
+        'ButtonPushedFcn', @runSave, ...
+        'BackgroundColor', [0.82, 0.47, 0.10], ...
+        'FontColor', [1, 1, 1], ...
+        'FontWeight', 'bold');
 
     progressGauge = uigauge(rootGrid, 'linear', ...
         'Limits', [0, 100], ...
@@ -52,7 +90,7 @@ function analyze_bin_gui
         'FontWeight', 'bold');
 
     logPanel = uipanel(rootGrid, ...
-        'Title', '扫描信息', ...
+        'Title', '运行信息', ...
         'BackgroundColor', panelColor, ...
         'ForegroundColor', textColor, ...
         'FontWeight', 'bold');
@@ -66,7 +104,7 @@ function analyze_bin_gui
         'BackgroundColor', [0.985, 0.985, 0.985], ...
         'FontColor', textColor);
 
-    function selectAndScan(~, ~)
+    function selectFile(~, ~)
         [fileName, fileDir] = uigetfile( ...
             {'*.bin', 'Binary capture (*.bin)'; '*.*', 'All files'}, ...
             '选择需要检查的连续 BIN 文件', pwd);
@@ -74,59 +112,180 @@ function analyze_bin_gui
             return;
         end
 
-        binPath = fullfile(fileDir, fileName);
-        [~, stem] = fileparts(fileName);
-        outputPath = fullfile(fileDir, [stem, '_record_info.mat']);
+        selectedBinPath = fullfile(fileDir, fileName);
+        cachedRecordInfo = struct([]);
+        pathField.Value = selectedBinPath;
+        pathField.FontColor = textColor;
+        logArea.Value = {sprintf('已选择: %s', selectedBinPath), ...
+            '请选择“校验文件”或填写PRI后点击“保存数据 MAT”。'};
+        progressGauge.Value = 0;
+        statusLabel.Text = '文件已选择，尚未执行校验或保存';
+        statusLabel.FontColor = secondaryColor;
+        validateButton.Enable = 'on';
+        saveButton.Enable = 'on';
+    end
 
-        if isfile(outputPath)
-            answer = uiconfirm(fig, ...
-                sprintf('报告已存在，是否覆盖？\n%s', outputPath), ...
-                '确认覆盖', ...
-                'Options', {'覆盖', '取消'}, ...
-                'DefaultOption', 2, ...
-                'CancelOption', 2);
-            if ~strcmp(answer, '覆盖')
-                return;
-            end
+    function runValidation(~, ~)
+        if isempty(selectedBinPath)
+            return;
+        end
+        outputPath = getReportPath();
+        if isfile(outputPath) && ~confirmOverwrite({outputPath}, '确认覆盖校验报告')
+            return;
         end
 
-        pathField.Value = binPath;
-        pathField.FontColor = textColor;
-        logArea.Value = {''};
-        progressGauge.Value = 0;
-        selectButton.Enable = 'off';
-        statusLabel.Text = '正在扫描...';
-        statusLabel.FontColor = [0.15, 0.35, 0.70];
-        drawnow;
-
+        setBusy(true);
+        cleanup = onCleanup(@() setBusy(false));
         try
-            record_info = scan_bin_record_info(binPath, ...
-                'ProgressFcn', @updateProgress, ...
-                'LogFcn', @emitLine);
-
-            printReport(record_info);
+            record_info = scanSelectedFile();
             atomicSave(outputPath, record_info);
             emitLine(sprintf('报告已保存: %s', outputPath));
-
-            statusLabel.Text = sprintf('扫描完成：%s', record_info.summary.status);
-            switch record_info.summary.status
-                case 'PASS'
-                    statusLabel.FontColor = [0.08, 0.52, 0.22];
-                case 'WARN'
-                    statusLabel.FontColor = [0.80, 0.48, 0.05];
-                otherwise
-                    statusLabel.FontColor = [0.78, 0.12, 0.12];
-            end
+            setStatusFromRecord(record_info, '校验完成');
             progressGauge.Value = 100;
         catch ME
-            statusLabel.Text = '扫描失败';
+            statusLabel.Text = '校验失败';
             statusLabel.FontColor = [0.78, 0.12, 0.12];
-            emitLine(sprintf('扫描失败: %s', ME.message));
-            uialert(fig, sprintf('BIN 扫描失败：\n%s', ME.message), '扫描失败');
+            emitLine(sprintf('校验失败: %s', ME.message));
+            uialert(fig, sprintf('BIN 校验失败：\n%s', ME.message), '校验失败');
         end
+    end
 
-        if isvalid(selectButton)
-            selectButton.Enable = 'on';
+    function runSave(~, ~)
+        if isempty(selectedBinPath)
+            return;
+        end
+        priSamples = priField.Value;
+        setBusy(true);
+        cleanup = onCleanup(@() setBusy(false));
+
+        try
+            if cacheMatchesSelectedFile()
+                record_info = cachedRecordInfo;
+                emitLine('使用当前文件已完成的校验结果。');
+            else
+                emitLine('保存前未找到可复用校验结果，先自动校验。');
+                record_info = scanSelectedFile();
+            end
+
+            if record_info.summary.valid_frame_count == 0
+                error('CYHD:NoValidFrame', '没有可保存的有效帧。');
+            end
+
+            outputDir = fileparts(selectedBinPath);
+            targetPaths = getDataTargetPaths(record_info, priSamples, outputDir);
+            if isempty(targetPaths)
+                error('CYHD:NoCompletePri', '所有连续段都不足一个完整PRI。');
+            end
+            reportPath = getReportPath();
+            overwriteCandidates = [{reportPath}; targetPaths(:)];
+            existingMask = cellfun(@isfile, overwriteCandidates);
+            if any(existingMask) && ...
+                    ~confirmOverwrite(overwriteCandidates(existingMask), '确认覆盖已有MAT文件')
+                emitLine('用户取消保存。');
+                return;
+            end
+
+            progressGauge.Value = 0;
+            save_summary = cyhd_internal.save_bin_data_mat(selectedBinPath, record_info, priSamples, ...
+                'OutputDir', outputDir, ...
+                'Overwrite', true, ...
+                'ProgressFcn', @updateProgress, ...
+                'LogFcn', @emitLine);
+            atomicSave(reportPath, record_info);
+            printSaveSummary(save_summary, record_info, reportPath);
+            statusLabel.Text = sprintf('保存完成：%s个数据文件', ...
+                formatUint(save_summary.data_file_count));
+            statusLabel.FontColor = [0.08, 0.52, 0.22];
+            progressGauge.Value = 100;
+        catch ME
+            statusLabel.Text = '保存失败';
+            statusLabel.FontColor = [0.78, 0.12, 0.12];
+            emitLine(sprintf('保存失败: %s', ME.message));
+            uialert(fig, sprintf('数据保存失败：\n%s', ME.message), '保存失败');
+        end
+    end
+
+    function info = scanSelectedFile()
+        progressGauge.Value = 0;
+        statusLabel.Text = '正在校验...';
+        statusLabel.FontColor = [0.15, 0.35, 0.70];
+        drawnow;
+        info = cyhd_internal.scan_bin_record_info(selectedBinPath, ...
+            'ProgressFcn', @updateProgress, ...
+            'LogFcn', @emitLine);
+        cachedRecordInfo = info;
+        printReport(info);
+    end
+
+    function matched = cacheMatchesSelectedFile()
+        matched = false;
+        if isempty(cachedRecordInfo) || ~isfield(cachedRecordInfo, 'file') || ...
+                ~isfile(selectedBinPath)
+            return;
+        end
+        entry = dir(selectedBinPath);
+        matched = uint64(entry(1).bytes) == cachedRecordInfo.file.size_bytes && ...
+            strcmp(entry(1).date, cachedRecordInfo.file.modified_time);
+    end
+
+    function setBusy(busy)
+        if ~isvalid(fig)
+            return;
+        end
+        if busy
+            state = 'off';
+        else
+            state = 'on';
+        end
+        selectButton.Enable = state;
+        priField.Enable = state;
+        if isempty(selectedBinPath)
+            validateButton.Enable = 'off';
+            saveButton.Enable = 'off';
+        else
+            validateButton.Enable = state;
+            saveButton.Enable = state;
+        end
+        drawnow;
+    end
+
+    function outputPath = getReportPath()
+        [outputDir, stem] = fileparts(selectedBinPath);
+        outputPath = fullfile(outputDir, [stem, '_record_info.mat']);
+    end
+
+    function paths = getDataTargetPaths(info, priSamples, outputDir)
+        [~, stem] = fileparts(selectedBinPath);
+        paths = {};
+        for row = 1:height(info.segments)
+            sampleCount = info.segments.frame_count(row) * ...
+                uint64(info.protocol.iq_payload_points);
+            if sampleCount >= uint64(priSamples)
+                paths{end + 1, 1} = fullfile(outputDir, sprintf( ...
+                    '%s_data_seg%03d.mat', stem, info.segments.segment_id(row))); %#ok<AGROW>
+            end
+        end
+    end
+
+    function confirmed = confirmOverwrite(paths, titleText)
+        pathText = strjoin(paths, newline);
+        answer = uiconfirm(fig, sprintf('以下文件已存在，是否覆盖？\n%s', pathText), ...
+            titleText, ...
+            'Options', {'覆盖', '取消'}, ...
+            'DefaultOption', 2, ...
+            'CancelOption', 2);
+        confirmed = strcmp(answer, '覆盖');
+    end
+
+    function setStatusFromRecord(info, prefix)
+        statusLabel.Text = sprintf('%s：%s', prefix, info.summary.status);
+        switch info.summary.status
+            case 'PASS'
+                statusLabel.FontColor = [0.08, 0.52, 0.22];
+            case 'WARN'
+                statusLabel.FontColor = [0.80, 0.48, 0.05];
+            otherwise
+                statusLabel.FontColor = [0.78, 0.12, 0.12];
         end
     end
 
@@ -241,6 +400,33 @@ function analyze_bin_gui
         else
             emitLine('异常明细: 无');
         end
+        emitLine('==============================================');
+    end
+
+    function printSaveSummary(summary, info, reportPath)
+        emitLine('');
+        emitLine('================ MAT 保存报告 ================');
+        emitLine(sprintf('保存目录: %s', summary.output_dir));
+        emitLine(sprintf('数据MAT数量: %s', formatUint(summary.data_file_count)));
+        emitLine(sprintf('总保存有效XDMA帧: %s；总完整PRI: %s', ...
+            formatUint(summary.saved_frame_count), ...
+            formatUint(summary.saved_pri_count)));
+        emitLine(sprintf('跳过坏帧: %s；不连续点: %s；PRI尾部丢弃采样: %s', ...
+            formatUint(summary.skipped_bad_frame_count), ...
+            formatUint(info.summary.gap_count), ...
+            formatUint(summary.discarded_sample_count)));
+        for row = 1:height(summary.files)
+            emitLine(sprintf(['  段%d: %s帧，%s个PRI，矩阵[%s × %u]，', ...
+                '尾部丢弃%s点。'], ...
+                summary.files.segment_id(row), ...
+                formatUint(summary.files.frame_count(row)), ...
+                formatUint(summary.files.pri_count(row)), ...
+                formatUint(summary.files.pri_count(row)), ...
+                uint32(priField.Value), ...
+                formatUint(summary.files.discarded_sample_count(row))));
+            emitLine(sprintf('    %s', summary.files.path{row}));
+        end
+        emitLine(sprintf('质量报告: %s', reportPath));
         emitLine('==============================================');
     end
 end
