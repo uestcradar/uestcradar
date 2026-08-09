@@ -4,6 +4,9 @@ function tests = test_scan_bin_record_info
 end
 
 function setupOnce(testCase)
+    analyzeDir = fileparts(fileparts(mfilename('fullpath')));
+    addpath(analyzeDir);
+    testCase.addTeardown(@() rmpath(analyzeDir));
     testDir = tempname;
     mkdir(testDir);
     testCase.TestData.testDir = testDir;
@@ -13,9 +16,9 @@ end
 function testValidFramesPass(testCase)
     frames = {
         makeFrame(0, 0, 3, 100, 10, 20), ...
-        makeFrame(0, 1, 3, 101, 10, 20), ...
-        makeFrame(0, 2, 3, 102, 10, 20), ...
-        makeFrame(0, 0, 4, 103, 11, 20)};
+        makeFrame(0, 1, 3, 4196, 10, 20), ...
+        makeFrame(0, 2, 3, 8292, 10, 20), ...
+        makeFrame(0, 0, 4, 12388, 11, 20)};
     path = fullfile(testCase.TestData.testDir, 'valid.bin');
     writeBytes(path, vertcat(frames{:}));
 
@@ -33,7 +36,7 @@ end
 function testSemanticJumpWarns(testCase)
     frames = {
         makeFrame(1, 0, 7, 200, 20, 30), ...
-        makeFrame(1, 3, 7, 201, 20, 30)};
+        makeFrame(1, 3, 7, 4296, 20, 30)};
     path = fullfile(testCase.TestData.testDir, 'semantic_jump.bin');
     writeBytes(path, vertcat(frames{:}));
 
@@ -47,10 +50,10 @@ end
 function testStructuralDamageAndTruncatedTail(testCase)
     leading = uint8((1:7).');
     good1 = makeFrame(0, 0, 1, 10, 1, 2);
-    badHeader = makeFrame(0, 1, 1, 11, 1, 2);
+    badHeader = makeFrame(0, 1, 1, 4106, 1, 2);
     badHeader(hex2dec('06E20') + 1) = uint8(0);
-    good2 = makeFrame(0, 2, 1, 12, 1, 2);
-    partial = makeFrame(0, 3, 1, 13, 1, 2);
+    good2 = makeFrame(0, 2, 1, 8202, 1, 2);
+    partial = makeFrame(0, 3, 1, 12298, 1, 2);
     partial = partial(1:100);
     path = fullfile(testCase.TestData.testDir, 'damaged.bin');
     writeBytes(path, [leading; good1; badHeader; good2; partial]);
@@ -68,7 +71,7 @@ end
 function testBadTailResynchronizes(testCase)
     badTail = makeFrame(0, 0, 0, 1, 0, 0);
     badTail(hex2dec('27080') + 1) = uint8(0);
-    good = makeFrame(0, 1, 0, 2, 0, 0);
+    good = makeFrame(0, 1, 0, 4097, 0, 0);
     path = fullfile(testCase.TestData.testDir, 'resync.bin');
     writeBytes(path, [badTail; good]);
 
@@ -93,7 +96,7 @@ end
 function testBoundaryFragmentsOnlyWarn(testCase)
     leading = uint8((1:11).');
     good = makeFrame(0, 0, 0, 1, 0, 0);
-    partial = makeFrame(0, 1, 0, 2, 0, 0);
+    partial = makeFrame(0, 1, 0, 4097, 0, 0);
     partial = partial(1:100);
     path = fullfile(testCase.TestData.testDir, 'boundary_fragments.bin');
     writeBytes(path, [leading; good; partial]);
@@ -125,8 +128,38 @@ function testGapDurationInference(testCase)
         2 / 7500, 'AbsTol', 1e-12);
 end
 
+function testTimestampJumpSplitsPhysicallyAdjacentFrames(testCase)
+    first = makeFrame(0, 0, 0, 1000, 0, 0);
+    next = makeFrame(0, 1, 0, 9192, 0, 0);
+    path = fullfile(testCase.TestData.testDir, 'adjacent_timestamp_gap.bin');
+    writeBytes(path, [first; next]);
+
+    info = quietScan(path);
+
+    verifyEqual(testCase, info.summary.valid_frame_count, uint64(2));
+    verifyEqual(testCase, info.summary.status, 'WARN');
+    verifyEqual(testCase, info.summary.continuous_segment_count, uint64(2));
+    verifyEqual(testCase, info.summary.gap_count, uint64(1));
+    verifyEqual(testCase, info.gaps.physical_gap_bytes, uint64(0));
+    verifyEqual(testCase, info.gaps.inferred_missing_frame_count, uint64(1));
+    verifyTrue(testCase, any(strcmp(info.issues.type, 'TIMESTAMP_DISCONTINUITY')));
+end
+
+function testUnchangedTimestampRemainsContinuous(testCase)
+    first = makeFrame(0, 0, 0, 1000, 0, 0);
+    next = makeFrame(0, 1, 0, 1000, 0, 0);
+    path = fullfile(testCase.TestData.testDir, 'unchanged_timestamp.bin');
+    writeBytes(path, [first; next]);
+
+    info = quietScan(path);
+
+    verifyEqual(testCase, info.summary.status, 'PASS');
+    verifyEqual(testCase, info.summary.continuous_segment_count, uint64(1));
+    verifyEqual(testCase, info.summary.gap_count, uint64(0));
+end
+
 function info = quietScan(path)
-    info = scan_bin_record_info(path, 'LogFcn', @(~) []);
+    info = cyhd_internal.scan_bin_record_info(path, 'LogFcn', @(~) []);
 end
 
 function frame = makeFrame(sweep, pulse, beam, timestamp, azCode, elCode)
