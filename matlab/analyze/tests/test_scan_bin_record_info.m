@@ -28,6 +28,9 @@ function testValidFramesPass(testCase)
     verifyEqual(testCase, info.summary.valid_frame_count, uint64(4));
     verifyEqual(testCase, info.summary.continuous_segment_count, uint64(1));
     verifyEqual(testCase, info.structural.metadata_byte_order, 'little-endian');
+    verifyEqual(testCase, info.protocol.beam_offset, hex2dec('06DE0'));
+    verifyEqual(testCase, info.protocol.data_header_offset, hex2dec('06E00'));
+    verifyEqual(testCase, info.protocol.data_header_bytes, 128);
     verifyEqual(testCase, height(info.beam_summary), 2);
     verifyEqual(testCase, height(info.issues), 0);
     verifyFalse(testCase, info.structural.crc_region_checked);
@@ -51,7 +54,7 @@ function testStructuralDamageAndTruncatedTail(testCase)
     leading = uint8((1:7).');
     good1 = makeFrame(0, 0, 1, 10, 1, 2);
     badHeader = makeFrame(0, 1, 1, 4106, 1, 2);
-    badHeader(hex2dec('06E20') + 1) = uint8(0);
+    badHeader(hex2dec('06E00') + 1) = uint8(0);
     good2 = makeFrame(0, 2, 1, 8202, 1, 2);
     partial = makeFrame(0, 3, 1, 12298, 1, 2);
     partial = partial(1:100);
@@ -113,7 +116,7 @@ end
 function testGapDurationInference(testCase)
     first = makeFrame(0, 0, 0, 1000, 0, 0);
     bad = makeFrame(0, 1, 0, 5096, 0, 0);
-    bad(hex2dec('06E20') + 1) = uint8(0);
+    bad(hex2dec('06E00') + 1) = uint8(0);
     next = makeFrame(0, 3, 0, 13288, 0, 0);
     path = fullfile(testCase.TestData.testDir, 'timestamp_gap.bin');
     writeBytes(path, [first; bad; next]);
@@ -158,6 +161,24 @@ function testUnchangedTimestampRemainsContinuous(testCase)
     verifyEqual(testCase, info.summary.gap_count, uint64(0));
 end
 
+function testLegacyBeamLayoutIsRejected(testCase)
+    frame = makeFrame(0, 0, 0, 1000, 0, 0);
+    metadata = frame(hex2dec('06DE0') + (1:32));
+    frame(hex2dec('06DE0') + (1:160)) = uint8(0);
+    frame(hex2dec('06E00') + (1:32)) = metadata;
+    frame(hex2dec('06E20') + (1:96)) = repmat( ...
+        uint8([hex2dec('FE'); hex2dec('60'); hex2dec('60'); hex2dec('60')]), 24, 1);
+    path = fullfile(testCase.TestData.testDir, 'legacy_layout.bin');
+    writeBytes(path, frame);
+
+    info = quietScan(path);
+
+    verifyEqual(testCase, info.summary.status, 'FAIL');
+    verifyEqual(testCase, info.summary.valid_frame_count, uint64(0));
+    verifyEqual(testCase, info.structural.beam_magic_error_count, uint64(1));
+    verifyEqual(testCase, info.structural.data_header_error_count, uint64(1));
+end
+
 function info = quietScan(path)
     info = cyhd_internal.scan_bin_record_info(path, 'LogFcn', @(~) []);
 end
@@ -176,8 +197,8 @@ function frame = makeFrame(sweep, pulse, beam, timestamp, azCode, elCode)
     for index = 1:8
         metadata((index - 1) * 4 + (1:4)) = uint32ToLittleEndian(words(index));
     end
-    frame(hex2dec('06E00') + (1:32)) = metadata;
-    frame(hex2dec('06E20') + (1:96)) = repmat(uint8([hex2dec('FE'); hex2dec('60'); hex2dec('60'); hex2dec('60')]), 24, 1);
+    frame(hex2dec('06DE0') + (1:32)) = metadata;
+    frame(hex2dec('06E00') + (1:128)) = repmat(uint8([hex2dec('FE'); hex2dec('60'); hex2dec('60'); hex2dec('60')]), 32, 1);
     % Real captures carry nonzero CRC/status words here.  The scanner must
     % preserve this region without treating it as zero padding.
     frame(hex2dec('26E80') + (1:512)) = repmat(uint8([7; 0; 0; 0]), 128, 1);

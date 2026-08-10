@@ -12,11 +12,10 @@ function record_info = scan_bin_record_info(binPath, varargin)
 
 %   All byte offsets stored in RECORD_INFO are zero-based file offsets.
 
-%   New frame layout used here (the legacy xdma_frame_protocol.md is not
-%   authoritative for the beam/data-header boundary):
+%   Frame layout used here (new protocol only):
 %     0x00000  128 bytes  frame header (0x5A)
-%     0x06E00   32 bytes  beam metadata
-%     0x06E20   96 bytes  data header ({60 60 60 FE} repeated)
+%     0x06DE0   32 bytes  beam metadata (zero-based Word #879)
+%     0x06E00  128 bytes  data header (0x606060FE, little-endian)
 %     0x06E80  4096 points IQ payload
 %     0x26E80  512 bytes  CRC/status region (not validated here)
 %     0x27080  128 bytes  frame tail (0xA5)
@@ -641,17 +640,17 @@ end
 
 function protocol = protocolConstants()
     protocol = struct();
-    protocol.version = 'CYHD continuous frame with BEAM metadata';
+    protocol.version = 'CYHD continuous frame, BEAM at Word 879 (new protocol only)';
     protocol.frame_bytes = 160000;
     protocol.frame_header_byte = uint8(hex2dec('5A'));
     protocol.frame_header_bytes = 128;
-    protocol.beam_offset = hex2dec('06E00');
+    protocol.beam_offset = hex2dec('06DE0');
     protocol.beam_bytes = 32;
     protocol.beam_magic = uint32(hex2dec('4245414D'));
-    protocol.data_header_offset = hex2dec('06E20');
-    protocol.data_header_bytes = 96;
+    protocol.data_header_offset = hex2dec('06E00');
+    protocol.data_header_bytes = 128;
     % 0x606060FE is stored as a little-endian uint32 on the recorded wire.
-    protocol.data_header_pattern = repmat(uint8([hex2dec('FE'); hex2dec('60'); hex2dec('60'); hex2dec('60')]), 24, 1);
+    protocol.data_header_pattern = repmat(uint8([hex2dec('FE'); hex2dec('60'); hex2dec('60'); hex2dec('60')]), 32, 1);
     protocol.iq_payload_offset = hex2dec('06E80');
     protocol.iq_payload_points = 4096;
     protocol.iq_payload_bytes = 131072;

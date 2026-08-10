@@ -53,7 +53,7 @@ end
 function testBadFrameProducesSeparateSegmentFiles(testCase)
     first = makeDataFrame(0, 0, 0, 0, 1000, 0, 0);
     bad = makeDataFrame(4096, 0, 1, 0, 5096, 0, 0);
-    bad(hex2dec('06E20') + 1) = uint8(0);
+    bad(hex2dec('06E00') + 1) = uint8(0);
     third = makeDataFrame(8192, 0, 2, 0, 9192, 0, 0);
     binPath = fullfile(testCase.TestData.testDir, 'split.bin');
     writeBytes(binPath, [first; bad; third]);
@@ -70,6 +70,21 @@ function testBadFrameProducesSeparateSegmentFiles(testCase)
     verifyTrue(testCase, all(cellfun(@isfile, summary.files.path)));
 end
 
+function testLegacyRecordInfoIsRejected(testCase)
+    frame = makeDataFrame(0, 0, 0, 0, 1000, 0, 0);
+    binPath = fullfile(testCase.TestData.testDir, 'legacy_record_info.bin');
+    writeBytes(binPath, frame);
+    info = cyhd_internal.scan_bin_record_info(binPath, 'LogFcn', @(~) []);
+    info.protocol.beam_offset = hex2dec('06E00');
+    info.protocol.data_header_offset = hex2dec('06E20');
+    info.protocol.data_header_bytes = 96;
+    info.protocol.data_header_pattern = info.protocol.data_header_pattern(1:96);
+
+    verifyError(testCase, @() cyhd_internal.save_bin_data_mat( ...
+        binPath, info, 4096, 'OutputDir', testCase.TestData.testDir), ...
+        'CYHD:UnsupportedProtocol');
+end
+
 function frame = makeDataFrame(globalStart, sweep, pulse, beam, timestamp, azCode, elCode)
     frame = zeros(160000, 1, 'uint8');
     frame(1:128) = uint8(hex2dec('5A'));
@@ -80,9 +95,9 @@ function frame = makeDataFrame(globalStart, sweep, pulse, beam, timestamp, azCod
         uint32(bitand(uint64(timestamp), uint64(hex2dec('FFFFFFFF')))); ...
         uint32(bitshift(uint64(timestamp), -32)); ...
         uint32(azCode); uint32(elCode); uint32(0); uint32(0)];
-    frame(hex2dec('06E00') + (1:32)) = encodeUint32Words(words);
-    frame(hex2dec('06E20') + (1:96)) = repmat( ...
-        uint8([hex2dec('FE'); hex2dec('60'); hex2dec('60'); hex2dec('60')]), 24, 1);
+    frame(hex2dec('06DE0') + (1:32)) = encodeUint32Words(words);
+    frame(hex2dec('06E00') + (1:128)) = repmat( ...
+        uint8([hex2dec('FE'); hex2dec('60'); hex2dec('60'); hex2dec('60')]), 32, 1);
 
     sampleIndex = int16(globalStart + (0:4095));
     payloadWords = zeros(16, 4096, 'int16');
