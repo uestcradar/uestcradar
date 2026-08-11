@@ -99,6 +99,7 @@ cfg.angle.k_el = 25.0;               % 俯仰单脉冲斜率
 % RD
 cfg.rd.n_cpi = 256;                  % CPI 脉冲数（由波位文件自动覆写）
 cfg.rd.max_range_m = 2000;           % 最大处理距离 (m)
+cfg.rd.zero_doppler_cells = 3;       % 零多普勒清除半宽度；RD 后 DC±N 格置零，0=不清除
 
 % 检测
 cfg.detect.range_window_m = [300, 800];

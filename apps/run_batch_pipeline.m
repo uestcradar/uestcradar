@@ -60,6 +60,7 @@ cfg.rd.n_overlap = 0; % 块间重叠脉冲数；多波位模式下固定为 0（
 cfg.rd.max_range_m = 1000; % 最大处理距离，单位米；只保留该距离以内的距离单元参与后续处理。
 cfg.rd.frames_per_chunk = 4096; % 预处理分块大小，用于 freq_offsets 数组长度估算
 cfg.rd.do_mti_twopulse = true; % 是否执行两脉冲相消；用于进一步增强运动目标、压制静态背景。
+cfg.rd.zero_doppler_cells = 1;   % 零多普勒清除半宽度；RD 后 DC ± N 格置零；0=仅清DC本身；负值=不清除
 
 %% 6. 参数区：目标检测参数
 cfg.detect.range_window_m = [300, 1000]; % 检测阶段使用的距离显示/分析范围，单位米。
@@ -70,7 +71,6 @@ cfg.detect.cfar_ref_r = 16; % CFAR 在距离维的参考单元数；用于估计
 cfg.detect.cfar_ref_d = 32; % CFAR 在速度维的参考单元数；用于估计局部噪声背景。
 cfg.detect.cfar_pfa = 1e-9; % CFAR 虚警概率；这里设置为 10^-6，目的是进一步压低虚警点数量，让检测结果更保守。
 cfg.detect.frame_step = 1; % 检测/聚类/测角抽帧步长；默认1（全帧），独立于 cfg.plot.frame_step。
-cfg.detect.min_scan = 1;    % 已由 build_beam_schedule 的 first_valid_scan 处理，此处设为 1
 
 %前:  guard_r=2, guard_d=4, ref_r=8, ref_d=16, pfa=1e-6
 %后: guard_r=4, guard_d=8, ref_r=16, ref_d=32, pfa=1e-6
@@ -887,6 +887,7 @@ function rd_ctx = build_rd_context(rx_param, tx, rd_cfg, radar_cfg)
     rd_ctx.total_blocks = floor((rd_ctx.effective_frames - rd_ctx.n_cpi) / rd_ctx.n_step) + 1;
     rd_ctx.frames_per_chunk = builtin('double', rd_cfg.frames_per_chunk);
     rd_ctx.num_chunks = ceil(rd_ctx.effective_frames / rd_ctx.frames_per_chunk);
+    rd_ctx.zero_doppler_cells = rd_cfg.zero_doppler_cells;
     rd_ctx.pw_samples = sum(abs(tx.data) > 0.01 * max(abs(tx.data)));
     ref_freq = fft(single(tx.data), rd_ctx.pri_len);
     rd_ctx.conj_ref_freq = conj(ref_freq) .* single(hamming(rd_ctx.pri_len));

@@ -38,6 +38,8 @@ b1_sweep = frame_sweep(b1_frames);
 scan_starts = [1; find(diff(b1_sweep) ~= 0) + 1];  % 索引为 b1_frames 下标
 total_scans_raw = numel(scan_starts);
 fprintf('[波位] sweep_count 扫描检测：%d 个扫描边界\n', total_scans_raw);
+fprintf('[波位]   初始锚点 az=%.2f°, el=%.2f°（首个有效帧 #%d），共 %d 个匹配帧\n', ...
+    b1_az, b1_el, first_valid, numel(b1_frames));
 
 % ---- 步骤 2: 用 sweep_count 定位扫描2首帧，提取波位顺序 ----
 scan2_sweep = b1_sweep(scan_starts(2));
@@ -69,6 +71,8 @@ b1_sweep = frame_sweep(b1_frames);
 scan_starts = [1; find(diff(b1_sweep) ~= 0) + 1];
 total_scans_raw = numel(scan_starts);
 fprintf('[波位] 用扫描2波位1 (az=%.2f°) 重建边界：%d 扫描\n', b1_az, total_scans_raw);
+fprintf('[波位]   修正后锚点共 %d 个匹配帧，sweep_count 值: %s\n', ...
+    numel(b1_frames), mat2str(b1_sweep(:)'));
 
 % ---- 步骤 3: 提取模板（默认用第二轮，若第二轮异常则顺延）----
 scan_frame_counts = [];

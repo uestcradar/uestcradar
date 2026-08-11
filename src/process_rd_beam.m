@@ -167,6 +167,15 @@ for channel_idx = 1:numel(channel_ids)
         n_v = size(proc_blk, 2);
         rd_block = fftshift(fft(proc_blk .* single(hamming(n_v).'), rd_ctx.n_cpi, 2), 2);
 
+        % 零多普勒清除：抑制静止/低速杂波，仅保留运动目标
+        if isfield(rd_ctx, 'zero_doppler_cells') && rd_ctx.zero_doppler_cells >= 0
+            nz = rd_ctx.zero_doppler_cells;
+            dc_bin = rd_ctx.n_cpi / 2 + 1;            % fftshift 后零多普勒位置
+            z1 = max(1, dc_bin - nz);
+            z2 = min(rd_ctx.n_cpi, dc_bin + nz);
+            rd_block(:, z1:z2) = 0;
+        end
+
         % 写盘（仅保留 max_calc_samples 范围）
         n_blocks_written = n_blocks_written + 1;
         mf.(output_names{channel_idx})(1:rd_ctx.max_calc_samples, 1:rd_ctx.n_cpi, n_blocks_written) = ...
