@@ -25,6 +25,10 @@ function testContinuousTimestampsPassAcrossChunks(testCase)
     verifyEqual(testCase, report.discontinuity_count, uint64(0));
     verifyEqual(testCase, report.unchanged_transition_count, uint64(2));
     verifyEqual(testCase, report.advanced_4096_transition_count, uint64(2));
+    verifyEqual(testCase, report.sample_count, uint64(40));
+    verifyEqual(testCase, report.samples_per_frame, uint32(8));
+    verifyEqual(testCase, report.segment_duration_seconds, 40 / 30.72e6, ...
+        'AbsTol', eps);
     verifyEqual(testCase, height(report.issues), 0);
 end
 

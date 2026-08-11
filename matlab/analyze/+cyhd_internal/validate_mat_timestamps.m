@@ -1,6 +1,6 @@
 function report = validate_mat_timestamps(matPath, varargin)
 %VALIDATE_MAT_TIMESTAMPS Check every frame timestamp in one data MAT.
-%   Only /data/beam/timestamp and the sample-rate scalar are read. Channel
+%   Only frame timestamps and small scalar metadata are read. Channel
 %   datasets are never touched. Timestamp entries are read in chunks, but
 %   every adjacent transition is checked.
 
@@ -26,6 +26,8 @@ function report = validate_mat_timestamps(matPath, varargin)
     try
         timestampInfo = h5info(matPath, '/data/beam/timestamp');
         sampleRate = double(h5read(matPath, '/data/sample_rate'));
+        sampleCount = double(h5read(matPath, '/data/sample_count'));
+        samplesPerFrame = double(h5read(matPath, '/data/samples_per_frame'));
     catch ME
         error('CYHD:InvalidDataMat', ...
             'MAT 文件缺少时间戳校验所需字段: %s', ME.message);
@@ -41,6 +43,20 @@ function report = validate_mat_timestamps(matPath, varargin)
     end
     if ~isscalar(sampleRate) || ~isfinite(sampleRate) || sampleRate <= 0
         error('CYHD:InvalidDataMat', 'data.sample_rate 不是有效采样率。');
+    end
+    if ~isscalar(sampleCount) || ~isfinite(sampleCount) || ...
+            sampleCount < 1 || sampleCount ~= floor(sampleCount)
+        error('CYHD:InvalidDataMat', 'data.sample_count 不是有效采样点数。');
+    end
+    if ~isscalar(samplesPerFrame) || ~isfinite(samplesPerFrame) || ...
+            samplesPerFrame < 1 || samplesPerFrame ~= floor(samplesPerFrame)
+        error('CYHD:InvalidDataMat', 'data.samples_per_frame 无效。');
+    end
+    expectedSampleCount = timestampCount * samplesPerFrame;
+    if sampleCount ~= expectedSampleCount
+        error('CYHD:InvalidDataMat', ...
+            '连续采样点数%g与帧数%g × 每帧点数%g不一致。', ...
+            sampleCount, timestampCount, samplesPerFrame);
     end
 
     expectedStep = uint64(4096);
@@ -144,6 +160,9 @@ function report = validate_mat_timestamps(matPath, varargin)
     report.allowed_step_ticks = uint64([0; expectedStep]);
     report.expected_advance_ticks = expectedStep;
     report.sample_rate = sampleRate;
+    report.sample_count = uint64(sampleCount);
+    report.samples_per_frame = uint32(samplesPerFrame);
+    report.segment_duration_seconds = sampleCount / sampleRate;
     report.first_timestamp = firstTimestamp;
     report.last_timestamp = lastTimestamp;
     report.discontinuity_count = discontinuityCount;
