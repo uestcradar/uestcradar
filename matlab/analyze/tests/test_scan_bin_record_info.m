@@ -131,21 +131,20 @@ function testGapDurationInference(testCase)
         2 / 7500, 'AbsTol', 1e-12);
 end
 
-function testTimestampJumpSplitsPhysicallyAdjacentFrames(testCase)
+function testTimestampJumpDoesNotSplitPhysicallyAdjacentFrames(testCase)
     first = makeFrame(0, 0, 0, 1000, 0, 0);
-    next = makeFrame(0, 1, 0, 9192, 0, 0);
+    next = makeFrame(0, 1, 0, 12264, 0, 0);
     path = fullfile(testCase.TestData.testDir, 'adjacent_timestamp_gap.bin');
     writeBytes(path, [first; next]);
 
     info = quietScan(path);
 
     verifyEqual(testCase, info.summary.valid_frame_count, uint64(2));
-    verifyEqual(testCase, info.summary.status, 'WARN');
-    verifyEqual(testCase, info.summary.continuous_segment_count, uint64(2));
-    verifyEqual(testCase, info.summary.gap_count, uint64(1));
-    verifyEqual(testCase, info.gaps.physical_gap_bytes, uint64(0));
-    verifyEqual(testCase, info.gaps.inferred_missing_frame_count, uint64(1));
-    verifyTrue(testCase, any(strcmp(info.issues.type, 'TIMESTAMP_DISCONTINUITY')));
+    verifyEqual(testCase, info.summary.status, 'PASS');
+    verifyEqual(testCase, info.summary.continuous_segment_count, uint64(1));
+    verifyEqual(testCase, info.summary.gap_count, uint64(0));
+    verifyEqual(testCase, info.summary.unresolved_gap_count, uint64(0));
+    verifyFalse(testCase, any(strcmp(info.issues.type, 'TIMESTAMP_DISCONTINUITY')));
 end
 
 function testUnchangedTimestampRemainsContinuous(testCase)

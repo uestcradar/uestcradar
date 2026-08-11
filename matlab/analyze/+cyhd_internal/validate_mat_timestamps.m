@@ -63,12 +63,10 @@ function report = validate_mat_timestamps(matPath, varargin)
     timer = tic;
     discontinuityCount = uint64(0);
     unchangedCount = uint64(0);
+    forwardCount = uint64(0);
     advanced4096Count = uint64(0);
-    forwardGapCount = uint64(0);
+    otherForwardCount = uint64(0);
     backwardCount = uint64(0);
-    irregularForwardCount = uint64(0);
-    inferredMissingFrameCount = uint64(0);
-    forwardMissingTicks = uint64(0);
     firstTimestamp = uint64(0);
     lastTimestamp = uint64(0);
     previousTimestamp = uint64(0);
@@ -78,7 +76,6 @@ function report = validate_mat_timestamps(matPath, varargin)
     issuePrevious = zeros(maxStoredIssues, 1, 'uint64');
     issueCurrent = zeros(maxStoredIssues, 1, 'uint64');
     issueSignedDelta = zeros(maxStoredIssues, 1, 'int64');
-    issueMissingFrame = zeros(maxStoredIssues, 1, 'uint64');
     issueType = cell(maxStoredIssues, 1);
     storedIssueCount = 0;
 
@@ -95,27 +92,22 @@ function report = validate_mat_timestamps(matPath, varargin)
                 firstTimestamp = currentTimestamp;
                 havePrevious = true;
             else
-                [isContinuous, relation, signedDelta, missingFrames, missingTicks] = ...
+                [isContinuous, relation, signedDelta] = ...
                     checkTransition(previousTimestamp, currentTimestamp, expectedStep);
                 if isContinuous
-                    if strcmp(relation, 'UNCHANGED')
-                        unchangedCount = unchangedCount + uint64(1);
-                    else
-                        advanced4096Count = advanced4096Count + uint64(1);
+                    switch relation
+                        case 'UNCHANGED'
+                            unchangedCount = unchangedCount + uint64(1);
+                        case 'ADVANCE_4096'
+                            forwardCount = forwardCount + uint64(1);
+                            advanced4096Count = advanced4096Count + uint64(1);
+                        case 'ADVANCE_OTHER'
+                            forwardCount = forwardCount + uint64(1);
+                            otherForwardCount = otherForwardCount + uint64(1);
                     end
                 else
                     discontinuityCount = discontinuityCount + uint64(1);
-                    switch relation
-                        case 'FORWARD_GAP'
-                            forwardGapCount = forwardGapCount + uint64(1);
-                            inferredMissingFrameCount = inferredMissingFrameCount + missingFrames;
-                            forwardMissingTicks = forwardMissingTicks + missingTicks;
-                        case 'FORWARD_IRREGULAR'
-                            irregularForwardCount = irregularForwardCount + uint64(1);
-                            forwardMissingTicks = forwardMissingTicks + missingTicks;
-                        case 'BACKWARD'
-                            backwardCount = backwardCount + uint64(1);
-                    end
+                    backwardCount = backwardCount + uint64(1);
 
                     if storedIssueCount < maxStoredIssues
                         storedIssueCount = storedIssueCount + 1;
@@ -123,7 +115,6 @@ function report = validate_mat_timestamps(matPath, varargin)
                         issuePrevious(storedIssueCount) = previousTimestamp;
                         issueCurrent(storedIssueCount) = currentTimestamp;
                         issueSignedDelta(storedIssueCount) = signedDelta;
-                        issueMissingFrame(storedIssueCount) = missingFrames;
                         issueType{storedIssueCount} = relation;
                     end
                 end
@@ -143,7 +134,6 @@ function report = validate_mat_timestamps(matPath, varargin)
     issuePrevious = issuePrevious(1:storedIssueCount);
     issueCurrent = issueCurrent(1:storedIssueCount);
     issueSignedDelta = issueSignedDelta(1:storedIssueCount);
-    issueMissingFrame = issueMissingFrame(1:storedIssueCount);
     issueType = issueType(1:storedIssueCount);
 
     if discontinuityCount == 0
@@ -157,30 +147,35 @@ function report = validate_mat_timestamps(matPath, varargin)
     report.status = status;
     report.timestamp_count = uint64(timestampCount);
     report.transition_count = uint64(max(timestampCount - 1, 0));
-    report.allowed_step_ticks = uint64([0; expectedStep]);
     report.expected_advance_ticks = expectedStep;
+    report.timestamp_rule = 'nondecreasing';
     report.sample_rate = sampleRate;
     report.sample_count = uint64(sampleCount);
     report.samples_per_frame = uint32(samplesPerFrame);
-    report.segment_duration_seconds = sampleCount / sampleRate;
+    if lastTimestamp >= firstTimestamp
+        report.timestamp_span_ticks = lastTimestamp - firstTimestamp;
+        report.segment_duration_ticks = report.timestamp_span_ticks + uint64(samplesPerFrame);
+        report.segment_duration_seconds = double(report.segment_duration_ticks) / sampleRate;
+    else
+        report.timestamp_span_ticks = uint64(0);
+        report.segment_duration_ticks = uint64(0);
+        report.segment_duration_seconds = NaN;
+    end
     report.first_timestamp = firstTimestamp;
     report.last_timestamp = lastTimestamp;
     report.discontinuity_count = discontinuityCount;
     report.unchanged_transition_count = unchangedCount;
+    report.forward_transition_count = forwardCount;
     report.advanced_4096_transition_count = advanced4096Count;
-    report.forward_gap_count = forwardGapCount;
-    report.irregular_forward_count = irregularForwardCount;
+    report.other_forward_transition_count = otherForwardCount;
     report.backward_count = backwardCount;
-    report.inferred_missing_frame_count = inferredMissingFrameCount;
-    report.forward_missing_ticks = forwardMissingTicks;
-    report.forward_missing_duration_seconds = double(forwardMissingTicks) / sampleRate;
     report.scan_duration_seconds = toc(timer);
     report.stored_issue_count = uint64(storedIssueCount);
     report.issues_truncated = discontinuityCount > uint64(storedIssueCount);
     report.issues = table(issueIndex, issuePrevious, issueCurrent, ...
-        issueSignedDelta, issueMissingFrame, issueType, ...
+        issueSignedDelta, issueType, ...
         'VariableNames', {'current_frame_index', 'previous_timestamp', ...
-        'current_timestamp', 'signed_delta_ticks', 'inferred_missing_frame', 'type'});
+        'current_timestamp', 'signed_delta_ticks', 'type'});
 end
 
 function timestamps = readTimestampChunk(matPath, datasetSize, position, amount)
@@ -194,27 +189,16 @@ function timestamps = readTimestampChunk(matPath, datasetSize, position, amount)
     timestamps = h5read(matPath, '/data/beam/timestamp', start, count);
 end
 
-function [continuous, relation, signedDelta, missingFrames, missingTicks] = ...
+function [continuous, relation, signedDelta] = ...
         checkTransition(previous, current, expectedStep)
-    missingFrames = uint64(0);
-    missingTicks = uint64(0);
     if current > previous
         delta = current - previous;
         signedDelta = int64(delta);
+        continuous = true;
         if delta == expectedStep
-            continuous = true;
             relation = 'ADVANCE_4096';
-        elseif delta > expectedStep && mod(delta, expectedStep) == 0
-            continuous = false;
-            relation = 'FORWARD_GAP';
-            missingFrames = delta / expectedStep - uint64(1);
-            missingTicks = delta - expectedStep;
         else
-            continuous = false;
-            relation = 'FORWARD_IRREGULAR';
-            if delta > expectedStep
-                missingTicks = delta - expectedStep;
-            end
+            relation = 'ADVANCE_OTHER';
         end
     elseif current == previous
         continuous = true;
