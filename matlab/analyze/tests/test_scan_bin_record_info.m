@@ -36,7 +36,7 @@ function testValidFramesPass(testCase)
     verifyFalse(testCase, info.structural.crc_region_checked);
 end
 
-function testSemanticJumpWarns(testCase)
+function testPulseInBeamJumpIsNotValidated(testCase)
     frames = {
         makeFrame(1, 0, 7, 200, 20, 30), ...
         makeFrame(1, 3, 7, 4296, 20, 30)};
@@ -45,9 +45,9 @@ function testSemanticJumpWarns(testCase)
 
     info = quietScan(path);
 
-    verifyEqual(testCase, info.summary.status, 'WARN');
-    verifyEqual(testCase, info.semantic.pulse_in_beam.jump_forward_count, uint64(1));
-    verifyTrue(testCase, any(strcmp(info.issues.type, 'COUNTER_JUMP_FORWARD')));
+    verifyEqual(testCase, info.summary.status, 'PASS');
+    verifyFalse(testCase, isfield(info.semantic, 'pulse_in_beam'));
+    verifyEqual(testCase, height(info.issues), 0);
 end
 
 function testStructuralDamageAndTruncatedTail(testCase)
