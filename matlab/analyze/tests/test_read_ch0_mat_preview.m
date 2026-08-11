@@ -13,40 +13,39 @@ function setupOnce(testCase)
     testCase.addTeardown(@() removeTestDir(testDir));
 end
 
-function testReadsOnlyRequestedRows(testCase)
+function testReadsOnlyRequestedSamples(testCase)
     path = fullfile(testCase.TestData.testDir, 'preview.mat');
     createDataMat(path);
 
-    preview = cyhd_internal.read_ch0_mat_preview(path, 2);
+    preview = cyhd_internal.read_ch0_mat_preview(path, 12);
 
-    verifyEqual(testCase, preview.loaded_pulses, uint64(2));
-    verifyEqual(testCase, preview.available_pulses, uint64(5));
-    verifyEqual(testCase, preview.pri_samples, uint32(8));
-    verifyEqual(testCase, size(preview.ch0), [2, 8]);
-    expected = complex(single(reshape(1:40, 5, 8)), ...
-        single(reshape(101:140, 5, 8)));
-    verifyEqual(testCase, preview.ch0, expected(1:2, :));
+    verifyEqual(testCase, preview.loaded_samples, uint64(12));
+    verifyEqual(testCase, preview.available_samples, uint64(40));
+    verifyEqual(testCase, size(preview.ch0), [12, 1]);
+    expected = complex(single((1:40).'), single((101:140).'));
+    verifyEqual(testCase, preview.ch0, expected(1:12));
 end
 
-function testRequestIsClampedToAvailableRows(testCase)
+function testRequestIsClampedToAvailableSamples(testCase)
     path = fullfile(testCase.TestData.testDir, 'clamped.mat');
     createDataMat(path);
 
     preview = cyhd_internal.read_ch0_mat_preview(path, 99);
 
-    verifyEqual(testCase, preview.requested_pulses, uint64(99));
-    verifyEqual(testCase, preview.loaded_pulses, uint64(5));
-    verifyEqual(testCase, size(preview.ch0), [5, 8]);
+    verifyEqual(testCase, preview.requested_samples, uint64(99));
+    verifyEqual(testCase, preview.loaded_samples, uint64(40));
+    verifyEqual(testCase, size(preview.ch0), [40, 1]);
 end
 
 function createDataMat(path)
     data = struct();
     data.sample_rate = 30.72e6;
-    data.pri_samples = uint32(8);
-    data.ch0 = complex(single(reshape(1:40, 5, 8)), ...
-        single(reshape(101:140, 5, 8)));
-    data.ch1 = complex(zeros(5, 8, 'single'));
-    data.ch2 = complex(zeros(5, 8, 'single'));
+    data.sample_count = uint64(40);
+    data.samples_per_frame = uint32(4096);
+    data.channel_layout = 'continuous_time_samples';
+    data.ch0 = complex(single((1:40).'), single((101:140).'));
+    data.ch1 = complex(zeros(40, 1, 'single'));
+    data.ch2 = complex(zeros(40, 1, 'single'));
     data.beam = struct('timestamp', uint64((1:5).'));
     save(path, 'data', '-v7.3');
 end

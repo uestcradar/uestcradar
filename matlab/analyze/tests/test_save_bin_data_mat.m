@@ -13,31 +13,33 @@ function setupOnce(testCase)
     testCase.addTeardown(@() removeTestDir(testDir));
 end
 
-function testNon4096PriCreatesSlowFastMatrices(testCase)
+function testChannelsRemainContinuousTimeVectors(testCase)
     first = makeDataFrame(0, 1, 7, 3, 1000, 11, 21);
     second = makeDataFrame(4096, 1, 8, 4, 5096, 12, 22);
     binPath = fullfile(testCase.TestData.testDir, 'matrix.bin');
     writeBytes(binPath, [first; second]);
 
     info = cyhd_internal.scan_bin_record_info(binPath, 'LogFcn', @(~) []);
-    summary = cyhd_internal.save_bin_data_mat(binPath, info, 2000, ...
+    summary = cyhd_internal.save_bin_data_mat(binPath, info, ...
         'OutputDir', testCase.TestData.testDir, 'Overwrite', true);
 
     verifyEqual(testCase, summary.data_file_count, uint64(1));
     verifyEqual(testCase, summary.saved_frame_count, uint64(2));
-    verifyEqual(testCase, summary.saved_pri_count, uint64(4));
-    verifyEqual(testCase, summary.discarded_sample_count, uint64(192));
+    verifyEqual(testCase, summary.saved_sample_count, uint64(8192));
 
     loaded = load(summary.files.path{1}, 'data');
-    verifyEqual(testCase, size(loaded.data.ch0), [4, 2000]);
+    verifyEqual(testCase, size(loaded.data.ch0), [8192, 1]);
     verifyEqual(testCase, class(loaded.data.ch0), 'single');
-    verifyEqual(testCase, loaded.data.pri_samples, uint32(2000));
+    verifyEqual(testCase, loaded.data.sample_count, uint64(8192));
+    verifyEqual(testCase, loaded.data.samples_per_frame, uint32(4096));
+    verifyEqual(testCase, loaded.data.channel_layout, 'continuous_time_samples');
+    verifyFalse(testCase, isfield(loaded.data, 'pri_samples'));
     verifyEqual(testCase, loaded.data.sample_rate, 30.72e6);
 
-    sampleIndex = single(0:7999);
-    expectedCh0 = reshape(complex(sampleIndex, -sampleIndex), 2000, 4).';
-    expectedCh1 = reshape(complex(10000 + sampleIndex, -10000 + sampleIndex), 2000, 4).';
-    expectedCh2 = reshape(complex(-20000 + sampleIndex, 20000 - sampleIndex), 2000, 4).';
+    sampleIndex = single((0:8191).');
+    expectedCh0 = complex(sampleIndex, -sampleIndex);
+    expectedCh1 = complex(10000 + sampleIndex, -10000 + sampleIndex);
+    expectedCh2 = complex(-20000 + sampleIndex, 20000 - sampleIndex);
     verifyEqual(testCase, loaded.data.ch0, expectedCh0);
     verifyEqual(testCase, loaded.data.ch1, expectedCh1);
     verifyEqual(testCase, loaded.data.ch2, expectedCh2);
@@ -59,14 +61,14 @@ function testBadFrameProducesSeparateSegmentFiles(testCase)
     writeBytes(binPath, [first; bad; third]);
 
     info = cyhd_internal.scan_bin_record_info(binPath, 'LogFcn', @(~) []);
-    summary = cyhd_internal.save_bin_data_mat(binPath, info, 3000, ...
+    summary = cyhd_internal.save_bin_data_mat(binPath, info, ...
         'OutputDir', testCase.TestData.testDir, 'Overwrite', true);
 
     verifyEqual(testCase, info.summary.bad_frame_count, uint64(1));
     verifyEqual(testCase, info.summary.continuous_segment_count, uint64(2));
     verifyEqual(testCase, summary.data_file_count, uint64(2));
     verifyEqual(testCase, summary.saved_frame_count, uint64(2));
-    verifyEqual(testCase, summary.saved_pri_count, uint64(2));
+    verifyEqual(testCase, summary.saved_sample_count, uint64(8192));
     verifyTrue(testCase, all(cellfun(@isfile, summary.files.path)));
 end
 
@@ -81,7 +83,7 @@ function testLegacyRecordInfoIsRejected(testCase)
     info.protocol.data_header_pattern = info.protocol.data_header_pattern(1:96);
 
     verifyError(testCase, @() cyhd_internal.save_bin_data_mat( ...
-        binPath, info, 4096, 'OutputDir', testCase.TestData.testDir), ...
+        binPath, info, 'OutputDir', testCase.TestData.testDir), ...
         'CYHD:UnsupportedProtocol');
 end
 

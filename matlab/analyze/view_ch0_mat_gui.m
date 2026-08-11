@@ -39,12 +39,12 @@ function view_ch0_mat_gui
         'FontColor', secondaryColor, ...
         'BackgroundColor', [0.98, 0.98, 0.98]);
     uilabel(controlGrid, ...
-        'Text', '前N个PRI:', ...
+        'Text', '前N个采样点:', ...
         'HorizontalAlignment', 'right', ...
         'FontColor', textColor, ...
         'FontWeight', 'bold');
-    pulseCountField = uieditfield(controlGrid, 'numeric', ...
-        'Value', 32, ...
+    sampleCountField = uieditfield(controlGrid, 'numeric', ...
+        'Value', 131072, ...
         'Limits', [1, Inf], ...
         'RoundFractionalValues', 'on', ...
         'ValueDisplayFormat', '%.0f');
@@ -196,19 +196,19 @@ function view_ch0_mat_gui
             statusLabel.Text = '正在局部读取 CH0...';
             statusLabel.FontColor = [0.15, 0.35, 0.70];
             drawnow;
-            preview = cyhd_internal.read_ch0_mat_preview(selectedMatPath, pulseCountField.Value);
+            preview = cyhd_internal.read_ch0_mat_preview(selectedMatPath, sampleCountField.Value);
             ch0 = preview.ch0;
-            pulseCount = double(preview.loaded_pulses);
+            sampleCount = double(preview.loaded_samples);
             fs = preview.sample_rate;
 
-            continuousSignal = reshape(ch0.', [], 1);
+            continuousSignal = ch0(:);
             continuousTimeMilliseconds = (0:(numel(continuousSignal) - 1)) / fs * 1e3;
             plot(timeAxes, continuousTimeMilliseconds, abs(continuousSignal), ...
                 'Color', [0.08, 0.34, 0.72], 'LineWidth', 0.8);
             grid(timeAxes, 'on');
             xlabel(timeAxes, '连续时间 (ms)');
             ylabel(timeAxes, '|CH0|（原始幅值）');
-            title(timeAxes, sprintf('CH0 前 %d 个 PRI 的连续一维时域幅度', pulseCount));
+            title(timeAxes, sprintf('CH0 前 %d 个连续采样点的时域幅度', sampleCount));
             if numel(continuousTimeMilliseconds) > 1
                 xlim(timeAxes, [continuousTimeMilliseconds(1), continuousTimeMilliseconds(end)]);
             end
@@ -219,19 +219,18 @@ function view_ch0_mat_gui
             axis(stftAxes, 'xy');
             xlabel(stftAxes, '连续时间 (ms)');
             ylabel(stftAxes, '频率 (MHz)');
-            title(stftAxes, sprintf('CH0 前 %d 个 PRI 的 STFT（归一化 dB）', pulseCount));
+            title(stftAxes, sprintf('CH0 前 %d 个连续采样点的 STFT（归一化 dB）', sampleCount));
             colorbar(stftAxes);
             colormap(stftAxes, turbo(256));
             clim(stftAxes, [-80, 0]);
 
-            if preview.loaded_pulses < preview.requested_pulses
-                statusText = sprintf('请求%s个PRI，文件仅有%s个，已全部绘制。', ...
-                    formatUint(preview.requested_pulses), ...
-                    formatUint(preview.available_pulses));
+            if preview.loaded_samples < preview.requested_samples
+                statusText = sprintf('请求%s个采样点，文件仅有%s个，已全部绘制。', ...
+                    formatUint(preview.requested_samples), ...
+                    formatUint(preview.available_samples));
             else
-                statusText = sprintf('绘制完成：%s个PRI，CH0矩阵[%s × %u]。', ...
-                    formatUint(preview.loaded_pulses), ...
-                    formatUint(preview.loaded_pulses), preview.pri_samples);
+                statusText = sprintf('绘制完成：CH0连续向量前%s个采样点。', ...
+                    formatUint(preview.loaded_samples));
             end
             statusLabel.Text = statusText;
             statusLabel.FontColor = [0.08, 0.52, 0.22];
@@ -254,7 +253,7 @@ function view_ch0_mat_gui
             state = 'on';
         end
         selectButton.Enable = state;
-        pulseCountField.Enable = state;
+        sampleCountField.Enable = state;
         if isempty(selectedMatPath)
             plotButton.Enable = 'off';
             timestampButton.Enable = 'off';

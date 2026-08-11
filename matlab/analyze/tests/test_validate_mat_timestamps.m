@@ -49,8 +49,10 @@ end
 function createTimestampMat(path, timestamps)
     data = struct();
     data.sample_rate = 30.72e6;
-    data.pri_samples = uint32(8);
-    data.ch0 = complex(zeros(numel(timestamps), 8, 'single'));
+    data.sample_count = uint64(numel(timestamps) * 8);
+    data.samples_per_frame = uint32(8);
+    data.channel_layout = 'continuous_time_samples';
+    data.ch0 = complex(zeros(numel(timestamps) * 8, 1, 'single'));
     data.ch1 = data.ch0;
     data.ch2 = data.ch0;
     data.beam = struct('timestamp', timestamps(:));

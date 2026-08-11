@@ -1,22 +1,19 @@
-function save_summary = save_bin_data_mat(binPath, record_info, priSamples, varargin)
+function save_summary = save_bin_data_mat(binPath, record_info, varargin)
 %SAVE_BIN_DATA_MAT Convert valid CYHD frame segments to algorithm-ready MAT files.
-%   Each output MAT contains one variable named DATA.  Channel matrices are
-%   complex single arrays shaped [slow-time PRI x fast-time sample].
+%   Each output MAT contains one variable named DATA. Each channel is a
+%   complex single column vector in original sample-time order.
 
     parser = inputParser;
     parser.FunctionName = mfilename;
     addRequired(parser, 'binPath', @(x) ischar(x) || (isstring(x) && isscalar(x)));
     addRequired(parser, 'record_info', @isstruct);
-    addRequired(parser, 'priSamples', @(x) isnumeric(x) && isscalar(x) && ...
-        isfinite(x) && x >= 1 && x == floor(x));
     addParameter(parser, 'OutputDir', '', @(x) ischar(x) || (isstring(x) && isscalar(x)));
     addParameter(parser, 'Overwrite', false, @(x) islogical(x) && isscalar(x));
     addParameter(parser, 'ProgressFcn', [], @(x) isempty(x) || isa(x, 'function_handle'));
     addParameter(parser, 'LogFcn', [], @(x) isempty(x) || isa(x, 'function_handle'));
-    parse(parser, binPath, record_info, priSamples, varargin{:});
+    parse(parser, binPath, record_info, varargin{:});
 
     binPath = char(parser.Results.binPath);
-    priSamples = double(priSamples);
     outputDir = char(parser.Results.OutputDir);
     overwrite = parser.Results.Overwrite;
     progressFcn = parser.Results.ProgressFcn;
@@ -53,20 +50,11 @@ function save_summary = save_bin_data_mat(binPath, record_info, priSamples, vara
 
     segmentCount = height(segments);
     targetPaths = cell(segmentCount, 1);
-    segmentPriCounts = zeros(segmentCount, 1, 'uint64');
-    segmentKeptSamples = zeros(segmentCount, 1, 'uint64');
-    segmentDiscardedSamples = zeros(segmentCount, 1, 'uint64');
     willSave = false(segmentCount, 1);
 
     for row = 1:segmentCount
         frameCount = segments.frame_count(row);
-        totalSamples = frameCount * uint64(payloadPoints);
-        priCount = idivide(totalSamples, uint64(priSamples), 'floor');
-        keptSamples = priCount * uint64(priSamples);
-        segmentPriCounts(row) = priCount;
-        segmentKeptSamples(row) = keptSamples;
-        segmentDiscardedSamples(row) = totalSamples - keptSamples;
-        willSave(row) = priCount > 0;
+        willSave(row) = frameCount > 0;
         targetPaths{row} = fullfile(outputDir, sprintf('%s_data_seg%03d.mat', ...
             binStem, segments.segment_id(row)));
     end
@@ -87,33 +75,28 @@ function save_summary = save_bin_data_mat(binPath, record_info, priSamples, vara
     savedPaths = cell(segmentCount, 1);
     savedSegmentIds = zeros(segmentCount, 1, 'uint32');
     savedFrameCounts = zeros(segmentCount, 1, 'uint64');
-    savedPriCounts = zeros(segmentCount, 1, 'uint64');
     savedSampleCounts = zeros(segmentCount, 1, 'uint64');
-    savedDiscardedCounts = zeros(segmentCount, 1, 'uint64');
     savedCount = 0;
 
     emitLog(sprintf('开始保存数据: %s', binPath));
     for segmentRow = 1:segmentCount
         segmentId = segments.segment_id(segmentRow);
         frameCountU64 = segments.frame_count(segmentRow);
-        priCountU64 = segmentPriCounts(segmentRow);
-        discardedSamples = segmentDiscardedSamples(segmentRow);
 
         if ~willSave(segmentRow)
-            emitLog(sprintf('连续段%d不足一个完整PRI，跳过%s帧、%s采样点。', ...
-                segmentId, formatUint(frameCountU64), ...
-                formatUint(frameCountU64 * uint64(payloadPoints))));
+            emitLog(sprintf('连续段%d没有有效帧，跳过。', segmentId));
             continue;
         end
 
         frameCount = double(frameCountU64);
-        priCount = double(priCountU64);
-        emitLog(sprintf('正在解析连续段%d: %s帧，%s个完整PRI。', ...
-            segmentId, formatUint(frameCountU64), formatUint(priCountU64)));
+        sampleCountU64 = frameCountU64 * uint64(payloadPoints);
+        sampleCount = double(sampleCountU64);
+        emitLog(sprintf('正在解析连续段%d: %s帧，%s个连续采样点。', ...
+            segmentId, formatUint(frameCountU64), formatUint(sampleCountU64)));
 
-        ch0 = complex(zeros(priCount, priSamples, 'single'));
-        ch1 = complex(zeros(priCount, priSamples, 'single'));
-        ch2 = complex(zeros(priCount, priSamples, 'single'));
+        ch0 = complex(zeros(sampleCount, 1, 'single'));
+        ch1 = complex(zeros(sampleCount, 1, 'single'));
+        ch2 = complex(zeros(sampleCount, 1, 'single'));
         frameTimestamp = zeros(frameCount, 1, 'uint64');
         frameSweep = zeros(frameCount, 1, 'uint8');
         framePulse = zeros(frameCount, 1, 'uint16');
@@ -127,9 +110,6 @@ function save_summary = save_bin_data_mat(binPath, record_info, priSamples, vara
                 segmentId, formatUint(segments.start_byte_offset(segmentRow)));
         end
 
-        destinationPri = 1;
-        destinationFastTime = 1;
-        keptRemaining = segmentKeptSamples(segmentRow);
         chunkFrames = 64;
         frameBase = 0;
 
@@ -151,31 +131,12 @@ function save_summary = save_bin_data_mat(binPath, record_info, priSamples, vara
                 frameAz(frameIndex) = meta.az_code;
                 frameEl(frameIndex) = meta.el_code;
 
-                takeCount = double(min(keptRemaining, uint64(payloadPoints)));
-                if takeCount > 0
-                    payload = frame(payloadOffset + (1:payloadBytes));
-                    iq = decodePayload(payload, payloadPoints);
-                    sourceStart = 1;
-                    while sourceStart <= takeCount
-                        availableInPri = priSamples - destinationFastTime + 1;
-                        amount = min(availableInPri, takeCount - sourceStart + 1);
-                        sourceRange = sourceStart:(sourceStart + amount - 1);
-                        destinationRange = destinationFastTime:(destinationFastTime + amount - 1);
-                        ch0(destinationPri, destinationRange) = complex( ...
-                            single(iq(1, sourceRange)), single(iq(2, sourceRange)));
-                        ch1(destinationPri, destinationRange) = complex( ...
-                            single(iq(3, sourceRange)), single(iq(4, sourceRange)));
-                        ch2(destinationPri, destinationRange) = complex( ...
-                            single(iq(5, sourceRange)), single(iq(6, sourceRange)));
-                        sourceStart = sourceStart + amount;
-                        destinationFastTime = destinationFastTime + amount;
-                        if destinationFastTime > priSamples
-                            destinationPri = destinationPri + 1;
-                            destinationFastTime = 1;
-                        end
-                    end
-                    keptRemaining = keptRemaining - uint64(takeCount);
-                end
+                payload = frame(payloadOffset + (1:payloadBytes));
+                iq = decodePayload(payload, payloadPoints);
+                destinationRange = (frameIndex - 1) * payloadPoints + (1:payloadPoints);
+                ch0(destinationRange) = complex(single(iq(1, :).'), single(iq(2, :).'));
+                ch1(destinationRange) = complex(single(iq(3, :).'), single(iq(4, :).'));
+                ch2(destinationRange) = complex(single(iq(5, :).'), single(iq(6, :).'));
             end
 
             frameBase = frameBase + framesThisChunk;
@@ -184,8 +145,8 @@ function save_summary = save_bin_data_mat(binPath, record_info, priSamples, vara
                 sprintf('正在解析连续段%d...', segmentId));
         end
 
-        % Preserve one metadata record per original XDMA frame. Do not
-        % expand, repeat, or interpolate frame metadata onto the PRI axis.
+        % Preserve one metadata record per original XDMA frame. Channel
+        % samples remain contiguous, so frame k maps to its 4096-sample block.
         beam = struct();
         beam.timestamp = frameTimestamp;
         beam.sweep_count = frameSweep;
@@ -196,7 +157,9 @@ function save_summary = save_bin_data_mat(binPath, record_info, priSamples, vara
 
         data = struct();
         data.sample_rate = double(protocol.timestamp_tick_hz);
-        data.pri_samples = uint32(priSamples);
+        data.sample_count = sampleCountU64;
+        data.samples_per_frame = uint32(payloadPoints);
+        data.channel_layout = 'continuous_time_samples';
         data.ch0 = ch0;
         data.ch1 = ch1;
         data.ch2 = ch2;
@@ -211,12 +174,9 @@ function save_summary = save_bin_data_mat(binPath, record_info, priSamples, vara
         savedPaths{outputRow, 1} = targetPath;
         savedSegmentIds(outputRow, 1) = segmentId;
         savedFrameCounts(outputRow, 1) = frameCountU64;
-        savedPriCounts(outputRow, 1) = priCountU64;
-        savedSampleCounts(outputRow, 1) = segmentKeptSamples(segmentRow);
-        savedDiscardedCounts(outputRow, 1) = discardedSamples;
-        emitLog(sprintf('已保存连续段%d: %s帧，%s个PRI，丢弃尾部%s点。', ...
-            segmentId, formatUint(frameCountU64), formatUint(priCountU64), ...
-            formatUint(discardedSamples)));
+        savedSampleCounts(outputRow, 1) = sampleCountU64;
+        emitLog(sprintf('已保存连续段%d: %s帧，%s个连续采样点。', ...
+            segmentId, formatUint(frameCountU64), formatUint(sampleCountU64)));
 
         clear data beam ch0 ch1 ch2 frameTimestamp frameSweep framePulse frameBeam frameAz frameEl raw;
     end
@@ -224,28 +184,23 @@ function save_summary = save_bin_data_mat(binPath, record_info, priSamples, vara
     savedPaths = savedPaths(1:savedCount);
     savedSegmentIds = savedSegmentIds(1:savedCount);
     savedFrameCounts = savedFrameCounts(1:savedCount);
-    savedPriCounts = savedPriCounts(1:savedCount);
     savedSampleCounts = savedSampleCounts(1:savedCount);
-    savedDiscardedCounts = savedDiscardedCounts(1:savedCount);
 
     save_summary = struct();
     save_summary.output_dir = outputDir;
     save_summary.data_file_count = uint64(numel(savedPaths));
     save_summary.saved_frame_count = sum(savedFrameCounts, 'native');
-    save_summary.saved_pri_count = sum(savedPriCounts, 'native');
     save_summary.saved_sample_count = sum(savedSampleCounts, 'native');
-    save_summary.discarded_sample_count = sum(savedDiscardedCounts, 'native');
     save_summary.skipped_bad_frame_count = record_info.summary.bad_frame_count;
-    save_summary.files = table(savedSegmentIds, savedFrameCounts, savedPriCounts, ...
-        savedSampleCounts, savedDiscardedCounts, savedPaths, ...
-        'VariableNames', {'segment_id', 'frame_count', 'pri_count', ...
-        'sample_count', 'discarded_sample_count', 'path'});
+    save_summary.files = table(savedSegmentIds, savedFrameCounts, ...
+        savedSampleCounts, savedPaths, ...
+        'VariableNames', {'segment_id', 'frame_count', 'sample_count', 'path'});
 
     publishProgress(totalFramesToRead, totalFramesToRead, '保存完成。');
-    emitLog(sprintf('数据保存完成: %s个MAT，%s帧，%s个PRI。', ...
+    emitLog(sprintf('数据保存完成: %s个MAT，%s帧，%s个连续采样点。', ...
         formatUint(save_summary.data_file_count), ...
         formatUint(save_summary.saved_frame_count), ...
-        formatUint(save_summary.saved_pri_count)));
+        formatUint(save_summary.saved_sample_count)));
 
     function publishProgress(doneFrames, allFrames, message)
         if isempty(progressFcn)
