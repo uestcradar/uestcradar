@@ -5,6 +5,7 @@
 % 2. 再按顺序执行“原始数据定位 -> 解析 -> 预处理 -> RD -> 检测 -> 聚类 -> 测角 -> 保存 -> 绘图”
 % 3. 所有子模块都只负责单一环节，主流程顺序统一在本脚本中清晰展示
 
+
 cfg = struct();
 
 %% 1. 参数区：输入与输出路径
@@ -16,28 +17,26 @@ cfg.paths.tx_subdir_pattern = '*'; % 发射配置子目录匹配规则；默认�
 cfg.paths.tx_file_name = 'lfm_tx.bin'; % 发射参考波形文件名称；位于 TX 的具体配置子目录中。
 cfg.paths.tx_meta_name = 'metadata.json'; % 发射参考元数据文件名称；位于 TX 的具体配置子目录中。
 cfg.paths.rx_root_dir = 'RX'; % 接收数据根目录名称；其下通常按采集批次继续分子目录。
-cfg.paths.rx_meta_name = 'metadata.json'; % 接收批次元数据文件名称；默认使用第一批次的 metadata 作为接收参数来源。
-cfg.paths.rx_pattern = '*.bin'; % RX 文件匹配规则；新格式为时间戳命名的连续流文件
-cfg.paths.parse_info_pattern = 'parse_info_*.mat'; % 已解析索引文件匹配规则；关闭解析时用它加载最新一次解析结果。
+cfg.paths.rx_meta_name = 'metadata.json'; % 接收批次元数据文件名称。
+cfg.paths.rx_pattern = '*_data_seg*.mat'; % RX 前端预处理 mat 文件匹配规则。
+cfg.paths.frontend_mat_file = ''; % 前端 .mat 文件路径；空=弹窗选择。
 cfg.paths.result_dir_name = 'Results'; % 结果输出目录名称；最终会在每个数据集目录下生成该子目录。
 
 %% 1b. 参数区：波位排布（从帧内嵌元数据自动提取）
 cfg.beam.output_rd_per_beam = true;     % 是否保留逐波位 RD_Proc_beam*.mat；调试用，可设为 false 节省磁盘
 cfg.beam.test_single_beam = 0;          % 单波位测试模式：0=全部波位；N=仅处理波位 N
-cfg.beam.max_azimuth = 10;              % 方位角上限 (°)；az>此值跳过；inf=不限制
-cfg.beam.min_azimuth = -20;             % 方位角下限 (°)；az<此值跳过；-inf=不限制
+cfg.beam.max_azimuth = inf;              % 方位角上限 (°)；az>此值跳过；inf=不限制  25
+cfg.beam.min_azimuth = -inf;             % 方位角下限 (°)；az<此值跳过；-inf=不限制  5
 cfg.beam.max_elevation = inf;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
-cfg.beam.min_elevation = 0;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制
+cfg.beam.min_elevation = -inf;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制  5
 
 %% 2. 参数区：运行开关
-cfg.run.do_parse = false; % 是否重新解析原始 bin 文件；true 表示重新生成 rx_ch*.mat 和 parse_info_*.mat。
 cfg.run.do_process = true; % 是否重新执行 RD 处理；false 表示直接复用已有 RD_Proc_*.mat。
 cfg.run.do_detect = true; % 是否执行 CFAR 检测；通常保持 true，除非只想验证前级数据。
 cfg.run.do_cluster = true; % 是否执行 DBSCAN 聚类；关闭后只保留检测点，不输出聚类编号。
 cfg.run.do_angle = true; % 是否执行单脉冲测角；要求 RD 结果中存在方位差与俯仰差通道。
 cfg.run.do_plot = true; % 是否生成 Timeline GIF（RD 图）
 cfg.run.do_plot_3d = true; % 是否生成 3D 航迹 GIF + 静态图
-cfg.run.do_track = false; % 是否仅从已有融合结果运行跟踪+绘图（跳过检测/聚类/测角）
 
 %% 3. 参数区：预处理参数
 cfg.preprocess.do_dw_calibrate = true; % 是否自动标定直达波距离零点；true 表示利用首个 CPI 自动估计对齐位置。
@@ -57,14 +56,14 @@ cfg.radar.fc = 9.5e9; % 雷达载频，单位 Hz；用于波长和速度轴计�
 %% 5. 参数区：RD 处理参数
 cfg.rd.n_cpi = 256; % CPI 脉冲数；多波位模式下由波位文件逐波位覆写。
 cfg.rd.n_overlap = 0; % 块间重叠脉冲数；多波位模式下固定为 0（无重叠）。
-cfg.rd.max_range_m = 1000; % 最大处理距离，单位米；只保留该距离以内的距离单元参与后续处理。
+cfg.rd.max_range_m = 700; % 最大处理距离，单位米；只保留该距离以内的距离单元参与后续处理。
 cfg.rd.frames_per_chunk = 4096; % 预处理分块大小，用于 freq_offsets 数组长度估算
 cfg.rd.do_mti_twopulse = true; % 是否执行两脉冲相消；用于进一步增强运动目标、压制静态背景。
 cfg.rd.zero_doppler_cells = 1;   % 零多普勒清除半宽度；RD 后 DC ± N 格置零；0=仅清DC本身；负值=不清除
 
 %% 6. 参数区：目标检测参数
-cfg.detect.range_window_m = [300, 1000]; % 检测阶段使用的距离显示/分析范围，单位米。
-cfg.detect.velocity_window_mps = [-50, 50]; % 检测阶段使用的速度显示/分析范围，单位米每秒。
+cfg.detect.range_window_m = [200, 700]; % 检测阶段使用的距离显示/分析范围，单位米。
+cfg.detect.velocity_window_mps = [-20, 20]; % 检测阶段使用的速度显示/分析范围，单位米每秒。
 cfg.detect.cfar_guard_r = 4; % CFAR 在距离维的保护单元数；避免参考窗污染目标主瓣。
 cfg.detect.cfar_guard_d = 8; % CFAR 在速度维的保护单元数；避免参考窗污染目标主瓣。
 cfg.detect.cfar_ref_r = 16; % CFAR 在距离维的参考单元数；用于估计局部噪声背景。
@@ -85,8 +84,8 @@ cfg.fusion.dbscan_minpts_grid = 2;   % 融合 Grid-DBSCAN 最少点数；1=不�
 
 %% 8. 参数区：测角参数
 cfg.angle.k_mono = 1.0; % 单脉冲比幅系数缩放因子；用于把差比值映射到角度刻度。
-cfg.angle.range_window_m = [300, 1000]; % 测角阶段保留目标的距离范围，单位米。
-cfg.angle.velocity_window_mps = [-50, 50]; % 测角阶段保留目标的速度范围，单位米每秒。
+cfg.angle.range_window_m = [200, 700]; % 测角阶段保留目标的距离范围，单位米。
+cfg.angle.velocity_window_mps = [-20, 20]; % 测角阶段保留目标的速度范围，单位米每秒。
 cfg.angle.min_display_power_dB = 120; % 测角时参与输出的最小显示功率阈值，单位 dB。
 
 % --- LUT 查表测角（替代线性 k_mono 公式）---
@@ -99,7 +98,6 @@ cfg.angle.lut_step_deg = 0.1;     % LUT 栅格步长（度）
 %% 9. 参数区：结果导出参数
 cfg.export.save_analysis_mat = true; % 是否保存检测结果和测角结果 mat 文件；便于后续直接复用分析结果。
 cfg.export.gif_delay = 0.1; % GIF 帧间延时（最小 0.01s，GIF 格式限制）
-cfg.export.keep_parse_mat = true; % 是否保留解析阶段生成的 rx_ch*.mat 和 parse_info_*.mat；若每次都重新 parse，可改为 false。
 cfg.export.keep_rd_mat = true; % 是否保留 RD_Proc_*.mat；若只关心最终图像且不复用 RD，可改为 false。
 
 %% 10. 参数区：跟踪参数（EKF + GNN 多目标跟踪）
@@ -118,8 +116,8 @@ cfg.track.gate_confidence = 0.999;    % Chi-squared 关联门限置信度
 cfg.track.max_history_length = 100;   % 航迹历史最大存储点数
 
 %% 11. 参数区：绘图参数
-cfg.plot.range_window_m = [300, 700]; % 绘图显示的距离范围，单位米。
-cfg.plot.velocity_window_mps = [-50, 50]; % 绘图显示的速度范围，单位米每秒。
+cfg.plot.range_window_m = [200, 700]; % 绘图显示的距离范围，单位米。
+cfg.plot.velocity_window_mps = [-20, 20]; % 绘图显示的速度范围，单位米每秒。
 cfg.plot.clim_dB = [110, 155]; % RD 幅度图颜色条范围，单位 dB；用于统一不同帧的显示亮度。
 cfg.plot.frame_step = 1; % GIF 抽帧步长；1=全帧，20=每20帧取1帧
 cfg.plot.raw_rd_gif = true;   % 是否逐波位生成原始 RD 热力图 GIF（不经 CFAR）
@@ -162,45 +160,37 @@ for di = 1:numel(cfg.paths.data_folders)
     fprintf('\n[%d/%d] 当前数据集：%s\n', di, numel(cfg.paths.data_folders), dataset_name);
     fprintf('  [输出] 本次结果目录：%s\n', result_dir);
 
-    %% 13.1 定位原始输入
-    fprintf('  [步骤1] 定位原始输入文件\n');
-    raw_specs = locate_raw_inputs(data_dir, cfg.paths);
+    %% 13.1 定位输入
+    fprintf('  [步骤1] 定位输入文件\n');
     lg = cfg.runtime.status_cb;
-    lg(sprintf('  [输入] 共发现 %d 个 RX 批次', numel(raw_specs)));
 
-    % 多个批次时弹窗让用户选择处理哪些
-    batch_names = {raw_specs.batch_name};
-    if numel(raw_specs) > 1
-        [sel_idx, ok] = listdlg('Name', '选择 RX 批次', ...
-        'PromptString', '请选择要处理的 RX 批次：', ...
-        'ListString', batch_names, ...
-        'ListSize', [300 200], ...
-        'InitialValue', 1:numel(raw_specs));
-        if ok
-            raw_specs = raw_specs(sel_idx);
-        end
+    % TX 目录
+    tx_root = fullfile(data_dir, cfg.paths.tx_root_dir);
+    tx_entries = dir(fullfile(tx_root, cfg.paths.tx_subdir_pattern));
+    tx_entries = tx_entries([tx_entries.isdir] & ~ismember({tx_entries.name}, {'.', '..'}));
+    if isempty(tx_entries)
+        error('run_batch_pipeline:MissingTxDir', '未找到 TX 配置目录: %s', tx_root);
     end
+    tx_dir = fullfile(tx_entries(1).folder, tx_entries(1).name);
 
-    for bi = 1:numel(raw_specs)
-        raw_spec = raw_specs(bi);
-        batch_result_dir = fullfile(result_dir, raw_spec.batch_name);
-        if ~exist(batch_result_dir, 'dir')
-            mkdir(batch_result_dir);
-        end
-        raw_spec.output_dir = batch_result_dir;
-        fprintf('  [批次 %d/%d] %s\n', bi, numel(raw_specs), raw_spec.batch_name);
-        fprintf('    [输出] %s\n', batch_result_dir);
+    % RX：前端预处理 .mat 文件
+    if ~isempty(cfg.paths.frontend_mat_file)
+        mat_file = cfg.paths.frontend_mat_file;
+    else
+        [fn, fp] = uigetfile(fullfile(data_dir, cfg.paths.rx_root_dir, cfg.paths.rx_pattern), ...
+            '选择前端预处理 .mat 文件');
+        if isequal(fn, 0), fprintf('[入口] 已取消。\n'); return; end
+        mat_file = fullfile(fp, fn);
+    end
+    [~, batch_name] = fileparts(mat_file);
 
-        %% 13.2 解析原始数据
-        if cfg.run.do_parse
-            fprintf('  [步骤2] 重新解析原始 bin 数据\n');
-            parse_bundle = batch_parse_bin_new(raw_spec);
-            else
-            fprintf('  [步骤2] 读取已有解析结果\n');
-            result_dir_name = cfg.paths.result_dir_name;
-            parse_info_pattern = cfg.paths.parse_info_pattern;
-            parse_bundle = load_latest_parse_bundle(data_dir, result_dir_name, parse_info_pattern, raw_spec.batch_name);
-        end
+    batch_result_dir = fullfile(result_dir, batch_name);
+    if ~exist(batch_result_dir, 'dir'), mkdir(batch_result_dir); end
+    fprintf('  [批次] %s\n', batch_name);
+
+    %% 13.2 加载前端数据
+    fprintf('  [步骤2] 加载前端预处理数据\n');
+    parse_bundle = load_frontend_mat(mat_file, tx_dir, lg);
 
         % ---- 波位排布加载（从帧内嵌波位元数据提取）----
         if ~isfield(parse_bundle, 'beam_meta') || isempty(parse_bundle.beam_meta)
@@ -210,130 +200,38 @@ for di = 1:numel(cfg.paths.data_folders)
         beam_schedule = build_beam_schedule_from_meta(parse_bundle.beam_meta, ...
             parse_bundle.rx_param.pri_per_frame);
 
-        % 报告剔除的异常扫描
-        if ~isempty(beam_schedule.invalid_scans)
-            lg(sprintf('[波位] 已剔除 %d 个异常/不完整扫描: %s', ...
-                numel(beam_schedule.invalid_scans), mat2str(beam_schedule.invalid_scans)));
-        end
+    % 报告剔除的异常扫描
+    if ~isempty(beam_schedule.invalid_scans)
+        lg(sprintf('[波位] 已剔除 %d 个异常/不完整扫描: %s', ...
+            numel(beam_schedule.invalid_scans), mat2str(beam_schedule.invalid_scans)));
+    end
 
-        % ---- 生成单脉冲 LUT（若启用 LUT 测角）----
-        if cfg.angle.use_lut
-            monopulse_lut = mono_angle('generate_lut', ...
-                cfg.angle.k_az, cfg.angle.k_el, cfg.angle.lut_roi_deg, cfg.angle.lut_step_deg, ...
-                beam_schedule);
-        else
-            monopulse_lut = [];
-        end
+    % ---- 生成单脉冲 LUT（若启用 LUT 测角）----
+    if cfg.angle.use_lut
+        monopulse_lut = mono_angle('generate_lut', ...
+            cfg.angle.k_az, cfg.angle.k_el, cfg.angle.lut_roi_deg, cfg.angle.lut_step_deg, ...
+            beam_schedule);
+    else
+        monopulse_lut = [];
+    end
 
-        % 构建基础 RD 上下文（pri_len, fs, prt 等基础参数）
-        rd_ctx = build_rd_context(parse_bundle.rx_param, parse_bundle.tx, cfg.rd, cfg.radar);
-        % 根据波位排布确定 chunk 数（= 总帧数）
-        rd_ctx.num_chunks = max(floor(double(parse_bundle.rx_param.total_pri) / beam_schedule.total_pulses), rd_ctx.num_chunks);
-        lg = cfg.runtime.status_cb;
+    % 构建基础 RD 上下文（pri_len, fs, prt 等基础参数）
+    rd_ctx = build_rd_context(parse_bundle.rx_param, parse_bundle.tx, cfg.rd, cfg.radar);
+    % 根据波位排布确定 chunk 数（= 总帧数）
+    rd_ctx.num_chunks = max(floor(double(parse_bundle.rx_param.total_pri) / beam_schedule.total_pulses), rd_ctx.num_chunks);
 
-        % ---- 快速路径：仅跟踪+绘图（复用已有融合结果）----
-        if cfg.run.do_track
-            % 在所有历史运行目录中搜索最近的融合结果
-            all_run_dirs = get_all_run_output_dirs(data_dir, cfg.paths.result_dir_name);
-            fused_candidates = [];
-            for ri = 1:numel(all_run_dirs)
-                batch_dir = fullfile(all_run_dirs{ri}, raw_spec.batch_name);
-                entries = dir(fullfile(batch_dir, 'Fused_Targets_*.mat'));
-                if ~isempty(entries)
-                    fused_candidates = [fused_candidates; entries]; %#ok<AGROW>
-                end
-            end
-            if isempty(fused_candidates)
-                error('run_batch_pipeline:MissingFusedMat', ...
-                    '未在历史结果中找到 Fused_Targets_*.mat，请先跑完整流程。');
-            end
-            [~, idx] = max([fused_candidates.datenum]);
-            fused_file = fullfile(fused_candidates(idx).folder, fused_candidates(idx).name);
-            lg(sprintf('  [快速路径] 加载融合结果：%s', fused_file));
-            S = load(fused_file, 'fused_plots', 'beam_schedule');
-            fused_plots = S.fused_plots;
-            if isempty(fused_plots)
-                total_scan_frames = 0;
-            else
-                total_scan_frames = max(fused_plots(:, 6));
-            end  % 从数据中取最大 scan_id
-            scan_period = beam_schedule.total_pulses / parse_bundle.rx_param.prf;
-            ts_out = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+    % ============ 多波位 TWS 模式 ============
+    lg(sprintf('\n---------- 多波位 TWS 模式：%d 个波位 ----------', beam_schedule.num_beams));
 
-            % --- 跟踪 ---
-            track_results = {};
-            if cfg.track.enable
-                fprintf('  [步骤10] 多目标跟踪 (EKF+GNN)\n');
-                tracker_params = struct();
-                tracker_params.dt_frame = scan_period * cfg.track.decimation;
-                fprintf('  [跟踪] dt_frame = %.3f s (scan_period=%.3f × decimation=%d)\n', ...
-                    tracker_params.dt_frame, scan_period, cfg.track.decimation);
-                tracker_params.radar_height = cfg.track.radar_height;
-                sigma_r  = cfg.track.range_noise_std;
-                sigma_a  = deg2rad(cfg.track.angle_noise_std_deg);
-                sigma_e  = deg2rad(cfg.track.angle_noise_std_deg);
-                sigma_vr = cfg.track.vr_noise_std;
-                tracker_params.measurement_noise = diag([sigma_r^2, sigma_a^2, sigma_e^2, sigma_vr^2]);
-                Q_base = [tracker_params.dt_frame^3/3, tracker_params.dt_frame^2/2;
-                          tracker_params.dt_frame^2/2, tracker_params.dt_frame];
-                tracker_params.process_noise_matrix = blkdiag(Q_base, Q_base, Q_base) * cfg.track.q;
-                tracker_params.M = cfg.track.M;
-                tracker_params.N = cfg.track.N;
-                tracker_params.max_predictions = cfg.track.max_predictions;
-                tracker_params.gate_confidence = cfg.track.gate_confidence;
-                tracker_params.max_history_length = cfg.track.max_history_length;
-                tracker_params.v_tan_std_init = cfg.track.v_tan_std_init;
-
-                [tracks, track_id_counter] = track_init();
-                decimated_frames = 1:cfg.track.decimation:total_scan_frames;
-                track_results = cell(total_scan_frames, 1);
-                for dd = 1:numel(decimated_frames)
-                    fi = decimated_frames(dd);
-                    meas_idx = fused_plots(:, 6) == fi;
-                    raw_meas = fused_plots(meas_idx, 1:5);
-                    if ~isempty(raw_meas)
-                        raw_meas(:, 2:3) = deg2rad(raw_meas(:, 2:3));
-                        raw_meas(:, 4) = -raw_meas(:, 4);  % 翻转vr符号: 雷达(正=接近)→EKF(正=远离)
-                    end
-                    [tracks, track_id_counter] = tracker_3D_EKF(tracks, raw_meas, track_id_counter, tracker_params);
-                    track_results{fi} = tracks;
-                end
-                n_active = sum(~[tracks.is_terminated]);
-                n_confirmed = sum([tracks.is_confirmed]);
-                lg(sprintf('  [跟踪] 总航迹=%d, 活跃=%d, 已确认=%d', numel(tracks), n_active, n_confirmed));
-                fprintf('  [跟踪] 保存结果...\n');
-                track_mat = fullfile(batch_result_dir, sprintf('Tracks_%s.mat', ts_out));
-                save(track_mat, 'tracks', '-v7.3');
-            end
-
-            % --- 绘图 ---
-            if cfg.run.do_plot
-                fprintf('  [步骤11] 逐帧动图 (RD)\n');
-                plot_beam_timeline_gif([], fused_plots, total_scan_frames, batch_result_dir, cfg, track_results);
-            end
-            if cfg.run.do_plot_3d && cfg.track.enable
-                fprintf('  [步骤12] 3D 航迹动图\n');
-                plot_tracking_3d_gif(fused_plots, total_scan_frames, track_results, ...
-                    cfg.track.radar_height, batch_result_dir, cfg);
-            end
-
-            if ~cfg.export.keep_parse_mat
-                cleanup_parse_outputs(parse_bundle, lg);
-            end
-            continue;
-        end
-
-        % ============ 多波位 TWS 模式 ============
-            lg(sprintf('\n---------- 多波位 TWS 模式：%d 个波位 ----------', beam_schedule.num_beams));
-
-            % 预处理只 init 一次（直达波对齐对所有波位通用）
-            fprintf('  [步骤4] 初始化预处理模块（共享）\n');
-            % 传入已解析通道文件，使直达波标定从干净数据读取（而非原始 bin）
-            raw_spec.parsed_ch1_file = parse_bundle.rx_channel_files{1};
-            raw_spec.parsed_ch1_var  = parse_bundle.channel_var_names{1};
-            raw_spec.initial_scan_pri = beam_schedule.initial_scan_pri;  % 从有效扫描开始校准
-            [~, shared_preproc] = preprocess('init', raw_spec, parse_bundle.tx, rd_ctx, cfg.preprocess, lg);
-            lg(sprintf('  [预处理] 直达波 bin=%d，对齐模式=%s', shared_preproc.dw_bin, shared_preproc.dw_mode));
+    % 预处理只 init 一次（直达波对齐对所有波位通用）
+    fprintf('  [步骤4] 初始化预处理模块（共享）\n');
+    raw_spec = struct();
+    raw_spec.data_dir = data_dir;
+    raw_spec.parsed_ch1_file = parse_bundle.rx_channel_files{1};
+    raw_spec.parsed_ch1_var  = parse_bundle.channel_var_names{1};
+    raw_spec.initial_scan_pri = beam_schedule.initial_scan_pri;
+    [~, shared_preproc] = preprocess('init', raw_spec, parse_bundle.tx, rd_ctx, cfg.preprocess, lg);
+    lg(sprintf('  [预处理] 直达波 bin=%d，对齐模式=%s', shared_preproc.dw_bin, shared_preproc.dw_mode));
 
             process_cfg = struct();
             process_cfg.process = cfg.rd;
@@ -391,7 +289,7 @@ for di = 1:numel(cfg.paths.data_folders)
                     out_file = '';
                     all_run_dirs = get_all_run_output_dirs(data_dir, cfg.paths.result_dir_name);
                     for ri = 1:numel(all_run_dirs)
-                        beam_dir = fullfile(all_run_dirs{ri}, raw_spec.batch_name, sprintf('beam_%03d', beam_id));
+                        beam_dir = fullfile(all_run_dirs{ri}, batch_name, sprintf('beam_%03d', beam_id));
                         if exist(beam_dir, 'dir')
                             entries = dir(fullfile(beam_dir, rd_pattern));
                             if ~isempty(entries)
@@ -518,9 +416,17 @@ for di = 1:numel(cfg.paths.data_folders)
                 if ~cfg.beam.output_rd_per_beam && cfg.run.do_process && exist(out_file, 'file')
                     delete(out_file);
                 end
+
+                % 逐波位清理：119 波位循环中防止 matfile 句柄和中间变量堆积
+                clear rd rd0 rd1 rd2 rd_sub;
             end
 
             % ---- 异常扫描已由 RD 层跳过，检测结果已是连续正常扫描 ----
+
+            if isempty(all_raw_plots)
+                lg('[融合] 无任何检测目标（all_raw_plots 为空），跳过融合、跟踪与绘图。');
+                continue;
+            end
 
             % ============ 跨波位融合（逐扫描进行）============
             fprintf('\n  [步骤9] 多波位点迹融合\n');
@@ -555,7 +461,7 @@ for di = 1:numel(cfg.paths.data_folders)
                 total_input, total_ghosts, total_after, total_final));
 
             % ---- 多目标跟踪（EKF + GNN）----
-            total_scan_frames = max(fused_plots(:, 6));
+            total_scan_frames = beam_schedule.total_scans;  % 用实际扫描数，包含无目标帧
 
             if cfg.track.enable
                 fprintf('  [步骤10] 多目标跟踪 (EKF+GNN)\n');
@@ -632,228 +538,11 @@ for di = 1:numel(cfg.paths.data_folders)
                 end
             end
 
-            if ~cfg.export.keep_parse_mat
-                cleanup_parse_outputs(parse_bundle, lg);
-            end
-    end
-
 end
 
 fprintf('\n========== 全部处理完成，总耗时 %.1f 分钟 ==========\n', toc(t_total) / 60);
 
-%% 14. 本地辅助函数：路径定位与上下文构建
-function raw_specs = locate_raw_inputs(data_dir, paths)
-    %LOCATE_RAW_INPUTS 定位所有 RX 批次的原始输入文件。
-    %
-    % 输入：
-    %   data_dir  - 待处理数据目录
-    %   paths     - 路径配置结构体
-    % 输出：
-    %   raw_specs - 结构体数组，每个元素对应一个 RX 批次的路径集合
-    % 注意：
-    %   本函数返回所有可用批次，批次筛选由调用方（主流程）处理。
-    % 作用：
-    %   根据入口脚本最前面定义的路径规则，适配如下原始结构：
-    %   data_dir/
-    %     TX/<发射配置子目录>/lfm_tx.bin, metadata.json
-    %     RX/<采集批次子目录>/cpi_*.bin, metadata.json
-
-    tx_root_dir = fullfile(data_dir, paths.tx_root_dir);
-    tx_dir_entries = dir(fullfile(tx_root_dir, paths.tx_subdir_pattern));
-    tx_dir_entries = tx_dir_entries([tx_dir_entries.isdir]);
-    tx_dir_entries = tx_dir_entries(~ismember({tx_dir_entries.name}, {'.', '..'}));
-    if isempty(tx_dir_entries)
-        error('run_batch_pipeline:MissingTxDir', '未在目录中找到 TX 配置子目录：%s', tx_root_dir);
-    end
-    [~, tx_dir_order] = sort({tx_dir_entries.name});
-    tx_dir_entries = tx_dir_entries(tx_dir_order);
-
-    tx_dir = '';
-    tx_file = '';
-    tx_meta_file = '';
-    for tx_idx = 1:numel(tx_dir_entries)
-        candidate_tx_dir = fullfile(tx_dir_entries(tx_idx).folder, tx_dir_entries(tx_idx).name);
-        candidate_tx_file = fullfile(candidate_tx_dir, paths.tx_file_name);
-        candidate_tx_meta_file = fullfile(candidate_tx_dir, paths.tx_meta_name);
-        if exist(candidate_tx_file, 'file') && exist(candidate_tx_meta_file, 'file')
-            tx_dir = candidate_tx_dir;
-            tx_file = candidate_tx_file;
-            tx_meta_file = candidate_tx_meta_file;
-            break;
-        end
-    end
-    if isempty(tx_dir)
-        error('run_batch_pipeline:MissingTxFiles', ...
-        'TX 目录下未找到同时包含 %s 和 %s 的配置子目录：%s', ...
-        paths.tx_file_name, paths.tx_meta_name, tx_root_dir);
-    end
-
-    rx_root_dir = fullfile(data_dir, paths.rx_root_dir);
-
-    % 递归收集 RX/ 下所有 .bin 文件（含子目录）
-    rx_entries = dir(fullfile(rx_root_dir, '**', paths.rx_pattern));
-    if isempty(rx_entries)
-        error('run_batch_pipeline:MissingRxFiles', '未在 %s 中找到 %s 文件。', rx_root_dir, paths.rx_pattern);
-    end
-    rx_entry_names = {rx_entries.name};
-    [~, ord] = sort(rx_entry_names);  % 时间戳文件名，字母序即时间序
-    rx_files = fullfile({rx_entries(ord).folder}, rx_entry_names(ord));
-
-    % 查找 metadata.json（RX/ 根目录优先；缺失时解析器使用默认值）
-    rx_meta_file = fullfile(rx_root_dir, paths.rx_meta_name);
-    if ~exist(rx_meta_file, 'file')
-        rx_meta_file = fullfile(fileparts(rx_files{1}), paths.rx_meta_name);
-    end
-    if ~exist(rx_meta_file, 'file')
-        fprintf('  [定位] RX metadata.json 未找到，解析时将使用默认值。\n');
-        rx_meta_file = '';
-    end
-    raw_spec = struct();
-    raw_spec.data_dir = data_dir;
-    raw_spec.tx_dir = tx_dir;
-    raw_spec.tx_file = tx_file;
-    raw_spec.tx_meta_file = tx_meta_file;
-    raw_spec.rx_root_dir = rx_root_dir;
-    raw_spec.rx_meta_file = rx_meta_file;
-    raw_spec.rx_files = rx_files;
-    [~, raw_spec.batch_name] = fileparts(rx_root_dir);
-    raw_specs = raw_spec;
-end
-
-function parse_bundle = load_latest_parse_bundle(data_dir, result_dir_name, parse_info_pattern, batch_name)
-    %LOAD_LATEST_PARSE_BUNDLE 读取最近一次解析输出。
-    %
-    % 输入：
-    %   data_dir           - 数据目录
-    %   parse_info_pattern - 解析结果文件匹配模式
-    % 输出：
-    %   parse_bundle       - 与 batch_parse_bin 输出一致的结构体
-    % 作用：
-    %   当入口关闭重新解析时，直接读取当前版本生成的解析结果继续后续流程。
-
-    if nargin < 4
-        batch_name = '';
-    end
-
-    % 收集全部候选搜索目录：所有历史运行的时间戳目录（从新到旧），
-    % 以及它们对应的批次子目录；最后才回退到 data_dir 本身。
-    % 这样即使当前运行刚创建了空的时间戳目录，也能自动回溯到上一次有数据的结果。
-    search_dirs = {};
-    all_run_dirs = get_all_run_output_dirs(data_dir, result_dir_name);
-    for ri = 1:numel(all_run_dirs)
-        if ~isempty(batch_name)
-            search_dirs{end + 1} = fullfile(all_run_dirs{ri}, batch_name); %#ok<AGROW>
-        end
-        search_dirs{end + 1} = all_run_dirs{ri}; %#ok<AGROW>
-    end
-    search_dirs{end + 1} = data_dir;
-
-    parse_files = [];
-    for si = 1:numel(search_dirs)
-        if ~exist(search_dirs{si}, 'dir')
-            continue;
-        end
-        parse_files = dir(fullfile(search_dirs{si}, parse_info_pattern));
-        if ~isempty(parse_files)
-            break;
-        end
-    end
-    if isempty(parse_files)
-        error('run_batch_pipeline:MissingParseInfo', '未在目录中找到 parse_info_*.mat：%s', data_dir);
-    end
-    [~, idx] = max([parse_files.datenum]);
-    parse_file = fullfile(parse_files(idx).folder, parse_files(idx).name);
-    S = load(parse_file, 'rx_param', 'tx', 'beam_meta');
-    parse_bundle = struct();
-    parse_bundle.rx_param = S.rx_param;
-    parse_bundle.tx = S.tx;
-    if isfield(S, 'beam_meta')
-        parse_bundle.beam_meta = S.beam_meta;
-    end
-    parse_bundle.parse_ts = regexp(parse_files(idx).name, '\d{8}_\d{6}', 'match', 'once');
-    parse_bundle.parse_info_file = parse_file;
-    parse_bundle.data_dir = data_dir;
-    parse_bundle.channel_ids = builtin('double', S.rx_param.channels(:).');
-    parse_bundle.channel_var_names = cell(1, numel(parse_bundle.channel_ids));
-    parse_bundle.rx_channel_files = cell(1, numel(parse_bundle.channel_ids));
-    for ci = 1:numel(parse_bundle.channel_ids)
-        ch_id = parse_bundle.channel_ids(ci);
-        parse_bundle.channel_var_names{ci} = sprintf('rx_ch%d', ch_id);
-        ch_entries = dir(fullfile(parse_files(idx).folder, sprintf('rx_ch%d_%s.mat', ch_id, parse_bundle.parse_ts)));
-        if isempty(ch_entries)
-            ch_entries = dir(fullfile(data_dir, sprintf('rx_ch%d_%s.mat', ch_id, parse_bundle.parse_ts)));
-        end
-        if isempty(ch_entries)
-            error('run_batch_pipeline:MissingChannelMat', ...
-            '未找到通道 ch%d 对应的解析 mat 文件，时间戳=%s，目录=%s', ch_id, parse_bundle.parse_ts, data_dir);
-        end
-        [~, ch_idx] = max([ch_entries.datenum]);
-        parse_bundle.rx_channel_files{ci} = fullfile(ch_entries(ch_idx).folder, ch_entries(ch_idx).name);
-    end
-end
-
-
-function all_run_dirs = get_all_run_output_dirs(data_dir, result_dir_name)
-    %GET_ALL_RUN_OUTPUT_DIRS 获取全部历史运行的时间戳目录（从新到旧）。
-    %
-    % 输入：
-    %   data_dir         - 数据目录
-    %   result_dir_name  - 结果根目录名称
-    % 输出：
-    %   all_run_dirs     - 全部时间戳目录路径 cell 数组；若不存在则返回空 cell
-    % 作用：
-    %   在关闭重算、需要复用已有输出时，按时间倒序扫描所有历史运行目录，
-    %   优先匹配最近一次包含目标文件的运行结果。
-
-    all_run_dirs = {};
-    result_root_dir = fullfile(data_dir, result_dir_name);
-    if ~exist(result_root_dir, 'dir')
-        return;
-    end
-    entries = dir(result_root_dir);
-    entries = entries([entries.isdir]);
-    names = {entries.name};
-    mask = ~ismember(names, {'.', '..'});
-    entries = entries(mask);
-    names = names(mask);
-    ts_mask = ~cellfun('isempty', regexp(names, '^\d{8}_\d{6}$', 'once'));
-    entries = entries(ts_mask);
-    if isempty(entries)
-        return;
-    end
-    [~, idx] = sort([entries.datenum], 'descend');
-    entries = entries(idx);
-    all_run_dirs = cell(1, numel(entries));
-    for i = 1:numel(entries)
-        all_run_dirs{i} = fullfile(entries(i).folder, entries(i).name);
-    end
-end
-
-function cleanup_parse_outputs(parse_bundle, status_cb)
-    %CLEANUP_PARSE_OUTPUTS 删除本次运行生成的解析 mat 文件。
-    %
-    % 输入：
-    %   parse_bundle - 解析阶段输出结构体
-    %   status_cb    - 状态输出函数
-    % 输出：
-    %   无
-    % 作用：
-    %   当不希望长期保留解析缓存时，删除 rx_ch*.mat 与 parse_info_*.mat，减少磁盘占用。
-
-    for ci = 1:numel(parse_bundle.rx_channel_files)
-        this_file = parse_bundle.rx_channel_files{ci};
-        if exist(this_file, 'file')
-            delete(this_file);
-            status_cb(sprintf('  [清理] 已删除解析通道文件：%s', this_file));
-        end
-    end
-    if isfield(parse_bundle, 'parse_info_file') && exist(parse_bundle.parse_info_file, 'file')
-        delete(parse_bundle.parse_info_file);
-        status_cb(sprintf('  [清理] 已删除解析索引文件：%s', parse_bundle.parse_info_file));
-    end
-end
-
-
+%% 14. 本地辅助函数
 function rd_ctx = build_rd_context(rx_param, tx, rd_cfg, radar_cfg)
     %BUILD_RD_CONTEXT 计算 RD 处理上下文。
     %
@@ -891,6 +580,27 @@ function rd_ctx = build_rd_context(rx_param, tx, rd_cfg, radar_cfg)
     rd_ctx.pw_samples = sum(abs(tx.data) > 0.01 * max(abs(tx.data)));
     ref_freq = fft(single(tx.data), rd_ctx.pri_len);
     rd_ctx.conj_ref_freq = conj(ref_freq) .* single(hamming(rd_ctx.pri_len));
+end
+
+function all_run_dirs = get_all_run_output_dirs(data_dir, result_dir_name)
+%GET_ALL_RUN_OUTPUT_DIRS 获取全部历史运行的时间戳目录（从新到旧）。
+    all_run_dirs = {};
+    result_root_dir = fullfile(data_dir, result_dir_name);
+    if ~exist(result_root_dir, 'dir'), return; end
+    entries = dir(result_root_dir);
+    entries = entries([entries.isdir]);
+    names = {entries.name};
+    mask = ~ismember(names, {'.', '..'});
+    entries = entries(mask);
+    ts_mask = ~cellfun('isempty', regexp({entries.name}, '^\d{8}_\d{6}$', 'once'));
+    entries = entries(ts_mask);
+    if isempty(entries), return; end
+    [~, idx] = sort([entries.datenum], 'descend');
+    entries = entries(idx);
+    all_run_dirs = cell(1, numel(entries));
+    for i = 1:numel(entries)
+        all_run_dirs{i} = fullfile(entries(i).folder, entries(i).name);
+    end
 end
 
 

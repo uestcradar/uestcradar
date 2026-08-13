@@ -1,6 +1,6 @@
 # Matlab_Helium
 
-面向雷达原始 `bin` 数据的 MATLAB 批处理工程。基于**多波位 TWS 模式**，包含逐波位 LUT 查表测角、跨波位点迹融合，以及 **EKF + GNN 多目标跟踪**。
+面向雷达前端预处理 `.mat` 数据的 MATLAB 批处理工程。基于**多波位 TWS 模式**，包含逐波位 LUT 查表测角、跨波位点迹融合，以及 **EKF + GNN 多目标跟踪**。
 
 ## 项目定位
 
@@ -8,42 +8,36 @@
 
 所有路径、开关、算法参数集中在脚本最前面的参数区，按顺序调度完整流程。
 
+## 数据格式
+
+前端工具（`cyhd_internal.save_bin_data_mat`）将原始 `.bin` 文件预处理为单个 `.mat` 文件，每个文件对应一次连续采集。
+
+```text
+.mat 内部结构（变量名: data）：
+  data.sample_rate        = 30.72e6
+  data.sample_count       = 总采样点数
+  data.samples_per_frame  = 4096（每 XDMA 帧）
+  data.ch0 / ch1 / ch2    = [sample_count×1] complex single，时间连续流
+  data.beam.sweep_count   = [N_frames×1] uint8，扫描周期编号
+  data.beam.az_code       = [N_frames×1] uint16（0~2000 → -50°~50°）
+  data.beam.el_code       = [N_frames×1] uint16（0~2000 → -50°~50°）
+```
+
+每帧 4 个 PRI，PRI 长度 = 1024 采样。发射参考波形沿用原有的 `lfm_tx.bin` + `metadata.json`。
+
 ## 多波位 TWS 模式
 
-每个 CPI 文件 = 一轮扫描（128 波位 × 256 脉冲）。按波位分组独立 RD，最后跨波位融合：
+19 波位扫描，波位角度从 -45° 到 +45° 方位。按波位分组独立 RD，最后跨波位融合：
 
 - **旁瓣鬼影剔除**：同 (R,V) 位置、功率差 > 6dB → 剔除弱者为旁瓣泄漏
 - **邻域加权融合**：波位交叠区同一目标被多次检出 → 功率加权合并
 - **网格 DBSCAN**：最终空间聚类
 
-## 原始数据目录结构
+## 波位排布
 
-```text
-数据集目录/
-├─ TX/
-│  └─ 某发射配置子目录/
-│     ├─ lfm_tx.bin
-│     └─ metadata.json
-└─ RX/
-   ├─ 2026-06-10_02-59-55/
-   │  ├─ cpi_000.bin  ~  cpi_039.bin
-   │  └─ metadata.json
-   └─ ...
-```
+波位排布由帧内嵌的波位元数据自动提取（[`build_beam_schedule_from_meta.m`](./src/build_beam_schedule_from_meta.m)），无需外部波位文件。
 
-每个 CPI 文件包含一轮完整扫描（128 波位 × 256 脉冲 = 32,768 PRI）。
-
-## 波位排布文件格式
-
-多波位模式需要波位文件（如 `波位格式.txt`），格式：`方位角(°), 俯仰角(°), [驻留脉冲数]`。
-
-```text
-# 注释以 # 开头
--37.5, -17.5, 256
--32.5, -17.5, 256
-...
- 37.5,  17.5, 256
-```
+元数据从每个 PRI 的 `az_code`/`el_code` 解码角度，按方位角序列识别 19 波位扫描模式，自动计算驻留脉冲数和扫描周期。
 
 ## 工程结构
 
@@ -55,12 +49,11 @@
 
 | 文件 | 作用 |
 |---|---|
-| `batch_parse_bin.m` | 原始 bin 解析：交织 → 单通道 mat |
-| `batch_parse_bin_new.m` | 新版 bin 解析（支持 metadata 自动识别） |
-| `build_beam_schedule_from_meta.m` | 从 RX metadata.json 自动构建波位排布 |
+| `load_frontend_mat.m` | 前端 .mat → parse_bundle 适配层（懒加载元数据、角度解码、PRI 扩展） |
+| `build_beam_schedule_from_meta.m` | 从波位元数据自动构建波位排布 |
 | `preprocess.m` | 预处理入口（init / chunk），含直达波对齐、距离压缩、频偏补偿 |
 | `align_direct_wave_range.m` | 直达波定位与距离零点校准 |
-| `process_rd_beam.m` | 波位模式 RD：按偏移量跳读，每驻留独立 CPI |
+| `process_rd_beam.m` | 波位模式 RD：按偏移量跳读，每驻留独立 CPI，含零多普勒清除 |
 | `cfar_2d.m` | 2D CA-CFAR 检测 |
 | `dbscan_cluster.m` | 逐帧 DBSCAN 聚类（像素空间） |
 | `mono_angle.m` | 测角统一入口：线性 k_mono / LUT 生成 / LUT 查表 + 2D 解耦 |
@@ -79,8 +72,8 @@
 ## 主流程
 
 ```
-参数配置 → 定位原始输入 → 解析 bin → 波位排布加载 → 构建上下文
-    → preprocess init → 逐波位 process_rd_beam → 检测 → 聚类
+参数配置 → 选择前端 .mat → load_frontend_mat 适配 → 波位排布自动构建 → 构建上下文
+    → preprocess init → 逐波位 process_rd_beam → 零多普勒清除 → 检测 → 聚类
     → LUT 测角 → 跨波位融合 → EKF 多目标跟踪 → 3D 航迹 GIF
 ```
 
@@ -88,8 +81,9 @@
 
 ```matlab
 % 运行开关
-cfg.run.do_parse = false;            % 重新解析 bin
-cfg.run.do_process = false;          % 重新 RD 处理
+cfg.run.do_process = true;           % 是否执行 RD 处理（false 则搜索已有结果）
+cfg.run.do_detect = true;            % 是否执行检测+聚类+测角+融合
+cfg.run.do_angle = true;             % 是否执行测角
 
 % 测角
 cfg.angle.use_lut = true;            % LUT 查表 vs 线性 k_mono
@@ -97,9 +91,13 @@ cfg.angle.k_az = 25.0;               % 方位单脉冲斜率
 cfg.angle.k_el = 25.0;               % 俯仰单脉冲斜率
 
 % RD
-cfg.rd.n_cpi = 256;                  % CPI 脉冲数（由波位文件自动覆写）
+cfg.rd.n_cpi = 256;                  % CPI 脉冲数（由波位排布自动覆写）
 cfg.rd.max_range_m = 2000;           % 最大处理距离 (m)
-cfg.rd.zero_doppler_cells = 3;       % 零多普勒清除半宽度；RD 后 DC±N 格置零，0=不清除
+cfg.rd.zero_doppler_cells = 1;       % 零多普勒清除半宽度；RD 后 DC±N 格置零，0=仅 DC
+
+% 路径
+cfg.paths.rx_pattern = '*_data_seg*.mat';  % 前端 .mat 文件匹配模式
+cfg.paths.frontend_mat_file = '';          % 留空则弹窗选择
 
 % 检测
 cfg.detect.range_window_m = [300, 800];
@@ -139,12 +137,10 @@ cfg.track.max_predictions = 3;         % 连续丢失终止阈值
 
 ## 输出结果
 
-每次运行在 `数据集目录/Results/时间戳/` 下生成：
+每次运行在 `数据目录/Results/时间戳/` 下生成：
 
 | 文件 | 说明 |
 |---|---|
-| `rx_ch*.mat` | 各通道解析缓存 |
-| `parse_info_*.mat` | 解析索引 |
 | `beam_XXX/RD_Proc_beamXXX_*.mat` | 逐波位 RD 结果 |
 | `Fused_Targets_*.mat` | 融合后的全局目标列表 |
 | `Tracks_*.mat` | EKF 跟踪最终航迹状态 |
@@ -153,6 +149,8 @@ cfg.track.max_predictions = 3;         % 连续丢失终止阈值
 
 ## 运行方式
 
-1. 打开 [`apps/run_batch_pipeline.m`](./apps/run_batch_pipeline.m)
-2. 修改参数区的数据目录、开关和算法参数
-3. 直接运行；若 `data_folders` 为空则弹窗选择目录
+1. 将前端生成的 `*_data_seg*.mat` 文件放入数据目录（如 `F:\0811\mid\`）
+2. 确保 TX 参考目录包含 `lfm_tx.bin` 和 `metadata.json`
+3. 打开 [`apps/run_batch_pipeline.m`](./apps/run_batch_pipeline.m)
+4. 修改 `data_dir`、`tx_dir` 和算法参数
+5. 运行；若未指定 `frontend_mat_file` 则弹窗选择 .mat 文件
