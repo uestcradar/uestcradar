@@ -27,8 +27,8 @@ cfg.beam.output_rd_per_beam = true;     % 是否保留逐波位 RD_Proc_beam*.ma
 cfg.beam.test_single_beam = 0;          % 单波位测试模式：0=全部波位；N=仅处理波位 N
 cfg.beam.max_azimuth = inf;              % 方位角上限 (°)；az>此值跳过；inf=不限制  25
 cfg.beam.min_azimuth = -inf;             % 方位角下限 (°)；az<此值跳过；-inf=不限制  5
-cfg.beam.max_elevation = inf;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
-cfg.beam.min_elevation = -inf;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制  5
+cfg.beam.max_elevation = -inf;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
+cfg.beam.min_elevation = inf;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制  5
 
 %% 2. 参数区：运行开关
 cfg.run.do_process = true; % 是否重新执行 RD 处理；false 表示直接复用已有 RD_Proc_*.mat。
@@ -63,7 +63,7 @@ cfg.rd.zero_doppler_cells = 1;   % 零多普勒清除半宽度；RD 后 DC ± N 
 
 %% 6. 参数区：目标检测参数
 cfg.detect.range_window_m = [200, 700]; % 检测阶段使用的距离显示/分析范围，单位米。
-cfg.detect.velocity_window_mps = [-20, 20]; % 检测阶段使用的速度显示/分析范围，单位米每秒。
+cfg.detect.velocity_window_mps = [-50, 50]; % 检测阶段使用的速度显示/分析范围，单位米每秒。
 cfg.detect.cfar_guard_r = 4; % CFAR 在距离维的保护单元数；避免参考窗污染目标主瓣。
 cfg.detect.cfar_guard_d = 8; % CFAR 在速度维的保护单元数；避免参考窗污染目标主瓣。
 cfg.detect.cfar_ref_r = 16; % CFAR 在距离维的参考单元数；用于估计局部噪声背景。
@@ -83,15 +83,14 @@ cfg.fusion.dbscan_eps_grid = 2;      % 融合 Grid-DBSCAN 邻域半径（网格�
 cfg.fusion.dbscan_minpts_grid = 2;   % 融合 Grid-DBSCAN 最少点数；1=不过滤，2=最少两个点才成簇
 
 %% 8. 参数区：测角参数
-cfg.angle.k_mono = 1.0; % 单脉冲比幅系数缩放因子；用于把差比值映射到角度刻度。
 cfg.angle.range_window_m = [200, 700]; % 测角阶段保留目标的距离范围，单位米。
-cfg.angle.velocity_window_mps = [-20, 20]; % 测角阶段保留目标的速度范围，单位米每秒。
+cfg.angle.velocity_window_mps = [-50, 50]; % 测角阶段保留目标的速度范围，单位米每秒。
 cfg.angle.min_display_power_dB = 120; % 测角时参与输出的最小显示功率阈值，单位 dB。
 
-% --- LUT 查表测角（替代线性 k_mono 公式）---
-cfg.angle.use_lut = true;         % 是否启用 LUT 查表 + 2D 解耦测角；false 时回退到 k_mono 线性
-cfg.angle.k_az = 25.0;            % 方位单脉冲斜率系数（无量纲，需根据天线参数估算）
-cfg.angle.k_el = 25.0;            % 俯仰单脉冲斜率系数
+% --- LUT 查表测角 ---
+cfg.angle.use_lut = true;         % 是否启用 LUT 查表 + 2D 解耦测角
+cfg.angle.k_az = 4.0;            % 方位单脉冲斜率系数（无量纲，需根据天线参数估算）
+cfg.angle.k_el = 4.0;            % 俯仰单脉冲斜率系数
 cfg.angle.lut_roi_deg = 5.0;      % LUT 角度覆盖范围 ±ROI（度），应 ≥ 波位间隔的一半
 cfg.angle.lut_step_deg = 0.1;     % LUT 栅格步长（度）
 
@@ -117,10 +116,13 @@ cfg.track.max_history_length = 100;   % 航迹历史最大存储点数
 
 %% 11. 参数区：绘图参数
 cfg.plot.range_window_m = [200, 700]; % 绘图显示的距离范围，单位米。
-cfg.plot.velocity_window_mps = [-20, 20]; % 绘图显示的速度范围，单位米每秒。
+cfg.plot.velocity_window_mps = [-50, 50]; % 绘图显示的速度范围，单位米每秒。
 cfg.plot.clim_dB = [110, 155]; % RD 幅度图颜色条范围，单位 dB；用于统一不同帧的显示亮度。
 cfg.plot.frame_step = 1; % GIF 抽帧步长；1=全帧，20=每20帧取1帧
 cfg.plot.raw_rd_gif = true;   % 是否逐波位生成原始 RD 热力图 GIF（不经 CFAR）
+cfg.plot.do_point_trace_2d = true; % 是否生成二维点迹图（笛卡尔地面投影，全时刻聚合，虚线分隔波位）
+cfg.plot.do_track_map_2d = true; % 是否生成二维航迹图（笛卡尔地面投影，静态点线图，每条航迹逐点标记）
+cfg.plot.save_plot_data = true; % 是否保存三类图所需数据（PlotData_*.mat），供 replay_plots.m 复现
 
 %% 12. 参数区：运行时输出
 cfg.runtime.status_cb = @(msg) fprintf('%s\n', msg); % 统一日志输出回调；所有模块都通过它打印中文状态。
@@ -363,16 +365,11 @@ for di = 1:numel(cfg.paths.data_folders)
                             if cfg.angle.use_lut && ~isempty(monopulse_lut)
                                 [r_m, v_m, az_off, el_off, ~] = mono_angle( ...
                                     r_disp, v_disp, det_r_idx, det_v_idx, clu_ids, n_clu, ...
-                                    pwr, az_ratio, el_ratio, cfg.angle.k_mono, ...
+                                    pwr, az_ratio, el_ratio, [], ...
                                     cfg.angle.range_window_m, cfg.angle.velocity_window_mps, cfg.angle.min_display_power_dB, ...
                                     monopulse_lut, beam_id);
-                                use_lut_angles = true;
                             else
-                                [r_m, v_m, ~, ~, ~] = mono_angle( ...
-                                    r_disp, v_disp, det_r_idx, det_v_idx, clu_ids, n_clu, ...
-                                    pwr, az_ratio, el_ratio, cfg.angle.k_mono, ...
-                                    cfg.angle.range_window_m, cfg.angle.velocity_window_mps, cfg.angle.min_display_power_dB);
-                                use_lut_angles = false;
+                                r_m = []; v_m = []; az_off = []; el_off = [];
                             end
 
                             if ~isempty(r_m)
@@ -385,14 +382,9 @@ for di = 1:numel(cfg.paths.data_folders)
                                     pwr_dB(p) = 10 * log10(pwr(ri, vi) + eps);
                                 end
 
-                                % 角度：LUT 模式用 beam_center + offset，线性模式仅记录波束中心
-                                if use_lut_angles
-                                    plot_az = beam_az + az_off(:);
-                                    plot_el = beam_el + el_off(:);
-                                else
-                                    plot_az = repmat(beam_az, n_pts, 1);
-                                    plot_el = repmat(beam_el, n_pts, 1);
-                                end
+                                % 角度：beam_center + LUT 偏移量
+                                plot_az = beam_az + az_off(:);
+                                plot_el = beam_el + el_off(:);
 
                                 % 测量时刻：扫描起点 + 波位驻留中心偏移
                                 dwell_center_offset = sum(beam_schedule.pulses_per_dwell(1:beam_id-1)) + pulses_per_dwell / 2;
@@ -513,6 +505,23 @@ for di = 1:numel(cfg.paths.data_folders)
                 fprintf('  [跟踪] 保存结果...\n');
                 track_mat = fullfile(batch_result_dir, sprintf('Tracks_%s.mat', ts_out));
                 save(track_mat, 'tracks', '-v7.3');
+
+                if cfg.plot.do_track_map_2d
+                    fprintf('  [步骤10b] 二维航迹图\n');
+                    plot_track_map_2d(tracks, beam_schedule, batch_result_dir);
+                end
+
+                % 保存三类图所需数据（供 replay_plots.m 复现完全一致的图）
+                if cfg.plot.save_plot_data
+                    plot_data_file = fullfile(batch_result_dir, sprintf('PlotData_%s.mat', ts_out));
+                    radar_height = cfg.track.radar_height;
+                    frame_step = cfg.plot.frame_step;
+                    gif_delay = cfg.export.gif_delay;
+                    save(plot_data_file, 'fused_plots', 'beam_schedule', 'tracks', ...
+                        'track_results', 'total_scan_frames', 'radar_height', ...
+                        'frame_step', 'gif_delay', '-v7.3');
+                    fprintf('  [保存] 绘图数据已写入：%s\n', plot_data_file);
+                end
             else
                 track_results = {};
             end
@@ -525,7 +534,11 @@ for di = 1:numel(cfg.paths.data_folders)
             if cfg.run.do_plot_3d && cfg.track.enable
                 fprintf('  [步骤12] 3D 航迹动图\n');
                 plot_tracking_3d_gif(fused_plots, total_scan_frames, track_results, ...
-                    cfg.track.radar_height, batch_result_dir, cfg);
+                    cfg.track.radar_height, batch_result_dir, cfg.plot.frame_step, cfg.export.gif_delay);
+            end
+            if cfg.plot.do_point_trace_2d
+                fprintf('  [步骤13] 二维点迹图\n');
+                plot_point_trace_2d(fused_plots, beam_schedule, batch_result_dir);
             end
 
             % 可选：清理逐波位目录
@@ -693,137 +706,6 @@ end
 
 close(fig);
 fprintf('[时间线GIF] 已保存：%s\n', gif_file);
-end
-
-
-function plot_tracking_3d_gif(fused_plots, total_frames, track_results, radar_height, result_dir, cfg)
-%PLOT_TRACKING_3D_GIF 三维航迹动图。
-% 显示雷达位置、融合量测、已确认航迹（红色虚线）、已终止航迹（灰色）。
-
-if isempty(track_results)
-    fprintf('[3D航迹] 无跟踪数据，跳过。\n');
-    return;
-end
-
-fprintf('[3D航迹] 生成 %d 帧 3D 动图...\n', total_frames);
-
-fig = figure('Visible', 'off', 'Position', [100, 100, 1000, 600]);
-gif_file = fullfile(result_dir, sprintf('Tracking_3D_%s.gif', ...
-    char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'))));
-
-delay = cfg.export.gif_delay;
-
-gif_colormap = [];
-
-% 收集已确认航迹 ID 并重新编号 → 显示 T1, T2, ...
-all_confirmed_ids = [];
-for fi = 1:total_frames
-    tf = track_results{fi};
-    if ~isempty(tf) && any([tf.is_confirmed])
-        all_confirmed_ids = [all_confirmed_ids, tf([tf.is_confirmed]).track_id]; %#ok<AGROW>
-    end
-end
-all_confirmed_ids = unique(all_confirmed_ids, 'stable');
-id_to_disp = zeros(1, max(all_confirmed_ids));
-for di = 1:numel(all_confirmed_ids)
-    id_to_disp(all_confirmed_ids(di)) = di;
-end
-
-for fi = 1:cfg.plot.frame_step:total_frames
-    clf;
-    hold on;
-    grid on;
-    axis equal;
-
-    % --- 图例收集 ---
-    legend_handles = [];
-    legend_labels = {};
-    has_meas = false;
-    has_track = false;
-
-    % 雷达位置
-    h = plot3(0, 0, radar_height, 'k^', 'MarkerSize', 12, 'MarkerFaceColor', 'k');
-    legend_handles(end+1) = h;
-    legend_labels{end+1} = 'Radar';
-
-    % 当前帧量测：球坐标 → 笛卡尔
-    if ~isempty(fused_plots)
-        mask = fused_plots(:, 6) == fi;
-        if any(mask)
-            r  = fused_plots(mask, 1);
-            az = fused_plots(mask, 2);
-            el = fused_plots(mask, 3);
-            x = r .* cosd(el) .* cosd(az);
-            y = r .* cosd(el) .* sind(az);
-            z = r .* sind(el) + radar_height;
-            h = plot3(x, y, z, 'm*', 'MarkerSize', 10);
-            if ~has_meas
-                legend_handles(end+1) = h;
-                legend_labels{end+1} = 'Measurements';
-                has_meas = true;
-            end
-        end
-    end
-
-    % 航迹
-    tracks_frame = track_results{fi};
-    n_red = 0;
-    if ~isempty(tracks_frame)
-        for ti = 1:numel(tracks_frame)
-            tr = tracks_frame(ti);
-            if size(tr.path, 1) < 2, continue; end
-
-            path = tr.path;
-            if ~tr.is_confirmed
-                continue;  % 未确认航迹（噪点）不显示
-            end
-            h_path = plot3(path(:, 1), path(:, 2), path(:, 3), 'r-', 'LineWidth', 2);
-            plot3(path(end, 1), path(end, 2), path(end, 3), 'ro', 'MarkerSize', 12, 'MarkerFaceColor', 'r');
-            text(path(end, 1) + 50, path(end, 2), path(end, 3) + 20, ...
-                sprintf('T%d', id_to_disp(tr.track_id)), 'Color', 'r', 'FontWeight', 'bold', 'FontSize', 14);
-            if ~has_track
-                legend_handles(end+1) = h_path;
-                legend_labels{end+1} = 'Confirmed Track';
-                has_track = true;
-            end
-            n_red = n_red + 1;
-        end
-    end
-
-    hold off;
-
-    max_r = 1000;
-    xlim([0, max_r]);
-    ylim([-500, 500]);
-    zlim([0, 300]);
-    xlabel('X (m)');
-    ylabel('Y (m)');
-    zlabel('Z (m)');
-    view(-35, 25);
-    title(sprintf('3D Tracking  Frame %d/%d  Confirmed:%d', fi, total_frames, n_red));
-
-    % 图例
-    legend(gca, legend_handles, legend_labels, 'Location', 'northwest');
-
-    drawnow;
-
-    frame_img = getframe(fig);
-    im = frame2im(frame_img);
-    if isempty(gif_colormap)
-        [A, gif_colormap] = rgb2ind(im, 256, 'nodither');
-        imwrite(A, gif_colormap, gif_file, 'gif', 'LoopCount', inf, 'DelayTime', delay);
-    else
-        A = rgb2ind(im, gif_colormap, 'nodither');
-        imwrite(A, gif_colormap, gif_file, 'gif', 'WriteMode', 'append', 'DelayTime', delay);
-    end
-
-    if mod(fi, 100) == 0
-        fprintf('[3D航迹] %d/%d 帧已写入 (%.0f%%)\n', fi, total_frames, fi/total_frames*100);
-    end
-end
-
-close(fig);
-fprintf('[3D航迹] 已保存：%s\n', gif_file);
 end
 
 

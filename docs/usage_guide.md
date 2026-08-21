@@ -361,7 +361,6 @@
 
 主要字段：
 
-- `cfg.angle.k_mono`
 - `cfg.angle.range_window_m`
 - `cfg.angle.velocity_window_mps`
 - `cfg.angle.min_display_power_dB`

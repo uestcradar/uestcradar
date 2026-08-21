@@ -19,8 +19,10 @@ track_template = struct( ...
     'terminationReason', "", ...    % 终止原因: 'missed' | 'M/N'
     'is_confirmed',      false, ... % 是否已通过 M/N 确认
     'confirmed_at',      [], ...    % 确认时的帧号 (total_count)
-    'path',              [], ...    % 历史位置 (x,y,z) [L×3]
+    'path',              [], ...    % 历史位置 (x,y,z) [L×3]（EKF 状态估计）
+    'meas_path',         [], ...    % 匹配量测位置 (x,y,z) [L×3]；纯预测帧为 NaN 行
     'velocity_history',  [], ...    % 历史速度 (vx,vy,vz) [L×3]
+    'updated_mask',      [], ...    % 历史点是否关联到量测（true=量测更新, false=纯预测）[L×1]
     'last_innov',        [], ...    % 上次更新的新息 (4×1)
     'last_K',            [], ...    % 上次更新的卡尔曼增益 (6×4)
     'last_S',            []);       % 上次更新的新息协方差 (4×4)

@@ -107,12 +107,15 @@ for t = 1:numel(tracks)
     if tracks(t).is_terminated, continue; end
 
     m_idx = find(associations == t, 1);
+    meas_pos = [NaN, NaN, NaN];   % 本帧匹配量测位置；无匹配时保持 NaN（纯预测帧）
 
     if ~isempty(m_idx)
         % --- 关联成功：EKF 更新 ---
         z = raw_meas(m_idx, 1:4)';
         info = track_asso_info{t};
         if isempty(info), continue; end
+        meas_pos = meas_to_state(z, h_radar);   % 匹配的真实量测位置（笛卡尔）
+        meas_pos = meas_pos([1 3 5])';
 
         innov = z - info.hx;
         innov(2:3) = atan2(sin(innov(2:3)), cos(innov(2:3)));
@@ -144,12 +147,16 @@ for t = 1:numel(tracks)
     tracks(t).total_count = tracks(t).total_count + 1;
     if ~isnan(current_time), tracks(t).timestamps(end + 1) = current_time; end
     tracks(t).path(end + 1, :) = tracks(t).state([1 3 5])';
+    tracks(t).meas_path(end + 1, :) = meas_pos;           % 匹配量测位置（预测帧为 NaN）
     tracks(t).velocity_history(end + 1, :) = tracks(t).state([2 4 6])';
+    tracks(t).updated_mask(end + 1) = ~isempty(m_idx);   % 本帧是否关联到量测
 
     if size(tracks(t).path, 1) > tracker_params.max_history_length
         if ~isempty(tracks(t).timestamps), tracks(t).timestamps(1) = []; end
         tracks(t).path(1, :) = [];
+        tracks(t).meas_path(1, :) = [];
         tracks(t).velocity_history(1, :) = [];
+        tracks(t).updated_mask(1) = [];
     end
 
     % --- 连续丢失终止 ---
@@ -180,7 +187,9 @@ for m = 1:size(unassociated_meas, 1)
         'is_confirmed',      false, ...
         'confirmed_at',      [], ...
         'path',              initial_state([1 3 5])', ...
+        'meas_path',         initial_state([1 3 5])', ...   % 首点即为匹配量测位置
         'velocity_history',  initial_state([2 4 6])', ...
+        'updated_mask',      true, ...   % 新航迹首个点来自量测
         'last_innov',        [], ...
         'last_K',            [], ...
         'last_S',            []);
@@ -243,7 +252,7 @@ end
 % 径向速度
 vr = (delta_x * vx + delta_y * vy + delta_z * vz) / r;
 
-% 量测向量: [r; az; el; vr]
+% 量测向量: [r; az; el; vr]  （az 为正方位角=右侧）
 hx = [r; atan2(delta_y, delta_x); atan2(delta_z, r_g); vr];
 
 % 雅可比矩阵 H (4x6)
@@ -252,7 +261,7 @@ H = zeros(4, 6);
 % d(r)/d(x)
 H(1, 1) = delta_x / r;  H(1, 3) = delta_y / r;  H(1, 5) = delta_z / r;
 
-% d(az)/d(x)
+% d(az)/d(x)  （az=atan2(delta_y, delta_x)）
 H(2, 1) = -delta_y / r_g_sq;
 H(2, 3) =  delta_x / r_g_sq;
 
@@ -279,7 +288,7 @@ ce = cos(el); se = sin(el);
 ca = cos(az); sa = sin(az);
 
 x_pos = r * ce * ca;
-y_pos = r * ce * sa;
+y_pos = r * ce * sa;    % 正方位角=右侧 → Y正半轴（Y+=右侧）
 z_pos = r * se + h_radar;
 
 los_vec = [ce * ca; ce * sa; se];
@@ -304,7 +313,7 @@ ca = cos(a); sa = sin(a);
 
 % --- 位置协方差：极坐标 → 笛卡尔 Jacobian 变换 ---
 dx_dr = ce * ca;   dx_da = -r * ce * sa;  dx_de = -r * se * ca;
-dy_dr = ce * sa;   dy_da =  r * ce * ca;  dy_de = -r * se * sa;
+dy_dr =  ce * sa;  dy_da =  r * ce * ca;  dy_de = -r * se * sa;
 dz_dr = se;        dz_da =  0;            dz_de =  r * ce;
 
 J_g = [dx_dr, dx_da, dx_de;

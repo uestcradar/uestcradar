@@ -56,7 +56,7 @@
 | `process_rd_beam.m` | 波位模式 RD：按偏移量跳读，每驻留独立 CPI，含零多普勒清除 |
 | `cfar_2d.m` | 2D CA-CFAR 检测 |
 | `dbscan_cluster.m` | 逐帧 DBSCAN 聚类（像素空间） |
-| `mono_angle.m` | 测角统一入口：线性 k_mono / LUT 生成 / LUT 查表 + 2D 解耦 |
+| `mono_angle.m` | 测角统一入口：LUT 生成 / LUT 查表 + 2D 解耦（线性 k_mono 仅保留给 GUI 诊断） |
 | `fuse_beam_plots.m` | 三级跨波位融合（旁瓣抑制 → 邻域加权 → 网格 DBSCAN） |
 | `track_init.m` | 航迹管理器初始化，定义航迹结构体 |
 | `tracker_3D_EKF.m` | 6D 笛卡尔 EKF：CV 模型 + GNN 数据关联 + M/N 航迹管理 |
@@ -86,7 +86,7 @@ cfg.run.do_detect = true;            % 是否执行检测+聚类+测角+融合
 cfg.run.do_angle = true;             % 是否执行测角
 
 % 测角
-cfg.angle.use_lut = true;            % LUT 查表 vs 线性 k_mono
+cfg.angle.use_lut = true;            % 是否启用 LUT 查表 + 2D 解耦测角
 cfg.angle.k_az = 25.0;               % 方位单脉冲斜率
 cfg.angle.k_el = 25.0;               % 俯仰单脉冲斜率
 
