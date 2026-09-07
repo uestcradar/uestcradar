@@ -60,6 +60,8 @@
 | `fuse_beam_plots.m` | 三级跨波位融合（旁瓣抑制 → 邻域加权 → 网格 DBSCAN） |
 | `track_init.m` | 航迹管理器初始化，定义航迹结构体 |
 | `tracker_3D_EKF.m` | 6D 笛卡尔 EKF：CV 模型 + GNN 数据关联 + M/N 航迹管理 |
+| `plot_figures.m` | 绘图统一入口（kind 分发）：二维点迹图 / 二维航迹图 / Timeline 动图 / 3D 航迹动图 / 逐波位原始 RD 热力图 |
+| `plot_point_trace_2d_empty.m` | 波位排布示意图脚本（测试用，直接运行） |
 
 ### `temp_gui/`
 
@@ -87,12 +89,12 @@ cfg.run.do_angle = true;             % 是否执行测角
 
 % 测角
 cfg.angle.use_lut = true;            % 是否启用 LUT 查表 + 2D 解耦测角
-cfg.angle.k_az = 25.0;               % 方位单脉冲斜率
-cfg.angle.k_el = 25.0;               % 俯仰单脉冲斜率
+cfg.angle.k_az = 4.0;               % 方位单脉冲斜率
+cfg.angle.k_el = 4.0;               % 俯仰单脉冲斜率
 
 % RD
 cfg.rd.n_cpi = 256;                  % CPI 脉冲数（由波位排布自动覆写）
-cfg.rd.max_range_m = 2000;           % 最大处理距离 (m)
+cfg.rd.max_range_m = 700;           % 最大处理距离 (m)
 cfg.rd.zero_doppler_cells = 1;       % 零多普勒清除半宽度；RD 后 DC±N 格置零，0=仅 DC
 
 % 路径
@@ -100,7 +102,7 @@ cfg.paths.rx_pattern = '*_data_seg*.mat';  % 前端 .mat 文件匹配模式
 cfg.paths.frontend_mat_file = '';          % 留空则弹窗选择
 
 % 检测
-cfg.detect.range_window_m = [300, 800];
+cfg.detect.range_window_m = [200, 700];
 cfg.detect.velocity_window_mps = [-50, 50];
 
 % 跟踪 (EKF + GNN)
@@ -109,8 +111,8 @@ cfg.track.decimation = 1;              % 跟踪降采样：1 = 每帧
 cfg.track.q = 0.1;                     % 过程噪声强度
 cfg.track.v_tan_std_init = 10.0;       % 初始切向速度不确定性 (m/s)
 cfg.track.vr_noise_std = 2.0;          % 径向速度量测噪声 (m/s)
-cfg.track.M = 50;                      % M/N 确认：最少命中次数
-cfg.track.N = 60;                      % M/N 确认：判定窗口帧数
+cfg.track.M = 7;                      % M/N 确认：最少命中次数
+cfg.track.N = 9;                      % M/N 确认：判定窗口帧数
 cfg.track.max_predictions = 3;         % 连续丢失终止阈值
 ```
 
@@ -124,7 +126,7 @@ cfg.track.max_predictions = 3;         % 连续丢失终止阈值
 | 量测向量 | `[range, azimuth, elevation, range_rate]` (m, rad, rad, m/s) |
 | 运动模型 | 恒速 (CV)，过程噪声 q 可调 |
 | 数据关联 | 全局最近邻 (GNN)，马氏距离波门 |
-| 航迹管理 | M/N 逻辑 (M=50, N=60 可配) + 连续丢失终止 |
+| 航迹管理 | M/N 逻辑 (M=7, N=9 可配) + 连续丢失终止 |
 
 **航迹状态机**：
 ```
@@ -144,8 +146,11 @@ cfg.track.max_predictions = 3;         % 连续丢失终止阈值
 | `beam_XXX/RD_Proc_beamXXX_*.mat` | 逐波位 RD 结果 |
 | `Fused_Targets_*.mat` | 融合后的全局目标列表 |
 | `Tracks_*.mat` | EKF 跟踪最终航迹状态 |
+| `Point_Trace_2D_*.png` | 二维点迹图（笛卡尔地面投影） |
+| `Track_Map_2D_*.png` | 二维航迹图（笛卡尔地面投影） |
 | `Timeline_*.gif` | 逐帧目标动图（速度-距离，颜色=方位角） |
 | `Tracking_3D_*.gif` | 3D 航迹动图（笛卡尔空间） |
+| `PlotData_*.mat` | 绘图数据存档（供 replay_plots.m 复现三类图） |
 
 ## 运行方式
 

@@ -5,8 +5,7 @@ function replay_plots()
 % 输出与批处理管线（run_batch_pipeline.m）完全一致的三类图，
 % 保存到所选数据文件同目录下的 Replay_Results 子目录。
 %
-% 依赖：src/ 下的三个绘图函数文件 plot_point_trace_2d.m /
-%       plot_track_map_2d.m / plot_tracking_3d_gif.m。
+% 依赖：src/plot_figures.m（绘图统一入口，含二维点迹/二维航迹/三维航迹三类图）。
 
 % 1. 环境：把 src 目录加入路径（复用与管线相同的绘图函数）
 this_dir = fileparts(mfilename('fullpath'));
@@ -39,9 +38,9 @@ if ~exist(result_dir, 'dir')
 end
 
 % 5. 与批处理管线一致地重画三类图
-plot_point_trace_2d(S.fused_plots, S.beam_schedule, result_dir);
-plot_track_map_2d(S.tracks, S.beam_schedule, result_dir);
-plot_tracking_3d_gif(S.fused_plots, S.total_scan_frames, S.track_results, ...
+plot_figures('point_trace_2d', S.fused_plots, S.beam_schedule, result_dir);
+plot_figures('track_map_2d', S.tracks, S.beam_schedule, result_dir);
+plot_figures('tracking_3d_gif', S.fused_plots, S.total_scan_frames, S.track_results, ...
     S.radar_height, result_dir, S.frame_step, S.gif_delay);
 
 fprintf('[replay] 完成，输出目录：%s\n', result_dir);

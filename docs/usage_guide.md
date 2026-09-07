@@ -242,7 +242,7 @@
 
 对应模块：
 
-- `run_batch_pipeline.m` 内部本地函数 `plot_beam_timeline_gif`
+- [`plot_figures.m`](../src/plot_figures.m) 内的 `plot_beam_timeline_gif`（经 `plot_figures('beam_timeline_gif', ...)` 分发调用）
 
 ## 4. 参数区说明
 
