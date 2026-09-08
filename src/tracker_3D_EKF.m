@@ -145,14 +145,14 @@ for t = 1:numel(tracks)
 
     % --- 历史记录 ---
     tracks(t).total_count = tracks(t).total_count + 1;
-    if ~isnan(current_time), tracks(t).timestamps(end + 1) = current_time; end
+    tracks(t).timestamps(end + 1) = current_time;   % 与 path 严格同步；无测量帧为 NaN
     tracks(t).path(end + 1, :) = tracks(t).state([1 3 5])';
     tracks(t).meas_path(end + 1, :) = meas_pos;           % 匹配量测位置（预测帧为 NaN）
     tracks(t).velocity_history(end + 1, :) = tracks(t).state([2 4 6])';
     tracks(t).updated_mask(end + 1) = ~isempty(m_idx);   % 本帧是否关联到量测
 
     if size(tracks(t).path, 1) > tracker_params.max_history_length
-        if ~isempty(tracks(t).timestamps), tracks(t).timestamps(1) = []; end
+        tracks(t).timestamps(1) = [];
         tracks(t).path(1, :) = [];
         tracks(t).meas_path(1, :) = [];
         tracks(t).velocity_history(1, :) = [];
@@ -163,6 +163,8 @@ for t = 1:numel(tracks)
     if tracks(t).consecutive_misses > tracker_params.max_predictions
         tracks(t).is_terminated = true;
         tracks(t).terminationReason = 'missed';
+        % 终止后删除最后一次真实量测更新之后的所有纯预测点（拖尾）
+        tracks(t) = trim_track_tails(tracks(t));
     end
 end
 

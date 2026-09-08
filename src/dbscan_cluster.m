@@ -72,7 +72,7 @@ for i = 1:n
                     queue = [queue; nbj(~ismember(nbj, queue))]; %#ok<AGROW>
                 end
             end
-            if clu_ids(j) == 0
+            if clu_ids(j) <= 0
                 clu_ids(j) = cid;
             end
         end

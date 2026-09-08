@@ -68,7 +68,7 @@ cfg.detect.cfar_guard_r = 4; % CFAR 在距离维的保护单元数；避免参�
 cfg.detect.cfar_guard_d = 8; % CFAR 在速度维的保护单元数；避免参考窗污染目标主瓣。
 cfg.detect.cfar_ref_r = 16; % CFAR 在距离维的参考单元数；用于估计局部噪声背景。
 cfg.detect.cfar_ref_d = 32; % CFAR 在速度维的参考单元数；用于估计局部噪声背景。
-cfg.detect.cfar_pfa = 1e-9; % CFAR 虚警概率；设置为 1e-9，目的是进一步压低虚警点数量，让检测结果更保守。
+cfg.detect.cfar_pfa = 1e-6; % CFAR 虚警概率；1e-6 已足够保守，更严的虚警压制应交给下游（DBSCAN min_pts / 旁瓣剔除 / M/N 航迹确认）。
 cfg.detect.frame_step = 1; % 检测/聚类/测角抽帧步长；默认1（全帧），独立于 cfg.plot.frame_step。
 
 %前:  guard_r=2, guard_d=4, ref_r=8, ref_d=16, pfa=1e-6
@@ -497,6 +497,15 @@ for di = 1:numel(cfg.paths.data_folders)
             end
             [tracks, track_id_counter] = tracker_3D_EKF(tracks, raw_meas, track_id_counter, tracker_params);
             track_results{fi} = tracks;
+        end
+
+        % 收尾：删除所有航迹在最后一次真实量测之后残留的纯预测拖尾点。
+        % 不仅限 is_terminated——记录末尾仍在 coasting 的航迹同样要清掉。
+        tracks = trim_track_tails(tracks);
+        for fi = 1:total_scan_frames
+            if ~isempty(track_results{fi})
+                track_results{fi} = trim_track_tails(track_results{fi});
+            end
         end
 
         n_active = sum(~[tracks.is_terminated]);
