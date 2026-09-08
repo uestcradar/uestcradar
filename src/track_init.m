@@ -14,7 +14,6 @@ track_template = struct( ...
     'consecutive_misses', 0, ...    % 连续丢失次数
     'success_count',     0, ...     % 成功关联次数 (M/N 逻辑)
     'total_count',       0, ...     % 存在总帧数 (M/N 逻辑)
-    'prediction_count',  0, ...     % 连续预测次数
     'is_terminated',     false, ... % 是否已终止
     'terminationReason', "", ...    % 终止原因: 'missed' | 'M/N'
     'is_confirmed',      false, ... % 是否已通过 M/N 确认

@@ -283,13 +283,7 @@ for t = 1:numel(tracks_plot)
     plot(path(:, 1), -path(:, 2), '-', 'Color', c, 'LineWidth', 1.4);
 
     % 有量测更新的帧标出航点（旧数据无 updated_mask 时回退用 meas_path 的 NaN 判定）
-    if isfield(tr, 'updated_mask') && numel(tr.updated_mask) == size(path, 1)
-        up = logical(tr.updated_mask);
-    elseif isfield(tr, 'meas_path') && size(tr.meas_path, 1) == size(path, 1)
-        up = ~any(isnan(tr.meas_path), 2);
-    else
-        up = true(size(path, 1), 1);
-    end
+    up = measurement_mask(tr);
     plot(path(up, 1), -path(up, 2), 'o', 'Color', c, ...
         'MarkerSize', 4, 'MarkerFaceColor', c, 'MarkerEdgeColor', c);
 end
@@ -407,13 +401,7 @@ for fi = 1:frame_step:total_frames
 
             h_path = plot3(path(:, 1), -path(:, 2), path(:, 3), 'b-', 'LineWidth', 1.5);
 
-            if isfield(tr, 'updated_mask') && numel(tr.updated_mask) == size(path, 1)
-                up = logical(tr.updated_mask);
-            elseif isfield(tr, 'meas_path') && size(tr.meas_path, 1) == size(path, 1)
-                up = ~any(isnan(tr.meas_path), 2);
-            else
-                up = true(size(path, 1), 1);
-            end
+            up = measurement_mask(tr);
             plot3(path(up, 1), -path(up, 2), path(up, 3), 'bo', ...
                 'MarkerSize', 4, 'MarkerFaceColor', 'b', 'MarkerEdgeColor', 'b');
 
@@ -462,4 +450,17 @@ end
 
 close(fig);
 fprintf('[3D航迹] 已保存：%s\n', gif_file);
+end
+
+function up = measurement_mask(tr)
+%MEASUREMENT_MASK 返回航迹各帧是否关联到真实量测的逻辑掩码。
+% 优先用 updated_mask；旧数据缺该字段时回退用 meas_path 的 NaN 判定。
+path = tr.path;
+if isfield(tr, 'updated_mask') && numel(tr.updated_mask) == size(path, 1)
+    up = logical(tr.updated_mask);
+elseif isfield(tr, 'meas_path') && size(tr.meas_path, 1) == size(path, 1)
+    up = ~any(isnan(tr.meas_path), 2);
+else
+    up = true(size(path, 1), 1);
+end
 end

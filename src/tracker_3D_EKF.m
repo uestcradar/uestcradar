@@ -39,7 +39,6 @@ for i = 1:numel(tracks)
     if ~tracks(i).is_terminated
         tracks(i).state = F * tracks(i).state;
         tracks(i).covariance = F * tracks(i).covariance * F' + Q;
-        tracks(i).prediction_count = tracks(i).prediction_count + 1;
     end
 end
 
@@ -131,7 +130,6 @@ for t = 1:numel(tracks)
         tracks(t).consecutive_misses = 0;
         tracks(t).success_count = tracks(t).success_count + 1;
         tracks(t).last_update = current_time;
-        tracks(t).prediction_count = 0;
         tracks(t).last_innov = innov;
         tracks(t).last_K = K;
         tracks(t).last_S = info.S;
@@ -183,7 +181,6 @@ for m = 1:size(unassociated_meas, 1)
         'consecutive_misses', 0, ...
         'success_count',     1, ...
         'total_count',       1, ...
-        'prediction_count',  0, ...
         'is_terminated',     false, ...
         'terminationReason', "", ...
         'is_confirmed',      false, ...
