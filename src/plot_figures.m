@@ -157,6 +157,17 @@ for fi = 1:numel(frame_ids)
     axis xy;
 
     drawnow;
+
+    % 可选：保存第一帧为 .fig（交互图）；保存前临时置为可见，避免 .fig 打开后隐藏
+    if fi == 1 && isfield(cfg.plot, 'raw_rd_fig') && cfg.plot.raw_rd_fig
+        fig_file = fullfile(fp, sprintf('%s_raw_rd.fig', fn));
+        set(fig, 'Visible', 'on');
+        savefig(fig, fig_file);
+        set(fig, 'Visible', 'off');
+        cfg.runtime.status_cb(sprintf('[RawRD] 波位 %d (az=%.1f°) 原始 RD .fig 已保存: %s', ...
+            beam_id, beam_az, fig_file));
+    end
+
     frame_img = getframe(fig);
     im = frame2im(frame_img);
     if isempty(gif_colormap)

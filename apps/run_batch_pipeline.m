@@ -25,10 +25,10 @@ cfg.paths.result_dir_name = 'Results'; % 结果输出目录名称；最终会在
 %% 1b. 参数区：波位排布（从帧内嵌元数据自动提取）
 cfg.beam.output_rd_per_beam = true;     % 是否保留逐波位 RD_Proc_beam*.mat；调试用，可设为 false 节省磁盘
 cfg.beam.test_single_beam = 0;          % 单波位测试模式：0=全部波位；N=仅处理波位 N
-cfg.beam.max_azimuth = 10;              % 方位角上限 (°)；az>此值跳过；inf=不限制
-cfg.beam.min_azimuth = -10;             % 方位角下限 (°)；az<此值跳过；-inf=不限制
-cfg.beam.max_elevation = 20;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
-cfg.beam.min_elevation = 5;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制
+cfg.beam.max_azimuth = inf;              % 方位角上限 (°)；az>此值跳过；inf=不限制
+cfg.beam.min_azimuth = -inf;             % 方位角下限 (°)；az<此值跳过；-inf=不限制
+cfg.beam.max_elevation = inf;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
+cfg.beam.min_elevation = -inf;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制
 
 %% 2. 参数区：运行开关
 cfg.run.do_process = true; % 是否重新执行 RD 处理；false 表示直接复用已有 RD_Proc_*.mat。
@@ -59,7 +59,7 @@ cfg.rd.n_overlap = 0; % 块间重叠脉冲数；多波位模式下固定为 0（
 cfg.rd.max_range_m = 700; % 最大处理距离，单位米；只保留该距离以内的距离单元参与后续处理。
 cfg.rd.frames_per_chunk = 4096; % 预处理分块大小，用于 freq_offsets 数组长度估算
 cfg.rd.do_mti_twopulse = true; % 是否执行两脉冲相消；用于进一步增强运动目标、压制静态背景。
-cfg.rd.zero_doppler_cells = 1;   % 零多普勒清除半宽度；RD 后 DC ± N 格置零；0=仅清DC本身；负值=不清除
+cfg.rd.zero_doppler_cells = -1;   % 零多普勒清除半宽度；RD 后 DC ± N 格置零；0=仅清DC本身；负值=不清除
 
 %% 6. 参数区：目标检测参数
 cfg.detect.range_window_m = [200, 700]; % 检测阶段使用的距离显示/分析范围，单位米。
@@ -94,6 +94,12 @@ cfg.angle.k_el = 4.0;            % 俯仰单脉冲斜率系数
 cfg.angle.lut_roi_deg = 5.0;      % LUT 角度覆盖范围 ±ROI（度），应 ≥ 波位间隔的一半
 cfg.angle.lut_step_deg = 0.1;     % LUT 栅格步长（度）
 
+% --- 实测方向图鉴角（替代理想 k·sin(θ) 模型）---
+cfg.angle.use_measured_lut = true;  % 是否用实测远场方向图生成鉴角 LUT；true 时优先于上方理想模型
+cfg.angle.pattern_dir = 'F:\Matlab_Helium\X256B-A24147'; % 实测方向图根目录（含 接收/方位、接收/俯仰 下 和口/差口 的 .ccc）；use_measured_lut=true 时必填
+cfg.angle.pattern_fc_hz = 9.5e9;    % 方向图取用载频(Hz)；自动选最近实测频点
+cfg.angle.measured_lut_sign = 1;    % 鉴角曲线符号；若方位/俯仰结果镜像则置 -1
+
 %% 9. 参数区：结果导出参数
 cfg.export.save_analysis_mat = true; % 是否保存检测结果和测角结果 mat 文件；便于后续直接复用分析结果。
 cfg.export.gif_delay = 0.1; % GIF 帧间延时（最小 0.01s，GIF 格式限制）
@@ -103,16 +109,17 @@ cfg.export.keep_rd_mat = true; % 是否保留 RD_Proc_*.mat；若只关心最终
 cfg.track.enable = true;              % 是否启用多目标跟踪
 cfg.track.radar_height = 30;          % 雷达架高 (m)
 cfg.track.range_noise_std = 20;       % 距离量测噪声标准差 (m)
-cfg.track.angle_noise_std_deg = 3;    % 角度量测噪声标准差 (°)
+cfg.track.angle_noise_std_deg = 1;    % 角度量测噪声标准差 (°)
 cfg.track.vr_noise_std = 2.0;         % 径向速度量测噪声标准差 (m/s)
 cfg.track.decimation = 1;             % 跟踪降采样：每 N 帧取 1 帧
-cfg.track.q = 0.1;                    % 过程噪声强度因子
+cfg.track.q = 0.03;                    % 过程噪声强度因子
 cfg.track.v_tan_std_init = 10.0;      % 初始切向速度不确定性 (m/s)
 cfg.track.M = 7;                      % M/N 逻辑：最少命中次数（7/9 确认，滤除间歇性杂波）
 cfg.track.N = 9;                      % M/N 逻辑：判定窗口帧数
 cfg.track.max_predictions = 3;        % 连续丢失终止阈值：航迹连续未关联帧数超过该值即终止
-cfg.track.gate_confidence = 0.99;    % Chi-squared 关联门限置信度
-cfg.track.max_history_length = 100;   % 航迹历史最大存储点数
+cfg.track.gate_confidence = 0.95;    % Chi-squared 关联门限置信度
+cfg.track.newborn_gate_confidence = 0.95; % 新生航迹关联门限置信度（前3帧放宽用；=成熟航迹门限即不放宽）
+cfg.track.max_history_length = 20;   % 航迹历史最大存储点数
 
 %% 11. 参数区：绘图参数
 cfg.plot.range_window_m = [200, 700]; % 绘图显示的距离范围，单位米。
@@ -120,6 +127,7 @@ cfg.plot.velocity_window_mps = [-50, 50]; % 绘图显示的速度范围，单位
 cfg.plot.clim_dB = [110, 155]; % RD 幅度图颜色条范围，单位 dB；用于统一不同帧的显示亮度。
 cfg.plot.frame_step = 1; % GIF 抽帧步长；1=全帧，20=每20帧取1帧
 cfg.plot.raw_rd_gif = true;   % 是否逐波位生成原始 RD 热力图 GIF（不经 CFAR）
+cfg.plot.raw_rd_fig = true;  % 是否逐波位额外保存原始 RD 热力图 .fig（第一帧，可交互查看）；需 raw_rd_gif=true
 cfg.plot.do_point_trace_2d = true; % 是否生成二维点迹图（笛卡尔地面投影，全时刻聚合，虚线分隔波位）
 cfg.plot.do_track_map_2d = true; % 是否生成二维航迹图（笛卡尔地面投影，静态点线图，每条航迹逐点标记）
 cfg.plot.save_plot_data = true; % 是否保存三类图所需数据（PlotData_*.mat），供 replay_plots.m 复现
@@ -209,7 +217,17 @@ for di = 1:numel(cfg.paths.data_folders)
     end
 
     % ---- 生成单脉冲 LUT（若启用 LUT 测角）----
-    if cfg.angle.use_lut
+    if cfg.angle.use_measured_lut
+        % 实测方向图优先：用远场方向图算真实比幅鉴角曲线
+        if isempty(cfg.angle.pattern_dir)
+            error('run_batch_pipeline:MissingPatternDir', ...
+                'use_measured_lut=true 时必须指定 cfg.angle.pattern_dir');
+        end
+        monopulse_lut = mono_angle('generate_measured_lut', ...
+            cfg.angle.pattern_dir, cfg.angle.pattern_fc_hz, ...
+            cfg.angle.lut_roi_deg, cfg.angle.lut_step_deg, cfg.angle.measured_lut_sign, ...
+            beam_schedule);
+    elseif cfg.angle.use_lut
         monopulse_lut = mono_angle('generate_lut', ...
             cfg.angle.k_az, cfg.angle.k_el, cfg.angle.lut_roi_deg, cfg.angle.lut_step_deg, ...
             beam_schedule);
@@ -241,6 +259,10 @@ for di = 1:numel(cfg.paths.data_folders)
 
     % all_raw_plots 列定义：[r(m), az(deg), el(deg), vr(m/s), time(s), pwr(dB), beam_id, scan_id]
     all_raw_plots = [];
+    % 单脉冲测角偏移超限统计（跨波位/跨帧累计）
+    angle_stat_total = struct('n_clu', 0, 'n_el_oob', 0, 'n_az_oob', 0, ...
+        'n_el_nan', 0, 'n_az_nan', 0, 'n_pwr_reject', 0, 'n_kept', 0, ...
+        'max_abs_el_oob', 0, 'max_abs_az_oob', 0);
     scan_period = beam_schedule.total_pulses / parse_bundle.rx_param.prf;
     num_cpi_files = numel(parse_bundle.rx_param.cpi_files);
 
@@ -364,11 +386,20 @@ for di = 1:numel(cfg.paths.data_folders)
                     el_ratio = real(rd2_sub ./ (rd_sub + eps));
 
                     if cfg.angle.use_lut && ~isempty(monopulse_lut)
-                        [r_m, v_m, az_off, el_off, ~] = mono_angle( ...
+                        [r_m, v_m, az_off, el_off, ~, angle_stats] = mono_angle( ...
                             r_disp, v_disp, det_r_idx, det_v_idx, clu_ids, n_clu, ...
                             pwr, az_ratio, el_ratio, [], ...
                             cfg.angle.range_window_m, cfg.angle.velocity_window_mps, cfg.angle.min_display_power_dB, ...
                             monopulse_lut, beam_id);
+                        angle_stat_total.n_clu          = angle_stat_total.n_clu          + angle_stats.n_clu;
+                        angle_stat_total.n_el_oob       = angle_stat_total.n_el_oob       + angle_stats.n_el_oob;
+                        angle_stat_total.n_az_oob       = angle_stat_total.n_az_oob       + angle_stats.n_az_oob;
+                        angle_stat_total.n_el_nan       = angle_stat_total.n_el_nan       + angle_stats.n_el_nan;
+                        angle_stat_total.n_az_nan       = angle_stat_total.n_az_nan       + angle_stats.n_az_nan;
+                        angle_stat_total.n_pwr_reject   = angle_stat_total.n_pwr_reject   + angle_stats.n_pwr_reject;
+                        angle_stat_total.n_kept         = angle_stat_total.n_kept         + angle_stats.n_kept;
+                        angle_stat_total.max_abs_el_oob = max(angle_stat_total.max_abs_el_oob, angle_stats.max_abs_el_oob);
+                        angle_stat_total.max_abs_az_oob = max(angle_stat_total.max_abs_az_oob, angle_stats.max_abs_az_oob);
                     else
                         r_m = []; v_m = []; az_off = []; el_off = [];
                     end
@@ -415,6 +446,13 @@ for di = 1:numel(cfg.paths.data_folders)
     end
 
     % ---- 异常扫描已由 RD 层跳过，检测结果已是连续正常扫描 ----
+
+    % ---- 单脉冲测角偏移超限统计（全波位/全帧累计）----
+    lg(sprintf('[测角统计] 聚类=%d | 俯仰超±%.1f°=%d(最大%.2f°) 反查失败=%d | 方位超±%.1f°=%d(最大%.2f°) 反查失败=%d | 功率剔除=%d 成功=%d', ...
+        angle_stat_total.n_clu, ...
+        cfg.angle.lut_roi_deg, angle_stat_total.n_el_oob, angle_stat_total.max_abs_el_oob, angle_stat_total.n_el_nan, ...
+        cfg.angle.lut_roi_deg, angle_stat_total.n_az_oob, angle_stat_total.max_abs_az_oob, angle_stat_total.n_az_nan, ...
+        angle_stat_total.n_pwr_reject, angle_stat_total.n_kept));
 
     if isempty(all_raw_plots)
         lg('[融合] 无任何检测目标（all_raw_plots 为空），跳过融合、跟踪与绘图。');
@@ -477,6 +515,7 @@ for di = 1:numel(cfg.paths.data_folders)
         tracker_params.N = cfg.track.N;
         tracker_params.max_predictions = cfg.track.max_predictions;
         tracker_params.gate_confidence = cfg.track.gate_confidence;
+        tracker_params.newborn_gate_confidence = cfg.track.newborn_gate_confidence;
         tracker_params.max_history_length = cfg.track.max_history_length;
         tracker_params.v_tan_std_init = cfg.track.v_tan_std_init;
 
@@ -497,15 +536,6 @@ for di = 1:numel(cfg.paths.data_folders)
             end
             [tracks, track_id_counter] = tracker_3D_EKF(tracks, raw_meas, track_id_counter, tracker_params);
             track_results{fi} = tracks;
-        end
-
-        % 收尾：删除所有航迹在最后一次真实量测之后残留的纯预测拖尾点。
-        % 不仅限 is_terminated——记录末尾仍在 coasting 的航迹同样要清掉。
-        tracks = trim_track_tails(tracks);
-        for fi = 1:total_scan_frames
-            if ~isempty(track_results{fi})
-                track_results{fi} = trim_track_tails(track_results{fi});
-            end
         end
 
         n_active = sum(~[tracks.is_terminated]);

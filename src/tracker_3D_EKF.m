@@ -62,7 +62,12 @@ if num_tracks > 0 && num_meas > 0
 
         gate_confidence = tracker_params.gate_confidence;
         if tracks(t).success_count < 3
-            gate_confidence = 0.999;  % 新生航迹放宽门限
+            % 新生航迹放宽门限：可配置，默认与成熟航迹一致（不放宽）
+            if isfield(tracker_params, 'newborn_gate_confidence')
+                gate_confidence = tracker_params.newborn_gate_confidence;
+            else
+                gate_confidence = 0.999;  % 回退：未提供时保持旧的放宽值
+            end
         end
         gate_threshold_sq = chi2inv(gate_confidence, 4);
 
@@ -161,8 +166,6 @@ for t = 1:numel(tracks)
     if tracks(t).consecutive_misses > tracker_params.max_predictions
         tracks(t).is_terminated = true;
         tracks(t).terminationReason = 'missed';
-        % 终止后删除最后一次真实量测更新之后的所有纯预测点（拖尾）
-        tracks(t) = trim_track_tails(tracks(t));
     end
 end
 
@@ -221,6 +224,9 @@ if ~isempty(tracks)
     tracks(remove_mask) = [];
 end
 
+% 收尾：删除所有航迹在最后一次真实量测之后残留的纯预测拖尾点（含仍在 coasting 的航迹）。
+% 返回前统一裁剪，保证主脚本拿到的 tracks 及其每帧快照 track_results{fi} 均已去掉拖尾。
+tracks = trim_track_tails(tracks);
 end
 
 % =========================================================================
@@ -342,4 +348,35 @@ P_vel_cart = Rotation_mat' * P_vel_los * Rotation_mat;
 P_temp = blkdiag(P_pos_cart, P_vel_cart);
 idx = [1, 4, 2, 5, 3, 6];  % [x,y,z,vx,vy,vz] → [x,vx,y,vy,z,vz]
 P0 = P_temp(idx, idx);
+end
+
+function tracks = trim_track_tails(tracks)
+%TRIM_TRACK_TAILS 删除每条航迹在最后一次真实量测之后的所有纯预测“拖尾”点。
+%
+% 输入/输出：
+%   tracks : 航迹结构体数组（原地裁剪 path/meas_path/velocity_history/updated_mask/timestamps）。
+%
+% 作用：
+%   航迹丢失量测期间，状态由 CV 模型外推，path 中会写入无测量支撑的纯预测点。
+%   若这些点出现在最后一次真实量测之后，会在航迹图上表现为虚假的“拖尾”。
+%   本函数把每条航迹裁剪到最后一个 updated_mask==true（真实量测更新）处。
+
+if isempty(tracks)
+    return;
+end
+
+for i = 1:numel(tracks)
+    if ~isfield(tracks, 'updated_mask') || isempty(tracks(i).updated_mask)
+        continue;
+    end
+    last_meas_idx = find(tracks(i).updated_mask, 1, 'last');
+    if isempty(last_meas_idx)
+        continue;
+    end
+    tracks(i).path(last_meas_idx + 1:end, :) = [];
+    tracks(i).meas_path(last_meas_idx + 1:end, :) = [];
+    tracks(i).velocity_history(last_meas_idx + 1:end, :) = [];
+    tracks(i).updated_mask(last_meas_idx + 1:end) = [];
+    tracks(i).timestamps(last_meas_idx + 1:end) = [];
+end
 end
