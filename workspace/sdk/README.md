@@ -10,6 +10,63 @@ SDK 6 面向算法开发者只提供两个头文件：
 > 请联系 SDK 维护者，由维护者统一修改 `data.h`、版本化 JSON 契约、类型注册和契约
 > 测试，以保证生产者、消费者及跨语言解码端的数据布局始终一致。
 
+## 拉取镜像后进入算法开发环境
+
+`algo-base` 镜像包含 SDK、g++、make 和 CMake，启动后提供命令行编译环境，
+没有 Web 页面，也不会自动运行雷达算法。以下命令在 Linux Bash 中执行；
+Docker 引擎需要已启动，主机需支持运行所拉取镜像的架构（ARM64 镜像在
+x86_64 主机上运行时需要配置模拟支持）。
+
+### 1. 选择已拉取的镜像
+
+如果拉取的是 `latest`：
+
+```bash
+ALGO_IMAGE=registry.chengyistudio.com/cxx/algo-base:latest
+```
+
+如果按 digest 拉取，直接使用对应的完整引用，无需额外添加 `latest` 标签。
+例如，已拉取以下版本时：
+
+```bash
+ALGO_IMAGE=registry.chengyistudio.com/cxx/algo-base@sha256:d63bad75fc9cc8c4f0fe4b8bbee0e4089a6634318ee2be57692b83fd59425487
+```
+
+### 2. 启动交互式容器
+
+在设置 `ALGO_IMAGE` 的同一个终端执行：
+
+```bash
+docker run --rm -it "$ALGO_IMAGE" bash
+```
+
+输入 `exit` 退出。`--rm` 会在退出后删除容器，容器内未挂载到宿主机的修改
+不会保留。
+
+### 3. 挂载算法代码并编译
+
+在宿主机进入自己的算法工程目录（包含 `CMakeLists.txt`），再执行：
+
+```bash
+cd /path/to/my-algorithm
+docker run --rm -it \
+  -v "$PWD":/app \
+  -w /app \
+  "$ALGO_IMAGE" bash
+```
+
+进入容器后编译：
+
+```bash
+cmake -S . -B build
+cmake --build build --parallel
+```
+
+`/app` 对应宿主机的算法工程目录，代码修改和 `build/` 中的编译产物会保留。
+运行依赖 SDK 输入输出的 Worker 还需要 Sidecar 和共享内存配置，完整开发流程见
+[脉压示例](../examples/pulsecompression/README.md)或
+[Qt5 RD 示例](../examples/qt5-algorithm/README.md)。
+
 ## 标准数据类型定义
 
 SDK 6 定义了三种标准雷达数据帧，各自的业务 Metadata 字段与 Payload 内存布局说明如下：
