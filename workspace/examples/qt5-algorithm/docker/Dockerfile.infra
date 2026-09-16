@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 ARG ALGO_BASE=registry.chengyistudio.com/cxx/algo-base:latest
 
 FROM ${ALGO_BASE} AS builder
@@ -13,6 +12,7 @@ RUN sed -i \
 WORKDIR /src
 COPY CMakeLists.txt ./
 COPY src/ ./src/
+COPY infra/ ./infra/
 
 RUN cmake -S /src -B /build \
         -DCMAKE_BUILD_TYPE=Release \

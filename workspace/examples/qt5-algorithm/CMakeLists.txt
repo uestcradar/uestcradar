@@ -17,7 +17,7 @@ configure_sdk_executable(qt5-algorithm)
 target_link_libraries(qt5-algorithm PRIVATE Qt5::Core)
 
 if(BUILD_INFRA)
-    add_executable(rd-sink src/infra/rd_sink.cpp)
+    add_executable(rd-sink infra/rd_sink.cpp)
     configure_sdk_executable(rd-sink)
 endif()
 
@@ -28,7 +28,7 @@ if(BUILD_TESTING)
     add_test(NAME rd-algorithm-test COMMAND rd-algorithm-test)
 
     if(TARGET rd-sink)
-        add_executable(infra-test src/infra/infra_test.cpp)
+        add_executable(infra-test infra/infra_test.cpp)
         configure_sdk_executable(infra-test)
         add_test(NAME infra-test COMMAND infra-test)
     endif()
