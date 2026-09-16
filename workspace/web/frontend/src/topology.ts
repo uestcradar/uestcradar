@@ -6,7 +6,7 @@ export interface TopologyConfig {
   slotCount: number;
   maxPayloadBytes: number;
 }
-const defaults = (): TopologyConfig => ({chain: [], slotCount: 64, maxPayloadBytes: 1048576});
+const defaults = (): TopologyConfig => ({chain: [], slotCount: 64, maxPayloadBytes: 64 * 1024 * 1024});
 const slots = [4, 6, 8, 16, 32, 64];
 const payloads = [1048576, 8388608, 33554432, 67108864, 134217728];
 
