@@ -3,6 +3,7 @@ import type { ChainEntry } from './types';
 export const topologyStorageKey = 'uestcradar.topology.v1';
 export interface TopologyConfig {
   chain: ChainEntry[];
+  detailKey?: string;
   slotCount: number;
   maxPayloadBytes: number;
 }
@@ -26,7 +27,8 @@ export function loadTopology(storage: () => Pick<Storage, 'getItem'> = () => win
       throw new Error('Invalid saved topology');
     }
     return {config: {chain: value.chain.map(({key, ip, rdma_device, worker_image}: ChainEntry) => ({key, ip, rdma_device, worker_image})),
-      slotCount: value.slotCount, maxPayloadBytes: value.maxPayloadBytes}};
+      slotCount: value.slotCount, maxPayloadBytes: value.maxPayloadBytes,
+      ...(typeof value.detailKey === 'string' && value.chain.some((entry: ChainEntry) => entry.key === value.detailKey) ? {detailKey: value.detailKey} : {})}};
   } catch {
     return {config: defaults(), warning: '无法读取已保存拓扑，已使用默认配置。请检查浏览器存储。'};
   }
@@ -36,7 +38,7 @@ export function saveTopology(config: TopologyConfig, storage: () => Pick<Storage
   try {
     storage().setItem(topologyStorageKey, JSON.stringify({version: 1,
       chain: config.chain.map(({key, ip, rdma_device, worker_image}) => ({key, ip, rdma_device, worker_image})),
-      slotCount: config.slotCount, maxPayloadBytes: config.maxPayloadBytes}));
+      slotCount: config.slotCount, maxPayloadBytes: config.maxPayloadBytes, detailKey: config.detailKey}));
   } catch {
     return '无法保存拓扑，刷新后可能丢失本次修改。请检查浏览器存储。';
   }

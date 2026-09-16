@@ -28,7 +28,9 @@ export default function App() {
   const [maxPayloadBytes, setMaxPayloadBytes] = useState(savedTopology.config.maxPayloadBytes);
   const [isStreamRunning, setStreamRunning] = useState(false);
   const [workerNode, setWorkerNode] = useState<NodeInspection>();
-  const [detail, setDetail] = useState<{entry: ChainEntry; index: number}>();
+  const [detailKey, setDetailKey] = useState<string | undefined>(savedTopology.config.detailKey);
+  const detailIndex = chain.findIndex(entry => entry.key === detailKey);
+  const detail = detailIndex >= 0 ? {entry: chain[detailIndex], index: detailIndex} : undefined;
   const [hostKeyNode, setHostKeyNode] = useState<NodeInspection>();
 
   const activeIPs = useMemo(() => new Set(chain.map(entry => entry.ip)), [chain]);
@@ -50,10 +52,10 @@ export default function App() {
   useEffect(() => {
     // Do not overwrite damaged storage with the initial empty fallback.
     const untouched = chain === savedTopology.config.chain && slotCount === savedTopology.config.slotCount && maxPayloadBytes === savedTopology.config.maxPayloadBytes;
-    const warning = savedTopology.warning && untouched ? savedTopology.warning : saveTopology({chain, slotCount, maxPayloadBytes});
+    const warning = savedTopology.warning && untouched ? savedTopology.warning : saveTopology({chain, slotCount, maxPayloadBytes, detailKey: detail?.entry.key});
     if (warning && storageWarning.current !== warning) appendLog(`${warning}\n`, 'stderr');
     storageWarning.current = warning || '';
-  }, [chain, slotCount, maxPayloadBytes, savedTopology, appendLog]);
+  }, [chain, slotCount, maxPayloadBytes, detailKey, savedTopology, appendLog]);
 
   const runTask = useCallback(async (created: Task, label: string): Promise<Task> => {
     setBusy(true);
@@ -113,6 +115,8 @@ export default function App() {
         if (cancelled) return;
         setAuthenticated(true);
         await refreshNodes();
+        const ips = savedTopology.config.chain.map(entry => entry.ip);
+        if (ips.length) await inspectIPs(ips);
       } catch (error) {
         if (cancelled) return;
         if (error instanceof api.ApiError && error.status === 401) {
@@ -125,7 +129,7 @@ export default function App() {
     };
     void restore();
     return () => { cancelled = true; };
-  }, [appendLog, refreshNodes]);
+  }, [appendLog, refreshNodes, inspectIPs, savedTopology]);
   useEffect(() => {
     let socket: WebSocket | undefined;
     let retry = 0;
@@ -143,8 +147,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (chain.length && chain.every(entry => nodes.find(node => node.ip === entry.ip)?.deployment_state === 'running')) setStreamRunning(true);
-  }, [chain, nodes]);
+    const live = chain.some((_, index) => telemetryForEntry(index, snapshot.nodes)?.links?.some(link => !link.stale && link.status === 'connected'));
+    setStreamRunning(live || chain.some(entry => nodes.find(node => node.ip === entry.ip)?.deployment_state === 'running'));
+  }, [chain, nodes, snapshot]);
 
   const login = async (credentials: Parameters<typeof api.createSession>[0]) => {
     try {
@@ -209,7 +214,7 @@ export default function App() {
   });
   const removeEntry = (index: number) => {
     setChain(current => reconcileRoles(current.filter((_, position) => position !== index), nodes));
-    setDetail(undefined);
+    setDetailKey(undefined);
   };
 
   const startStream = () => requireSession(async () => {
@@ -256,14 +261,14 @@ export default function App() {
     <main className="dashboard-body">
       <NodePool nodes={poolNodes} locked={controlsLocked} onInspect={inspectAll} onAdd={addCustomNode} onJoin={addToChain} onSidecar={updateSidecar} onWorker={node => requireSession(async () => setWorkerNode(node))} onLogin={inspectOne} />
       <section className="workspace-column">
-        <TopologyCanvas chain={chain} nodes={nodes} telemetry={snapshot.nodes} locked={controlsLocked} goodput={totalGoodput} slotCount={slotCount} maxPayloadBytes={maxPayloadBytes} onSlotCount={setSlotCount} onMaxPayloadBytes={setMaxPayloadBytes} onChange={updateEntry} onMove={moveEntry} onRemove={removeEntry} onDetail={(entry, index) => setDetail({entry, index})} />
+        <TopologyCanvas chain={chain} nodes={nodes} telemetry={snapshot.nodes} locked={controlsLocked} goodput={totalGoodput} slotCount={slotCount} maxPayloadBytes={maxPayloadBytes} onSlotCount={setSlotCount} onMaxPayloadBytes={setMaxPayloadBytes} onChange={updateEntry} onMove={moveEntry} onRemove={removeEntry} onDetail={entry => setDetailKey(entry.key)} />
         <Console logs={logs} onClear={() => setLogs([])} />
       </section>
     </main>
     {loginOpen && <LoginModal onLogin={login} />}
     {workerNode && <WorkerModal node={workerNode} onClose={() => setWorkerNode(undefined)} onSelect={image => updateWorker(workerNode, image)} />}
     {hostKeyNode && <HostKeyModal node={hostKeyNode} onClose={() => setHostKeyNode(undefined)} onConfirm={() => confirmHostKey(hostKeyNode)} />}
-    {detail && <DetailDrawer entry={detail.entry} inspection={nodes.find(node => node.ip === detail.entry.ip)} node={telemetryForEntry(detail.index, snapshot.nodes)} onClose={() => setDetail(undefined)} />}
+    {detail && !loginOpen && <DetailDrawer entry={detail.entry} inspection={nodes.find(node => node.ip === detail.entry.ip)} node={telemetryForEntry(detail.index, snapshot.nodes)} onClose={() => setDetailKey(undefined)} />}
   </div>;
 }
 

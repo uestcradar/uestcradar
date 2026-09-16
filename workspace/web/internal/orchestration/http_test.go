@@ -87,6 +87,12 @@ func TestDeploymentStartsSinkToSourceAndStopsOnFailure(t *testing.T) {
 	plan := DeploymentPlan{Nodes: []PlannedNode{{IP: "10.0.0.1", Role: "source"}, {IP: "10.0.0.2", Role: "operator"}, {IP: "10.0.0.3", Role: "sink"}}}
 	task := service.newTask(session, "deployment")
 	service.deploy(session, plan, true, task.ID)
+	if node := session.Nodes["10.0.0.3"]; !node.ExistingDeployment || node.DeploymentState != "running" {
+		t.Fatalf("started node state not updated: %#v", node)
+	}
+	if session.Nodes["10.0.0.2"].DeploymentState == "running" {
+		t.Fatal("failed node marked running")
+	}
 	if len(remote.started) != 1 || remote.started[0] != "10.0.0.3" {
 		t.Fatalf("unexpected start order: %#v", remote.started)
 	}

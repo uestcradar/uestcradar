@@ -557,6 +557,13 @@ func (s *Service) deploy(session *Session, plan DeploymentPlan, confirmed bool, 
 			return
 		}
 		completed = append(completed, node.IP)
+		session.mu.Lock()
+		inspection := session.Nodes[node.IP]
+		inspection.IP = node.IP
+		inspection.ExistingDeployment = true
+		inspection.DeploymentState = "running"
+		session.Nodes[node.IP] = inspection
+		session.mu.Unlock()
 	}
 	s.updateTask(session, taskID, "completed", "", "deployment completed", completed)
 }

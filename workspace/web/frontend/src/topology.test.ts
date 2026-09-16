@@ -13,6 +13,13 @@ function memory(raw: string | null = null) {
 }
 
 describe('topology persistence', () => {
+  it('restores the open preview by node key and discards removed nodes', () => {
+    const storage = memory();
+    saveTopology({...config, detailKey: 'sink'}, () => storage);
+    expect(loadTopology(() => storage).config.detailKey).toBe('sink');
+    saveTopology({...config, detailKey: 'removed'}, () => storage);
+    expect(loadTopology(() => storage).config.detailKey).toBeUndefined();
+  });
   it('restores ordered nodes, selections and ring settings', () => {
     const storage = memory();
     expect(saveTopology(config, () => storage)).toBeUndefined();

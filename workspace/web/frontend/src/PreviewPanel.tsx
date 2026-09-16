@@ -45,11 +45,12 @@ export function PreviewPanel({nodeId, input, output}: PreviewPanelProps) {
       socket = new WebSocket(`${scheme}//${window.location.host}/ws/frames`);
       socket.binaryType = 'arraybuffer';
       socket.onopen = () => {
+        if (stopped) return;
         setConnection('connected');
         socket?.send(buildSubscription(selectors));
       };
       socket.onmessage = event => {
-        if (!(event.data instanceof ArrayBuffer)) return;
+        if (stopped || !(event.data instanceof ArrayBuffer)) return;
         try {
           const decoded = decodePreviewMessage(event.data);
           if (decoded.nodeId !== nodeId) return;
@@ -63,6 +64,7 @@ export function PreviewPanel({nodeId, input, output}: PreviewPanelProps) {
         }
       };
       socket.onclose = () => {
+        if (stopped) return;
         setConnection('closed');
         if (!stopped) retryTimer = window.setTimeout(connect, 1500);
       };
