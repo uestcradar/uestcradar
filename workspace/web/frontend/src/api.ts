@@ -21,6 +21,13 @@ export async function createSession(body: {username: string; password?: string; 
   csrfToken = value.csrf_token;
 }
 
+export async function restoreSession() {
+  csrfToken = '';
+  const value = await request<{username: string; csrf_token: string; expires_at: string}>('/api/v1/session');
+  csrfToken = value.csrf_token;
+  return value;
+}
+
 export const fetchNodes = () => request<NodeInspection[]>('/api/v1/orchestration/nodes');
 export const addNode = (ip: string) => request<NodeInspection>('/api/v1/orchestration/nodes', { method: 'POST', body: JSON.stringify({ ip }) });
 export const inspectNodes = (ips: string[]) => request<Task>('/api/v1/orchestration/inspections', { method: 'POST', body: JSON.stringify({ ips }) });

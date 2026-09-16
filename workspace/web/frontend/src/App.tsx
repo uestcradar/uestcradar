@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
+import { loadTopology, saveTopology } from './topology';
 import { PreviewPanel } from './PreviewPanel';
 import { parseContract } from './preview';
 import type { ChainEntry, ClusterSnapshot, LinkSnapshot, NodeInspection, Task, TaskOutputChunk, TelemetryNode } from './types';
@@ -14,15 +15,17 @@ interface ConsoleEntry { id: string; at: Date; stream: string; ip?: string; text
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(true);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [savedTopology] = useState(() => loadTopology());
   const pendingAction = useRef<null | (() => Promise<void>)>(null);
   const [nodes, setNodes] = useState<NodeInspection[]>([]);
-  const [chain, setChain] = useState<ChainEntry[]>([]);
+  const [chain, setChain] = useState<ChainEntry[]>(savedTopology.config.chain);
   const [snapshot, setSnapshot] = useState<ClusterSnapshot>({generated_at: '', nodes: []});
   const [logs, setLogs] = useState<ConsoleEntry[]>([]);
   const [busy, setBusy] = useState(false);
-  const [slotCount, setSlotCount] = useState(64);
-  const [maxPayloadBytes, setMaxPayloadBytes] = useState(1024 * 1024);
+  const [slotCount, setSlotCount] = useState(savedTopology.config.slotCount);
+  const [maxPayloadBytes, setMaxPayloadBytes] = useState(savedTopology.config.maxPayloadBytes);
   const [isStreamRunning, setStreamRunning] = useState(false);
   const [workerNode, setWorkerNode] = useState<NodeInspection>();
   const [detail, setDetail] = useState<{entry: ChainEntry; index: number}>();
@@ -31,7 +34,7 @@ export default function App() {
   const activeIPs = useMemo(() => new Set(chain.map(entry => entry.ip)), [chain]);
   const poolNodes = useMemo(() => nodes.filter(node => !activeIPs.has(node.ip)), [nodes, activeIPs]);
   const chainError = useMemo(() => validateChain(chain, nodes), [chain, nodes]);
-  const controlsLocked = busy || isStreamRunning;
+  const controlsLocked = sessionLoading || busy || isStreamRunning;
   const totalGoodput = useMemo(() => snapshot.nodes.reduce((maximum, node) => Math.max(maximum, node.goodput_gbps || 0), 0), [snapshot]);
 
   const appendLog = useCallback((text: string, stream = 'system', ip?: string) => {
@@ -42,6 +45,15 @@ export default function App() {
     setLogs(current => [...current, ...chunks.map(chunk => ({id: `${chunk.sequence}-${chunk.at}-${chunk.ip || ''}`, at: new Date(chunk.at), stream: chunk.stream, ip: chunk.ip, text: chunk.text}))].slice(-1000));
   }, []);
   const refreshNodes = useCallback(async () => setNodes(await api.fetchNodes()), []);
+
+  const storageWarning = useRef('');
+  useEffect(() => {
+    // Do not overwrite damaged storage with the initial empty fallback.
+    const untouched = chain === savedTopology.config.chain && slotCount === savedTopology.config.slotCount && maxPayloadBytes === savedTopology.config.maxPayloadBytes;
+    const warning = savedTopology.warning && untouched ? savedTopology.warning : saveTopology({chain, slotCount, maxPayloadBytes});
+    if (warning && storageWarning.current !== warning) appendLog(`${warning}\n`, 'stderr');
+    storageWarning.current = warning || '';
+  }, [chain, slotCount, maxPayloadBytes, savedTopology, appendLog]);
 
   const runTask = useCallback(async (created: Task, label: string): Promise<Task> => {
     setBusy(true);
@@ -93,7 +105,27 @@ export default function App() {
     }
   }, [appendLog, openClusterLogin, refreshNodes, runTask]);
 
-  useEffect(() => { refreshNodes().catch(error => appendLog(`${String(error)}\n`, 'stderr')); }, [appendLog, refreshNodes]);
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async () => {
+      try {
+        await api.restoreSession();
+        if (cancelled) return;
+        setAuthenticated(true);
+        await refreshNodes();
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof api.ApiError && error.status === 401) {
+          setLoginOpen(true);
+          await refreshNodes().catch(error => appendLog(`${errorMessage(error)}\n`, 'stderr'));
+        } else appendLog(`恢复会话失败：${errorMessage(error)}\n`, 'stderr');
+      } finally {
+        if (!cancelled) setSessionLoading(false);
+      }
+    };
+    void restore();
+    return () => { cancelled = true; };
+  }, [appendLog, refreshNodes]);
   useEffect(() => {
     let socket: WebSocket | undefined;
     let retry = 0;
@@ -120,7 +152,17 @@ export default function App() {
       setAuthenticated(true);
       setLoginOpen(false);
       appendLog(`SSH 凭证 Session 已建立，用户 ${credentials.username}。\n`);
-      await refreshNodes();
+      setSessionLoading(true);
+      try {
+        const knownNodes = await api.fetchNodes();
+        for (const entry of chain) {
+          if (!knownNodes.some(node => node.ip === entry.ip)) await api.addNode(entry.ip);
+        }
+        await refreshNodes();
+        if (chain.length) await inspectIPs(chain.map(entry => entry.ip));
+      } finally {
+        setSessionLoading(false);
+      }
       const action = pendingAction.current;
       pendingAction.current = null;
       if (action) await action();
@@ -205,10 +247,11 @@ export default function App() {
   return <div className="dashboard-shell">
     <header className="topbar">
       <div><span className="brand-kicker">UESTC RADAR</span><h1>UESTC Radar · 单页一体化控制台</h1></div>
-      <button className={isStreamRunning ? 'stream-button stop' : 'stream-button start'} disabled={busy || (!isStreamRunning && Boolean(chainError))} onClick={isStreamRunning ? stopStream : startStream}>
+      <button className={isStreamRunning ? 'stream-button stop' : 'stream-button start'} disabled={sessionLoading || busy || (!isStreamRunning && Boolean(chainError))} onClick={isStreamRunning ? stopStream : startStream}>
         <PowerIcon />{busy ? '任务执行中' : isStreamRunning ? '停止数据流' : '一键下发并全速启动数据流'}
       </button>
     </header>
+    {sessionLoading && <div className="running-banner">正在恢复会话和节点信息…</div>}
     {isStreamRunning && <div className="running-banner">数据流正在运行。拓扑配置已锁定，实时链路与 RingBuffer 指标保持更新。</div>}
     <main className="dashboard-body">
       <NodePool nodes={poolNodes} locked={controlsLocked} onInspect={inspectAll} onAdd={addCustomNode} onJoin={addToChain} onSidecar={updateSidecar} onWorker={node => requireSession(async () => setWorkerNode(node))} onLogin={inspectOne} />
@@ -287,8 +330,8 @@ function TopologyCard({cardRef, entry, index, total, node, telemetry, locked, on
   return <article className="topology-card" ref={cardRef}>
     <div className="topology-card-head"><div><span className={`role-pill ${role}`}>{role}</span><strong>{node?.hostname || entry.ip}</strong><small>{entry.ip}</small></div><div className={`card-tools ${locked ? 'locked-controls' : ''}`}><IconButton label="前移" disabled={index === 0} onClick={() => onMove(-1)}><LeftIcon /></IconButton><IconButton label="后移" disabled={index === total - 1} onClick={() => onMove(1)}><RightIcon /></IconButton><IconButton label="移除" onClick={onRemove}><CloseIcon /></IconButton></div></div>
     <div className={`card-config ${locked ? 'locked-controls' : ''}`}>
-      <label><span>1. Worker 算法</span><select title={entry.worker_image} value={entry.worker_image} onChange={event => onChange({worker_image: event.target.value})}><option value="">选择本地算法镜像</option>{workers.map(image => <option key={image.reference} value={image.reference}>{image.reference} · {image.contract.input}→{image.contract.output}</option>)}</select></label>
-      <label><span>2. 网络 / RDMA</span><select value={entry.rdma_device} onChange={event => onChange({rdma_device: event.target.value})}><option value="">选择 RDMA 网卡与 IP</option>{(node?.rdma || []).filter(item => item.ipv4).map(item => <option key={rdmaName(item)} value={rdmaName(item)}>{rdmaName(item)} · {item.netdev} · {item.ipv4}</option>)}</select></label>
+      <label><span>1. Worker 算法</span><select title={entry.worker_image} value={entry.worker_image} onChange={event => onChange({worker_image: event.target.value})}><option value="">选择本地算法镜像</option>{entry.worker_image && !workers.some(image => image.reference === entry.worker_image) && <option value={entry.worker_image}>{entry.worker_image} · 待探查确认</option>}{workers.map(image => <option key={image.reference} value={image.reference}>{image.reference} · {image.contract.input}→{image.contract.output}</option>)}</select></label>
+      <label><span>2. 网络 / RDMA</span><select value={entry.rdma_device} onChange={event => onChange({rdma_device: event.target.value})}><option value="">选择 RDMA 网卡与 IP</option>{entry.rdma_device && !(node?.rdma || []).some(item => item.ipv4 && rdmaName(item) === entry.rdma_device) && <option value={entry.rdma_device}>{entry.rdma_device} · 待探查确认</option>}{(node?.rdma || []).filter(item => item.ipv4).map(item => <option key={rdmaName(item)} value={rdmaName(item)}>{rdmaName(item)} · {item.netdev} · {item.ipv4}</option>)}</select></label>
     </div>
     <div className="live-metrics"><div><span>Goodput</span><strong>{(telemetry?.goodput_gbps || 0).toFixed(2)} <small>GB/s</small></strong></div><StatusLabel node={telemetry} /></div>
     <RingMeter title="Upstream 槽位" link={upstream} variant="upstream" />

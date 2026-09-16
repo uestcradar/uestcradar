@@ -100,6 +100,22 @@ type sessionRequest struct {
 }
 
 func (s *Service) handleSession(writer http.ResponseWriter, request *http.Request) {
+	if request.Method == http.MethodGet {
+		session, ok := s.authorize(writer, request)
+		if !ok {
+			return
+		}
+		session.mu.Lock()
+		username := session.Credentials.Username
+		session.mu.Unlock()
+		s.sessions.mu.Lock()
+		expiresAt := session.ExpiresAt
+		s.sessions.mu.Unlock()
+		writeJSON(writer, http.StatusOK, map[string]any{
+			"username": username, "csrf_token": session.CSRF, "expires_at": expiresAt,
+		})
+		return
+	}
 	if request.Method == http.MethodDelete {
 		cookie, err := request.Cookie(sessionCookieName)
 		if err != nil {
