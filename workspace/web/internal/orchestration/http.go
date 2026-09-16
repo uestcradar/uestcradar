@@ -361,7 +361,9 @@ func (s *Service) handleInspectionTask(writer http.ResponseWriter, request *http
 			if result.Error != "" {
 				failures++
 			}
-			completed = append(completed, result.IP)
+			if !result.HostKeyRequired && result.Error == "" {
+				completed = append(completed, result.IP)
+			}
 		}
 		message := "inspection completed"
 		if hostKeys > 0 {
@@ -370,7 +372,14 @@ func (s *Service) handleInspectionTask(writer http.ResponseWriter, request *http
 		if failures > 0 {
 			message += "; some nodes failed"
 		}
-		s.updateTask(session, task.ID, "completed", "", message, completed)
+		status := "completed"
+		if failures > 0 {
+			status = "partial"
+		}
+		if hostKeys > 0 {
+			status = "confirmation_required"
+		}
+		s.updateTask(session, task.ID, status, "", message, completed)
 	}()
 	writeJSON(writer, http.StatusAccepted, task)
 }

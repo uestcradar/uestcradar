@@ -90,18 +90,18 @@ export default function App() {
     }
   }, [authenticated]);
 
-  const inspectIPs = useCallback(async (ips: string[], showHostKey = false) => {
-    if (!ips.length) return;
+  const inspectIPs = useCallback(async (ips: string[]) => {
+    if (!ips.length) return true;
     try {
       const result = await runTask(await api.inspectNodes(ips), `探查 ${ips.length} 个节点`);
       await refreshNodes();
       const refreshed = await api.fetchNodes();
       setNodes(refreshed);
-      if (showHostKey) {
-        const hostKey = refreshed.find(node => ips.includes(node.ip) && node.host_key_required);
-        if (hostKey) setHostKeyNode(hostKey);
-      }
+      const hostKey = refreshed.find(node => node.host_key_required);
+      setHostKeyNode(hostKey);
+      if (hostKey) appendLog('请逐个确认 SSH 主机指纹，确认后将重新探查。\n', 'stderr');
       if (result.status !== 'completed') appendLog('部分节点探查未完成，请检查远端输出。\n', 'stderr');
+      return result.status === 'completed' && !refreshed.some(node => ips.includes(node.ip) && (node.host_key_required || node.error));
     } catch (error) {
       handleError(error, appendLog, openClusterLogin);
     }
@@ -164,7 +164,11 @@ export default function App() {
           if (!knownNodes.some(node => node.ip === entry.ip)) await api.addNode(entry.ip);
         }
         await refreshNodes();
-        if (chain.length) await inspectIPs(chain.map(entry => entry.ip));
+        if (chain.length && !await inspectIPs(chain.map(entry => entry.ip))) {
+          pendingAction.current = null;
+          appendLog('节点探查尚未通过，请确认指纹后重新执行所需操作。\n', 'stderr');
+          return;
+        }
       } finally {
         setSessionLoading(false);
       }
@@ -177,8 +181,8 @@ export default function App() {
     }
   };
 
-  const inspectAll = () => requireSession(() => inspectIPs(nodes.map(node => node.ip)));
-  const inspectOne = (node: NodeInspection) => requireSession(() => inspectIPs([node.ip], true));
+  const inspectAll = () => requireSession(async () => { await inspectIPs(nodes.map(node => node.ip)); });
+  const inspectOne = (node: NodeInspection) => requireSession(async () => { await inspectIPs([node.ip]); });
   const addCustomNode = (ip: string) => requireSession(async () => {
     try {
       appendLog(`添加自定义节点 ${ip}。\n`);
@@ -190,7 +194,6 @@ export default function App() {
     try {
       await api.confirmHostKey(node.ip, node.host_key_fingerprint || '');
       appendLog(`已确认 ${node.ip} 的 SSH Host Key：${node.host_key_fingerprint}\n`);
-      setHostKeyNode(undefined);
       await inspectIPs([node.ip]);
     } catch (error) { handleError(error, appendLog, openClusterLogin); }
   };
@@ -252,11 +255,12 @@ export default function App() {
   return <div className="dashboard-shell">
     <header className="topbar">
       <div><span className="brand-kicker">UESTC RADAR</span><h1>UESTC Radar · 单页一体化控制台</h1></div>
-      <button className={isStreamRunning ? 'stream-button stop' : 'stream-button start'} disabled={sessionLoading || busy || (!isStreamRunning && Boolean(chainError))} onClick={isStreamRunning ? stopStream : startStream}>
+      <button className={isStreamRunning ? 'stream-button stop' : 'stream-button start'} disabled={sessionLoading || busy || chain.some(entry => nodes.find(node => node.ip === entry.ip)?.host_key_required) || (!isStreamRunning && Boolean(chainError))} onClick={isStreamRunning ? stopStream : startStream}>
         <PowerIcon />{busy ? '任务执行中' : isStreamRunning ? '停止数据流' : '一键下发并全速启动数据流'}
       </button>
     </header>
     {sessionLoading && <div className="running-banner">正在恢复会话和节点信息…</div>}
+    {nodes.some(node => node.host_key_required) && <div className="running-banner">部分节点等待 SSH 主机指纹确认。<button onClick={() => setHostKeyNode(nodes.find(node => node.host_key_required))}>确认 SSH 主机指纹</button></div>}
     {isStreamRunning && <div className="running-banner">数据流正在运行。拓扑配置已锁定，实时链路与 RingBuffer 指标保持更新。</div>}
     <main className="dashboard-body">
       <NodePool nodes={poolNodes} locked={controlsLocked} onInspect={inspectAll} onAdd={addCustomNode} onJoin={addToChain} onSidecar={updateSidecar} onWorker={node => requireSession(async () => setWorkerNode(node))} onLogin={inspectOne} />
@@ -268,7 +272,7 @@ export default function App() {
     {loginOpen && <LoginModal onLogin={login} />}
     {workerNode && <WorkerModal node={workerNode} onClose={() => setWorkerNode(undefined)} onSelect={image => updateWorker(workerNode, image)} />}
     {hostKeyNode && <HostKeyModal node={hostKeyNode} onClose={() => setHostKeyNode(undefined)} onConfirm={() => confirmHostKey(hostKeyNode)} />}
-    {detail && !loginOpen && <DetailDrawer entry={detail.entry} inspection={nodes.find(node => node.ip === detail.entry.ip)} node={telemetryForEntry(detail.index, snapshot.nodes)} onClose={() => setDetailKey(undefined)} />}
+    {detail && !loginOpen && !hostKeyNode && <DetailDrawer entry={detail.entry} inspection={nodes.find(node => node.ip === detail.entry.ip)} node={telemetryForEntry(detail.index, snapshot.nodes)} onClose={() => setDetailKey(undefined)} />}
   </div>;
 }
 
@@ -368,8 +372,9 @@ function WorkerModal({node, onClose, onSelect}: {node: NodeInspection; onClose: 
   return <Modal title={`更新 Worker · ${node.ip}`} onClose={onClose}><div className="modal-form"><p>仅可选择该节点本地已探查且满足 worker/v2 契约的 Tag。点击后才会从私有源执行 docker pull。</p><label>Worker 镜像<select value={selected} onChange={event => setSelected(event.target.value)}>{node.workers.map(image => <option key={image.reference} value={image.reference}>{image.reference}</option>)}</select></label><button className="primary-button" disabled={!selected} onClick={() => onSelect(selected)}>同步所选 Worker</button></div></Modal>;
 }
 
-function HostKeyModal({node, onClose, onConfirm}: {node: NodeInspection; onClose: () => void; onConfirm: () => void}) {
-  return <Modal title={`确认 SSH Host Key · ${node.ip}`} onClose={onClose}><div className="modal-form"><p>这是当前 Session 首次连接该节点。请核对以下 SHA256 指纹，指纹发生变化时系统会阻止连接。</p><code className="fingerprint">{node.host_key_fingerprint}</code><button className="primary-button" onClick={onConfirm}>确认指纹并继续探查</button></div></Modal>;
+function HostKeyModal({node, onClose, onConfirm}: {node: NodeInspection; onClose: () => void; onConfirm: () => Promise<void>}) {
+  const [submitting, setSubmitting] = useState(false);
+  return <Modal title={`确认 SSH Host Key · ${node.ip}`} onClose={onClose}><div className="modal-form"><p>这是当前 Session 首次连接该节点。请核对以下 SHA256 指纹，指纹发生变化时系统会阻止连接。</p><code className="fingerprint">{node.host_key_fingerprint}</code><button className="primary-button" disabled={submitting} onClick={async () => {setSubmitting(true); try {await onConfirm();} finally {setSubmitting(false);}}}>{submitting ? '正在确认并探查…' : '确认指纹并继续探查'}</button></div></Modal>;
 }
 
 function DetailDrawer({entry, inspection, node, onClose}: {entry: ChainEntry; inspection?: NodeInspection; node?: TelemetryNode; onClose: () => void}) {
