@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../src/rd_contract.hpp"
+#include "../support/rd_contract.hpp"
 
 #include <data.h>
 

@@ -84,7 +84,7 @@ private:
             metadata.pulses_per_cpi != kPulsesPerCpi ||
             metadata.pulse_index >= kPulsesPerCpi ||
             metadata.range_bin_count == 0 ||
-            metadata.range_bin_count > kMaxRangeBinCount ||
+            metadata.range_bin_count > kMaxInputRangeBinCount ||
             !std::isfinite(metadata.range_resolution_m) ||
             metadata.range_resolution_m <= 0.0 ||
             range_bins.size() != metadata.range_bin_count) {
@@ -112,84 +112,4 @@ private:
     std::uint32_t received_pulses_{};
 };
 
-struct RdResult {
-    std::size_t peak_range_bin{};
-    std::size_t peak_doppler_bin{};
-    float peak_magnitude{};
-};
-
-// This is intentionally a fast placeholder, not an FFT/DFT implementation.
-// Replace the function body with the real Qt5 Range-Doppler algorithm.
-inline RdResult compute_rd(
-    const CpiBuffer& pulse_cpi,
-    uestcradar::Array2D<float> rd_map) {
-    if (!pulse_cpi.ready() ||
-        rd_map.rows() != pulse_cpi.range_bin_count() ||
-        rd_map.columns() != kDopplerBinCount) {
-        throw std::invalid_argument("RD output shape does not match the CPI");
-    }
-
-    RdResult result;
-    for (std::size_t range = 0; range < rd_map.rows(); ++range) {
-        for (std::size_t doppler = 0;
-             doppler < rd_map.columns();
-             ++doppler) {
-            const auto& sample = pulse_cpi.sample(
-                doppler % kPulsesPerCpi, range);
-            const auto magnitude = std::hypot(sample.i, sample.q);
-            rd_map[range][doppler] = magnitude;
-            if (magnitude > result.peak_magnitude) {
-                result = {range, doppler, magnitude};
-            }
-        }
-    }
-    return result;
-}
-
-inline void save_rd_map_pgm(
-    uestcradar::Array2D<float> rd_map,
-    const std::filesystem::path& output_path) {
-    if (rd_map.rows() == 0 || rd_map.columns() == 0) {
-        throw std::invalid_argument("RD output is empty");
-    }
-
-    const auto values = rd_map.values();
-    const auto [minimum, maximum] = std::minmax_element(
-        values.begin(), values.end());
-    if (!std::isfinite(*minimum) || !std::isfinite(*maximum)) {
-        throw std::invalid_argument("RD output contains a non-finite value");
-    }
-
-    std::vector<unsigned char> pixels(values.size(), 0);
-    if (*maximum > *minimum) {
-        const float scale = 255.0F / (*maximum - *minimum);
-        std::transform(
-            values.begin(), values.end(), pixels.begin(),
-            [&](float value) {
-                return static_cast<unsigned char>(std::clamp(
-                    std::lround((value - *minimum) * scale), 0L, 255L));
-            });
-    }
-
-    if (!output_path.parent_path().empty()) {
-        std::filesystem::create_directories(output_path.parent_path());
-    }
-    auto temporary_path = output_path;
-    temporary_path += ".tmp";
-    std::ofstream output(temporary_path, std::ios::binary | std::ios::trunc);
-    if (!output) {
-        throw std::runtime_error("cannot create RDMap PGM output");
-    }
-    output << "P5\n" << rd_map.columns() << ' ' << rd_map.rows()
-           << "\n255\n";
-    output.write(
-        reinterpret_cast<const char*>(pixels.data()),
-        static_cast<std::streamsize>(pixels.size()));
-    output.close();
-    if (!output) {
-        throw std::runtime_error("cannot write RDMap PGM output");
-    }
-    std::filesystem::rename(temporary_path, output_path);
-}
-
-}  // namespace radar_qt_example
+} // namespace radar_qt_example

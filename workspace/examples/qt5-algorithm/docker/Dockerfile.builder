@@ -12,6 +12,8 @@ RUN sed -i \
 WORKDIR /src
 COPY CMakeLists.txt ./
 COPY src/ ./src/
+COPY support/ ./support/
+COPY tests/ ./tests/
 
 RUN cmake -S /src -B /build \
         -DCMAKE_BUILD_TYPE=Release \

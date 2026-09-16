@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../src/rd_contract.hpp"
+#include "../support/rd_contract.hpp"
 #include "sha256.hpp"
 
 #include <data.h>
@@ -28,8 +28,8 @@ inline RdVerification verify_rd_frame(
     std::size_t columns) {
     if (metadata.channel_index != 0 ||
         metadata.range_bin_count == 0 ||
-        metadata.range_bin_count > kMaxRangeBinCount ||
-        metadata.doppler_bin_count != kDopplerBinCount ||
+        metadata.range_bin_count > (kMaxFrameBytes-kRdMetadataBytes)/sizeof(float) ||
+        metadata.doppler_bin_count == 0 ||
         !std::isfinite(metadata.range_resolution_m) ||
         metadata.range_resolution_m <= 0.0 ||
         !std::isfinite(metadata.velocity_resolution_mps) ||
@@ -38,12 +38,13 @@ inline RdVerification verify_rd_frame(
     }
     const auto expected_samples = static_cast<std::size_t>(
         metadata.range_bin_count) * metadata.doppler_bin_count;
-    if (rows != metadata.range_bin_count ||
+    if (expected_samples > (kMaxFrameBytes-kRdMetadataBytes)/sizeof(float) ||
+        rows != metadata.range_bin_count ||
         columns != metadata.doppler_bin_count ||
         samples.size() != expected_samples ||
         kRdMetadataBytes + samples.size_bytes() !=
-            rd_frame_bytes(metadata.range_bin_count) ||
-        rd_frame_bytes(metadata.range_bin_count) > kMaxFrameBytes) {
+            rd_frame_bytes(metadata.range_bin_count, metadata.doppler_bin_count) ||
+        rd_frame_bytes(metadata.range_bin_count, metadata.doppler_bin_count) > kMaxFrameBytes) {
         throw std::invalid_argument("RDFrame payload shape or length is invalid");
     }
 

@@ -40,24 +40,24 @@ void test_rd_verifier_and_sha256() {
     const uestcradar::RDMetadata metadata{
         .channel_index = 0,
         .range_bin_count = range_bins,
-        .doppler_bin_count = radar_qt_example::kDopplerBinCount,
+        .doppler_bin_count = 64,
         .range_resolution_m = 4.8828125,
         .velocity_resolution_mps =
             radar_qt_example::kVelocityResolutionMps,
     };
     std::vector<float> samples(
         static_cast<std::size_t>(range_bins) *
-            radar_qt_example::kDopplerBinCount,
+            64,
         1.0F);
     const std::size_t peak_range = 20480;
     const std::size_t peak_doppler = 32;
-    samples[peak_range * radar_qt_example::kDopplerBinCount +
+    samples[peak_range * 64 +
             peak_doppler] = 10.0F;
     const auto verification = radar_qt_example::verify_rd_frame(
         metadata,
         samples,
         range_bins,
-        radar_qt_example::kDopplerBinCount);
+        64);
     require(verification.digest.size() == 64,
             "RD fingerprint is not SHA-256");
     require(verification.peak_range_bin == peak_range &&
@@ -66,14 +66,14 @@ void test_rd_verifier_and_sha256() {
             "RD peak location is invalid");
 
     auto invalid = metadata;
-    invalid.doppler_bin_count = 64;
+    invalid.doppler_bin_count = 0;
     require_throws(
         [&] {
             static_cast<void>(radar_qt_example::verify_rd_frame(
                 invalid,
                 samples,
                 range_bins,
-                radar_qt_example::kDopplerBinCount));
+                64));
         },
         "invalid RD metadata was accepted");
 
@@ -84,7 +84,7 @@ void test_rd_verifier_and_sha256() {
                 metadata,
                 samples,
                 range_bins,
-                radar_qt_example::kDopplerBinCount));
+                64));
         },
         "non-finite RD data was accepted");
 }
