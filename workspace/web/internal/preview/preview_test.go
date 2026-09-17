@@ -32,6 +32,54 @@ func TestSubscriptionSupportsMultipleNodesAndRoutes(t *testing.T) {
 	}
 }
 
+func TestHeatmapEncodingsAndDimensions(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		encoding      fb.ValueEncoding
+		size, offsets int
+		stride        uint32
+		valid         bool
+	}{
+		{"float32", fb.ValueEncodingFloat32, 24, 0, 1, true},
+		{"legacy", fb.ValueEncodingFloat16, 12, 6, 1, true},
+		{"truncated", fb.ValueEncodingFloat32, 23, 0, 1, false},
+		{"bad stride", fb.ValueEncodingFloat32, 24, 0, 2, false},
+		{"legacy offsets", fb.ValueEncodingFloat16, 12, 0, 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := flatbuffers.NewBuilder(256)
+			values := b.CreateByteVector(make([]byte, tc.size))
+			offsets := b.CreateByteVector(make([]byte, tc.offsets))
+			fb.HeatmapPreviewStart(b)
+			fb.HeatmapPreviewAddRows(b, 3)
+			fb.HeatmapPreviewAddColumns(b, 2)
+			fb.HeatmapPreviewAddValues(b, values)
+			fb.HeatmapPreviewAddMaxOffsets(b, offsets)
+			fb.HeatmapPreviewAddRangeStride(b, tc.stride)
+			body := fb.HeatmapPreviewEnd(b)
+			node := b.CreateString("node-a")
+			fb.PreviewFrameStart(b)
+			fb.PreviewFrameAddNodeId(b, node)
+			fb.PreviewFrameAddLeg(b, fb.LegOutput)
+			fb.PreviewFrameAddFrameTypeId(b, 3)
+			fb.PreviewFrameAddFrameTypeVersion(b, 2)
+			fb.PreviewFrameAddOriginalRows(b, 3)
+			fb.PreviewFrameAddOriginalColumns(b, 2)
+			fb.PreviewFrameAddPoolRows(b, 3)
+			fb.PreviewFrameAddPoolColumns(b, 2)
+			fb.PreviewFrameAddEncoding(b, tc.encoding)
+			fb.PreviewFrameAddBodyType(b, fb.PreviewBodyHeatmapPreview)
+			fb.PreviewFrameAddBody(b, body)
+			frame := fb.PreviewFrameEnd(b)
+			message := fb.GetRootAsPreviewMessage(finishTestMessage(b, fb.MessagePayloadPreviewFrame, frame), 0)
+			_, valid := validatePreviewFrame(message, "node-a")
+			if valid != tc.valid {
+				t.Fatalf("valid=%v, want %v", valid, tc.valid)
+			}
+		})
+	}
+}
+
 func TestLatestFrameIsIndependentPerRoute(t *testing.T) {
 	client := newWebsocketClient()
 	first := routeKey{"node-a", fb.LegInput, 1, 2}

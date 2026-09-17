@@ -10,7 +10,8 @@ enum ValueEncoding : ubyte {
   Unknown = 0,
   ComplexInt8 = 1,
   ComplexFloat16 = 2,
-  Float16 = 3
+  Float16 = 3,
+  Float32 = 4
 }
 
 table StreamDescriptor {
@@ -56,8 +57,12 @@ table HeatmapPreview {
   channel_index:uint;
   rows:uint;
   columns:uint;
+  // Legacy Float16: one offset into each 8x8 block. Empty for Float32.
   max_offsets:[ubyte];
+  // Row-major little-endian values. Float32 retains every Doppler column.
   values:[ubyte];
+  // Float32 only: number of source range rows per maximum-pooling block.
+  range_stride:uint = 1;
 }
 
 union PreviewBody {

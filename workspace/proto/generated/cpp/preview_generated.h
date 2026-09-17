@@ -77,33 +77,36 @@ enum class ValueEncoding : uint8_t {
   ComplexInt8 = 1,
   ComplexFloat16 = 2,
   Float16 = 3,
+  Float32 = 4,
   MIN = Unknown,
-  MAX = Float16
+  MAX = Float32
 };
 
-inline const ValueEncoding (&EnumValuesValueEncoding())[4] {
+inline const ValueEncoding (&EnumValuesValueEncoding())[5] {
   static const ValueEncoding values[] = {
     ValueEncoding::Unknown,
     ValueEncoding::ComplexInt8,
     ValueEncoding::ComplexFloat16,
-    ValueEncoding::Float16
+    ValueEncoding::Float16,
+    ValueEncoding::Float32
   };
   return values;
 }
 
 inline const char * const *EnumNamesValueEncoding() {
-  static const char * const names[5] = {
+  static const char * const names[6] = {
     "Unknown",
     "ComplexInt8",
     "ComplexFloat16",
     "Float16",
+    "Float32",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameValueEncoding(ValueEncoding e) {
-  if (flatbuffers::IsOutRange(e, ValueEncoding::Unknown, ValueEncoding::Float16)) return "";
+  if (flatbuffers::IsOutRange(e, ValueEncoding::Unknown, ValueEncoding::Float32)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesValueEncoding()[index];
 }
@@ -260,6 +263,7 @@ struct StreamDescriptorBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  StreamDescriptorBuilder &operator=(const StreamDescriptorBuilder &);
   flatbuffers::Offset<StreamDescriptor> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<StreamDescriptor>(end);
@@ -325,6 +329,7 @@ struct SidecarHelloBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  SidecarHelloBuilder &operator=(const SidecarHelloBuilder &);
   flatbuffers::Offset<SidecarHello> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<SidecarHello>(end);
@@ -426,6 +431,7 @@ struct StreamSelectorBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  StreamSelectorBuilder &operator=(const StreamSelectorBuilder &);
   flatbuffers::Offset<StreamSelector> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<StreamSelector>(end);
@@ -506,6 +512,7 @@ struct SubscriptionUpdateBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  SubscriptionUpdateBuilder &operator=(const SubscriptionUpdateBuilder &);
   flatbuffers::Offset<SubscriptionUpdate> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<SubscriptionUpdate>(end);
@@ -603,6 +610,7 @@ struct WaveformChannelBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  WaveformChannelBuilder &operator=(const WaveformChannelBuilder &);
   flatbuffers::Offset<WaveformChannel> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<WaveformChannel>(end);
@@ -677,6 +685,7 @@ struct WaveformPreviewBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  WaveformPreviewBuilder &operator=(const WaveformPreviewBuilder &);
   flatbuffers::Offset<WaveformPreview> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<WaveformPreview>(end);
@@ -708,7 +717,8 @@ struct HeatmapPreview FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_ROWS = 6,
     VT_COLUMNS = 8,
     VT_MAX_OFFSETS = 10,
-    VT_VALUES = 12
+    VT_VALUES = 12,
+    VT_RANGE_STRIDE = 14
   };
   uint32_t channel_index() const {
     return GetField<uint32_t>(VT_CHANNEL_INDEX, 0);
@@ -725,6 +735,9 @@ struct HeatmapPreview FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<uint8_t> *values() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_VALUES);
   }
+  uint32_t range_stride() const {
+    return GetField<uint32_t>(VT_RANGE_STRIDE, 1);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, VT_CHANNEL_INDEX) &&
@@ -734,6 +747,7 @@ struct HeatmapPreview FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            verifier.VerifyVector(max_offsets()) &&
            VerifyOffset(verifier, VT_VALUES) &&
            verifier.VerifyVector(values()) &&
+           VerifyField<uint32_t>(verifier, VT_RANGE_STRIDE) &&
            verifier.EndTable();
   }
 };
@@ -757,10 +771,14 @@ struct HeatmapPreviewBuilder {
   void add_values(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> values) {
     fbb_.AddOffset(HeatmapPreview::VT_VALUES, values);
   }
+  void add_range_stride(uint32_t range_stride) {
+    fbb_.AddElement<uint32_t>(HeatmapPreview::VT_RANGE_STRIDE, range_stride, 1);
+  }
   explicit HeatmapPreviewBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  HeatmapPreviewBuilder &operator=(const HeatmapPreviewBuilder &);
   flatbuffers::Offset<HeatmapPreview> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<HeatmapPreview>(end);
@@ -774,8 +792,10 @@ inline flatbuffers::Offset<HeatmapPreview> CreateHeatmapPreview(
     uint32_t rows = 0,
     uint32_t columns = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint8_t>> max_offsets = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> values = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> values = 0,
+    uint32_t range_stride = 1) {
   HeatmapPreviewBuilder builder_(_fbb);
+  builder_.add_range_stride(range_stride);
   builder_.add_values(values);
   builder_.add_max_offsets(max_offsets);
   builder_.add_columns(columns);
@@ -790,7 +810,8 @@ inline flatbuffers::Offset<HeatmapPreview> CreateHeatmapPreviewDirect(
     uint32_t rows = 0,
     uint32_t columns = 0,
     const std::vector<uint8_t> *max_offsets = nullptr,
-    const std::vector<uint8_t> *values = nullptr) {
+    const std::vector<uint8_t> *values = nullptr,
+    uint32_t range_stride = 1) {
   auto max_offsets__ = max_offsets ? _fbb.CreateVector<uint8_t>(*max_offsets) : 0;
   auto values__ = values ? _fbb.CreateVector<uint8_t>(*values) : 0;
   return uestcradar::preview::CreateHeatmapPreview(
@@ -799,7 +820,8 @@ inline flatbuffers::Offset<HeatmapPreview> CreateHeatmapPreviewDirect(
       rows,
       columns,
       max_offsets__,
-      values__);
+      values__,
+      range_stride);
 }
 
 struct PreviewFrame FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
@@ -959,6 +981,7 @@ struct PreviewFrameBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  PreviewFrameBuilder &operator=(const PreviewFrameBuilder &);
   flatbuffers::Offset<PreviewFrame> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<PreviewFrame>(end);
@@ -1124,6 +1147,7 @@ struct StreamStatusBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  StreamStatusBuilder &operator=(const StreamStatusBuilder &);
   flatbuffers::Offset<StreamStatus> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<StreamStatus>(end);
@@ -1248,6 +1272,7 @@ struct PreviewMessageBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  PreviewMessageBuilder &operator=(const PreviewMessageBuilder &);
   flatbuffers::Offset<PreviewMessage> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<PreviewMessage>(end);

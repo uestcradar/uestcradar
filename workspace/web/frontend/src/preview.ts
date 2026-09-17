@@ -52,12 +52,14 @@ export interface PreviewFrameData {
   typeId: string;
   typeVersion: number;
   frameId: number;
+  instanceId?: string;
+  receivedAt?: number;
   originalRows: number;
   originalColumns: number;
   poolRows: number;
   poolColumns: number;
   channels?: WaveformChannelData[];
-  heatmap?: { channelIndex: number; values: Float32Array };
+  heatmap?: { channelIndex: number; values: Float32Array; rangeStride: number; legacy: boolean };
 }
 
 export interface PreviewStatusData {
@@ -209,11 +211,16 @@ function decodeHeatmap(frame: uestcradar.preview.PreviewFrame) {
   if (!body) throw new Error('Preview heatmap body is missing');
   const bytes = body.valuesArray();
   if (!bytes) throw new Error('Preview heatmap values are missing');
+  const legacy = frame.encoding() === fb.ValueEncoding.Float16;
+  if (!legacy && frame.encoding() !== fb.ValueEncoding.Float32) throw new Error('Unsupported heatmap encoding');
+  if (body.rows() !== frame.poolRows() || body.columns() !== frame.poolColumns() ||
+      bytes.length !== body.rows() * body.columns() * (legacy ? 2 : 4)) throw new Error('Invalid heatmap dimensions');
   const values = new Float32Array(body.rows() * body.columns());
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (let index = 0; index < values.length; index += 1) {
-    values[index] = decodeHalf(bytes[index * 2] | (bytes[index * 2 + 1] << 8));
+    values[index] = legacy ? decodeHalf(view.getUint16(index * 2, true)) : view.getFloat32(index * 4, true);
   }
-  return {channelIndex: body.channelIndex(), values};
+  return {channelIndex: body.channelIndex(), values, rangeStride: legacy ? 8 : body.rangeStride(), legacy};
 }
 
 export function decodePreviewMessage(data: ArrayBuffer | Uint8Array): PreviewData {
@@ -246,6 +253,8 @@ export function decodePreviewMessage(data: ArrayBuffer | Uint8Array): PreviewDat
     typeId: longToString(frame.frameTypeId()),
     typeVersion: frame.frameTypeVersion(),
     frameId: longToNumber(frame.frameId()),
+    instanceId: String(frame.instanceId() || ''),
+    receivedAt: Date.now(),
     originalRows: frame.originalRows(),
     originalColumns: frame.originalColumns(),
     poolRows: frame.poolRows(),

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ContractRef, PreviewFrameData, PreviewSelector, PreviewStatusData, WaveformChannelData } from './preview';
 import { adaptiveWaveformPeak, buildSubscription, decodePreviewMessage, waveformXAxisLabel } from './preview';
+import { rdColor, rdPixels } from './rdHeatmap';
 
 interface PreviewPanelProps {
   nodeId?: string;
@@ -96,7 +97,7 @@ function PreviewCard({title, leg, contract, frame, status}: {title: string; leg:
   }, [channel, channels]);
   return <article className={`preview-card ${leg}`}>
     <div className="preview-card-head">
-      <div><strong>{title}</strong><span>{contract ? `Type ${contract.typeId}:${contract.typeVersion}` : '该角色无此 Leg'}</span></div>
+      <div><strong>{contract?.typeId === '3' ? (leg === 'input' ? '输入 RD 图' : '输出 RD 图') : title}</strong><span>{contract ? `Type ${contract.typeId}:${contract.typeVersion}` : '该角色无此 Leg'}</span></div>
       {channels.length > 1 && <label>通道<select value={channel} onChange={event => setChannel(Number(event.target.value))}>{channels.map(item => <option key={item.channelIndex} value={item.channelIndex}>CH {item.channelIndex}</option>)}</select></label>}
     </div>
     {!contract ? <div className="preview-empty">当前 Worker 契约未声明该方向的数据类型。</div> : !frame ? <div className="preview-empty">等待 Sidecar 预览帧。</div> : frame.kind === 'waveform' ? <WaveformCanvas channel={channels.find(item => item.channelIndex === channel) || channels[0]} originalColumns={frame.originalColumns} xAxisLabel={waveformXAxisLabel(frame.typeId)} /> : <HeatmapCanvas frame={frame} />}
@@ -218,28 +219,82 @@ function WaveformCanvas({channel, originalColumns, xAxisLabel}: {channel?: Wavef
 
 function HeatmapCanvas({frame}: {frame: PreviewFrameData}) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const [limits, setLimits] = useState([1, 1e8]);
+  const [low, setLow] = useState('1');
+  const [high, setHigh] = useState('100000000');
+  const [error, setError] = useState('');
+  const [now, setNow] = useState(Date.now());
+  const [size, setSize] = useState(600);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!canvas.current) return;
+    const observer = new ResizeObserver(entries => setSize(entries[0].contentRect.width));
+    observer.observe(canvas.current);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     const element = canvas.current;
     const heatmap = frame.heatmap;
     if (!element || !heatmap) return;
-    const width = Math.max(300, element.clientWidth);
-    const height = Math.max(150, element.clientHeight);
+    const width = Math.max(300, size);
+    const height = 280;
     element.width = width;
     element.height = height;
     const context = element.getContext('2d');
     if (!context) return;
-    let peak = 1e-12;
-    for (const value of heatmap.values) peak = Math.max(peak, Math.abs(value));
-    const cellWidth = width / frame.poolColumns;
-    const cellHeight = height / frame.poolRows;
-    heatmap.values.forEach((value, index) => {
-      const normalized = Math.min(1, Math.abs(value) / peak);
-      const hue = 220 - normalized * 180;
-      context.fillStyle = `hsl(${hue} 85% ${92 - normalized * 48}%)`;
-      context.fillRect(index % frame.poolColumns * cellWidth, Math.floor(index / frame.poolColumns) * cellHeight, Math.ceil(cellWidth), Math.ceil(cellHeight));
-    });
-  }, [frame]);
-  return <canvas className="preview-canvas heatmap" ref={canvas} />;
+    const left = 50, top = 25, plotWidth = Math.floor(width-130), plotHeight = 210;
+    const grid = rdPixels(heatmap.values, frame.poolRows, frame.poolColumns, plotWidth, limits[0], limits[1]);
+    const offscreen = document.createElement('canvas');
+    offscreen.width = grid.width; offscreen.height = grid.height;
+    offscreen.getContext('2d')!.putImageData(new ImageData(grid.pixels, grid.width, grid.height), 0, 0);
+    context.fillStyle = '#fff'; context.fillRect(0,0,width,height);
+    context.imageSmoothingEnabled = false;
+    context.drawImage(offscreen,left,top,plotWidth,plotHeight);
+    context.font = '10px sans-serif'; context.fillStyle = '#334155';
+    context.fillText('多普勒 Bin', 3, 14);
+    for (let i=0; i<=4; i++) {
+      context.textAlign = 'center';
+      context.fillText(String(Math.round(i*(frame.originalRows-1)/4)), left+i*plotWidth/4, top+plotHeight+16);
+      context.textAlign = 'right';
+      context.fillText(String(Math.round(i*(frame.originalColumns-1)/4)), left-5, top+plotHeight-i*plotHeight/4+3);
+    }
+    context.textAlign = 'center'; context.fillText('距离 Bin',left+plotWidth/2,height-6);
+    const barX = left+plotWidth+12;
+    for (let y=0; y<plotHeight; y++) {
+      const value = 10**(Math.log10(limits[1]) - y/(plotHeight-1)*(Math.log10(limits[1])-Math.log10(limits[0])));
+      const color = rdColor(value, limits[0], limits[1]);
+      context.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+      context.fillRect(barX,top+y,12,1);
+    }
+    context.fillStyle='#334155'; context.textAlign='left';
+    context.fillText('强度 (log)',barX-3,14);
+    for (let i=0;i<=4;i++) {
+      const value=10**(Math.log10(limits[1])-i/4*(Math.log10(limits[1])-Math.log10(limits[0])));
+      context.fillText(value.toExponential(0),barX+16,top+i*plotHeight/4+3);
+    }
+  }, [frame, limits, size]);
+  return <div style={{padding:'4px'}}>
+    <form style={{display:'flex',gap:6,flexWrap:'wrap',fontSize:11}} onSubmit={event => {
+      event.preventDefault();
+      const a=Number(low), b=Number(high);
+      if (!Number.isFinite(a) || !Number.isFinite(b) || a<=0 || a>=b) {setError('色标必须满足 0 < 下限 < 上限'); return;}
+      setLimits([a,b]); setError('');
+    }}>
+      <label>下限 <input aria-label="RD 色标下限" style={{width:80}} value={low} onChange={e=>setLow(e.target.value)} /></label>
+      <label>上限 <input aria-label="RD 色标上限" style={{width:100}} value={high} onChange={e=>setHigh(e.target.value)} /></label>
+      <button type="submit">应用</button>
+      <button type="button" onClick={()=>{setLow('1');setHigh('100000000');setLimits([1,1e8]);setError('');}}>重置</button>
+    </form>
+    {error && <div role="alert">{error}</div>}
+    <div style={{fontSize:10,padding:'6px 0'}}>{frame.originalRows} 距离 × {frame.originalColumns} 多普勒 · 帧 {frame.frameId} · 距离步长 {frame.heatmap?.rangeStride}
+      {frame.heatmap?.legacy && ' · 旧版压缩预览'}
+      {' · 距接收 '}{Math.max(0, (now-(frame.receivedAt || now))/1000).toFixed(1)} 秒
+    </div>
+    <canvas className="preview-canvas heatmap" style={{height:280}} ref={canvas} />
+  </div>;
 }
 
 function connectionLabel(state: ConnectionState) {

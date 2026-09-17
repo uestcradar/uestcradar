@@ -42,6 +42,7 @@ const (
 	ValueEncodingComplexInt8    ValueEncoding = 1
 	ValueEncodingComplexFloat16 ValueEncoding = 2
 	ValueEncodingFloat16        ValueEncoding = 3
+	ValueEncodingFloat32        ValueEncoding = 4
 )
 
 var EnumNamesValueEncoding = map[ValueEncoding]string{
@@ -49,6 +50,7 @@ var EnumNamesValueEncoding = map[ValueEncoding]string{
 	ValueEncodingComplexInt8:    "ComplexInt8",
 	ValueEncodingComplexFloat16: "ComplexFloat16",
 	ValueEncodingFloat16:        "Float16",
+	ValueEncodingFloat32:        "Float32",
 }
 
 var EnumValuesValueEncoding = map[string]ValueEncoding{
@@ -56,6 +58,7 @@ var EnumValuesValueEncoding = map[string]ValueEncoding{
 	"ComplexInt8":    ValueEncodingComplexInt8,
 	"ComplexFloat16": ValueEncodingComplexFloat16,
 	"Float16":        ValueEncodingFloat16,
+	"Float32":        ValueEncodingFloat32,
 }
 
 func (v ValueEncoding) String() string {
@@ -196,7 +199,6 @@ func StreamDescriptorAddFrameTypeVersion(builder *flatbuffers.Builder, frameType
 func StreamDescriptorEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type SidecarHello struct {
 	_tab flatbuffers.Table
 }
@@ -271,7 +273,6 @@ func SidecarHelloStartStreamsVector(builder *flatbuffers.Builder, numElems int) 
 func SidecarHelloEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type StreamSelector struct {
 	_tab flatbuffers.Table
 }
@@ -384,7 +385,6 @@ func StreamSelectorAddRequestedFps(builder *flatbuffers.Builder, requestedFps fl
 func StreamSelectorEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type SubscriptionUpdate struct {
 	_tab flatbuffers.Table
 }
@@ -452,7 +452,6 @@ func SubscriptionUpdateStartSelectorsVector(builder *flatbuffers.Builder, numEle
 func SubscriptionUpdateEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type WaveformChannel struct {
 	_tab flatbuffers.Table
 }
@@ -644,7 +643,6 @@ func WaveformChannelStartValuesVector(builder *flatbuffers.Builder, numElems int
 func WaveformChannelEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type WaveformPreview struct {
 	_tab flatbuffers.Table
 }
@@ -697,7 +695,6 @@ func WaveformPreviewStartChannelsVector(builder *flatbuffers.Builder, numElems i
 func WaveformPreviewEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type HeatmapPreview struct {
 	_tab flatbuffers.Table
 }
@@ -822,8 +819,20 @@ func (rcv *HeatmapPreview) MutateValues(j int, n byte) bool {
 	return false
 }
 
+func (rcv *HeatmapPreview) RangeStride() uint32 {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(14))
+	if o != 0 {
+		return rcv._tab.GetUint32(o + rcv._tab.Pos)
+	}
+	return 1
+}
+
+func (rcv *HeatmapPreview) MutateRangeStride(n uint32) bool {
+	return rcv._tab.MutateUint32Slot(14, n)
+}
+
 func HeatmapPreviewStart(builder *flatbuffers.Builder) {
-	builder.StartObject(5)
+	builder.StartObject(6)
 }
 func HeatmapPreviewAddChannelIndex(builder *flatbuffers.Builder, channelIndex uint32) {
 	builder.PrependUint32Slot(0, channelIndex, 0)
@@ -846,10 +855,12 @@ func HeatmapPreviewAddValues(builder *flatbuffers.Builder, values flatbuffers.UO
 func HeatmapPreviewStartValuesVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(1, numElems, 1)
 }
+func HeatmapPreviewAddRangeStride(builder *flatbuffers.Builder, rangeStride uint32) {
+	builder.PrependUint32Slot(5, rangeStride, 1)
+}
 func HeatmapPreviewEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type PreviewFrame struct {
 	_tab flatbuffers.Table
 }
@@ -1115,7 +1126,6 @@ func PreviewFrameAddBody(builder *flatbuffers.Builder, body flatbuffers.UOffsetT
 func PreviewFrameEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type StreamStatus struct {
 	_tab flatbuffers.Table
 }
@@ -1258,7 +1268,6 @@ func StreamStatusAddNetworkDrops(builder *flatbuffers.Builder, networkDrops uint
 func StreamStatusEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }
-
 type PreviewMessage struct {
 	_tab flatbuffers.Table
 }

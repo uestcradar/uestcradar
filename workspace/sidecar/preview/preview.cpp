@@ -33,7 +33,7 @@ namespace fb = uestcradar::preview;
 namespace contracts = uestcradar::preview_contracts;
 
 constexpr std::size_t kWaveformBucket = 128;
-constexpr std::size_t kHeatmapPool = 8;
+constexpr std::uint32_t kHeatmapRangeLimit = 1600;
 constexpr std::size_t kMaxWireBytes = 8 * 1024 * 1024;
 constexpr std::uint32_t kMaxAggregateMilliFps = 30'000;
 constexpr auto kReconnectDelay = std::chrono::milliseconds{250};
@@ -291,49 +291,40 @@ EncodedBody encode_heatmap(
     std::uint32_t columns,
     std::uint32_t channel_index) {
     const auto* values = reinterpret_cast<const float*>(matrix.data());
-    const std::uint32_t output_rows =
-        (rows + static_cast<std::uint32_t>(kHeatmapPool) - 1U) /
-        static_cast<std::uint32_t>(kHeatmapPool);
-    const std::uint32_t output_columns =
-        (columns + static_cast<std::uint32_t>(kHeatmapPool) - 1U) /
-        static_cast<std::uint32_t>(kHeatmapPool);
-    std::vector<std::uint8_t> offsets;
+    const std::uint32_t stride = 1U + (rows - 1U) / kHeatmapRangeLimit;
+    const std::uint32_t output_rows = 1U + (rows - 1U) / stride;
+    const std::uint32_t output_columns = columns;
+    const auto cells = static_cast<std::uint64_t>(output_rows) * columns;
+    if (cells * sizeof(float) > kMaxWireBytes - 65536) {
+        throw std::invalid_argument("RD preview exceeds wire capacity");
+    }
     std::vector<std::uint8_t> packed;
-    offsets.reserve(static_cast<std::size_t>(output_rows) * output_columns);
-    packed.reserve(static_cast<std::size_t>(output_rows) * output_columns * 2);
+    packed.reserve(static_cast<std::size_t>(cells) * sizeof(float));
     for (std::uint32_t output_row = 0; output_row < output_rows; ++output_row) {
         for (std::uint32_t output_column = 0; output_column < output_columns; ++output_column) {
-            const std::uint32_t begin_row = output_row * kHeatmapPool;
-            const std::uint32_t begin_column = output_column * kHeatmapPool;
-            const std::uint32_t end_row = std::min<std::uint32_t>(rows, begin_row + kHeatmapPool);
-            const std::uint32_t end_column = std::min<std::uint32_t>(columns, begin_column + kHeatmapPool);
-            std::uint32_t best_row = begin_row;
-            std::uint32_t best_column = begin_column;
-            float best = values[static_cast<std::size_t>(best_row) * columns + best_column];
+            const std::uint32_t begin_row = output_row * stride;
+            const std::uint32_t end_row = begin_row + std::min(stride, rows - begin_row);
+            float best = std::numeric_limits<float>::quiet_NaN();
             for (std::uint32_t row = begin_row; row < end_row; ++row) {
-                for (std::uint32_t column = begin_column; column < end_column; ++column) {
-                    const float candidate = values[static_cast<std::size_t>(row) * columns + column];
-                    if (std::isfinite(candidate) &&
-                        (!std::isfinite(best) || std::abs(candidate) > std::abs(best))) {
-                        best = candidate;
-                        best_row = row;
-                        best_column = column;
-                    }
+                const float candidate = values[static_cast<std::size_t>(row) * columns + output_column];
+                if (std::isfinite(candidate) &&
+                    (!std::isfinite(best) || candidate > best)) {
+                    best = candidate;
                 }
             }
-            offsets.push_back(static_cast<std::uint8_t>(
-                (best_row - begin_row) * kHeatmapPool +
-                (best_column - begin_column)));
-            append_u16(packed, float_to_half(best));
+            const auto bits = std::bit_cast<std::uint32_t>(best);
+            for (unsigned shift = 0; shift < 32; shift += 8) {
+                packed.push_back(static_cast<std::uint8_t>(bits >> shift));
+            }
         }
     }
     const auto heatmap = fb::CreateHeatmapPreviewDirect(
         builder, channel_index, output_rows, output_columns,
-        &offsets, &packed);
+        nullptr, &packed, stride);
     return {
         fb::PreviewBody::HeatmapPreview,
         heatmap.Union(),
-        fb::ValueEncoding::Float16,
+        fb::ValueEncoding::Float32,
         output_rows,
         output_columns,
     };

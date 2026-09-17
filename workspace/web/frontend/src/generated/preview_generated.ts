@@ -9,8 +9,7 @@ export enum Leg{
   Unknown= 0,
   Input= 1,
   Output= 2
-};
-}
+}};
 
 /**
  * @enum {number}
@@ -20,9 +19,9 @@ export enum ValueEncoding{
   Unknown= 0,
   ComplexInt8= 1,
   ComplexFloat16= 2,
-  Float16= 3
-};
-}
+  Float16= 3,
+  Float32= 4
+}};
 
 /**
  * @enum {number}
@@ -32,33 +31,7 @@ export enum PreviewBody{
   NONE= 0,
   WaveformPreview= 1,
   HeatmapPreview= 2
-};
-
-export function unionToPreviewBody(
-  type: PreviewBody,
-  accessor: (obj:uestcradar.preview.HeatmapPreview|uestcradar.preview.WaveformPreview) => uestcradar.preview.HeatmapPreview|uestcradar.preview.WaveformPreview|null
-): uestcradar.preview.HeatmapPreview|uestcradar.preview.WaveformPreview|null {
-  switch(uestcradar.preview.PreviewBody[type]) {
-    case 'NONE': return null; 
-    case 'WaveformPreview': return accessor(new uestcradar.preview.WaveformPreview())! as uestcradar.preview.WaveformPreview;
-    case 'HeatmapPreview': return accessor(new uestcradar.preview.HeatmapPreview())! as uestcradar.preview.HeatmapPreview;
-    default: return null;
-  }
-}
-
-export function unionListToPreviewBody(
-  type: PreviewBody, 
-  accessor: (index: number, obj:uestcradar.preview.HeatmapPreview|uestcradar.preview.WaveformPreview) => uestcradar.preview.HeatmapPreview|uestcradar.preview.WaveformPreview|null, 
-  index: number
-): uestcradar.preview.HeatmapPreview|uestcradar.preview.WaveformPreview|null {
-  switch(uestcradar.preview.PreviewBody[type]) {
-    case 'NONE': return null; 
-    case 'WaveformPreview': return accessor(index, new uestcradar.preview.WaveformPreview())! as uestcradar.preview.WaveformPreview;
-    case 'HeatmapPreview': return accessor(index, new uestcradar.preview.HeatmapPreview())! as uestcradar.preview.HeatmapPreview;
-    default: return null;
-  }
-}
-}
+}};
 
 /**
  * @enum {number}
@@ -70,37 +43,7 @@ export enum MessagePayload{
   SubscriptionUpdate= 2,
   PreviewFrame= 3,
   StreamStatus= 4
-};
-
-export function unionToMessagePayload(
-  type: MessagePayload,
-  accessor: (obj:uestcradar.preview.PreviewFrame|uestcradar.preview.SidecarHello|uestcradar.preview.StreamStatus|uestcradar.preview.SubscriptionUpdate) => uestcradar.preview.PreviewFrame|uestcradar.preview.SidecarHello|uestcradar.preview.StreamStatus|uestcradar.preview.SubscriptionUpdate|null
-): uestcradar.preview.PreviewFrame|uestcradar.preview.SidecarHello|uestcradar.preview.StreamStatus|uestcradar.preview.SubscriptionUpdate|null {
-  switch(uestcradar.preview.MessagePayload[type]) {
-    case 'NONE': return null; 
-    case 'SidecarHello': return accessor(new uestcradar.preview.SidecarHello())! as uestcradar.preview.SidecarHello;
-    case 'SubscriptionUpdate': return accessor(new uestcradar.preview.SubscriptionUpdate())! as uestcradar.preview.SubscriptionUpdate;
-    case 'PreviewFrame': return accessor(new uestcradar.preview.PreviewFrame())! as uestcradar.preview.PreviewFrame;
-    case 'StreamStatus': return accessor(new uestcradar.preview.StreamStatus())! as uestcradar.preview.StreamStatus;
-    default: return null;
-  }
-}
-
-export function unionListToMessagePayload(
-  type: MessagePayload, 
-  accessor: (index: number, obj:uestcradar.preview.PreviewFrame|uestcradar.preview.SidecarHello|uestcradar.preview.StreamStatus|uestcradar.preview.SubscriptionUpdate) => uestcradar.preview.PreviewFrame|uestcradar.preview.SidecarHello|uestcradar.preview.StreamStatus|uestcradar.preview.SubscriptionUpdate|null, 
-  index: number
-): uestcradar.preview.PreviewFrame|uestcradar.preview.SidecarHello|uestcradar.preview.StreamStatus|uestcradar.preview.SubscriptionUpdate|null {
-  switch(uestcradar.preview.MessagePayload[type]) {
-    case 'NONE': return null; 
-    case 'SidecarHello': return accessor(index, new uestcradar.preview.SidecarHello())! as uestcradar.preview.SidecarHello;
-    case 'SubscriptionUpdate': return accessor(index, new uestcradar.preview.SubscriptionUpdate())! as uestcradar.preview.SubscriptionUpdate;
-    case 'PreviewFrame': return accessor(index, new uestcradar.preview.PreviewFrame())! as uestcradar.preview.PreviewFrame;
-    case 'StreamStatus': return accessor(index, new uestcradar.preview.StreamStatus())! as uestcradar.preview.StreamStatus;
-    default: return null;
-  }
-}
-}
+}};
 
 /**
  * @constructor
@@ -832,7 +775,7 @@ static addMinOffsets(builder:flatbuffers.Builder, minOffsetsOffset:flatbuffers.O
  * @param Array.<number> data
  * @returns flatbuffers.Offset
  */
-static createMinOffsetsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset {
+static createMinOffsetsVector(builder:flatbuffers.Builder, data:number[] | Uint8Array):flatbuffers.Offset {
   builder.startVector(1, data.length, 1);
   for (var i = data.length - 1; i >= 0; i--) {
     builder.addInt8(data[i]);
@@ -861,7 +804,7 @@ static addMaxOffsets(builder:flatbuffers.Builder, maxOffsetsOffset:flatbuffers.O
  * @param Array.<number> data
  * @returns flatbuffers.Offset
  */
-static createMaxOffsetsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset {
+static createMaxOffsetsVector(builder:flatbuffers.Builder, data:number[] | Uint8Array):flatbuffers.Offset {
   builder.startVector(1, data.length, 1);
   for (var i = data.length - 1; i >= 0; i--) {
     builder.addInt8(data[i]);
@@ -890,7 +833,7 @@ static addValues(builder:flatbuffers.Builder, valuesOffset:flatbuffers.Offset) {
  * @param Array.<number> data
  * @returns flatbuffers.Offset
  */
-static createValuesVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset {
+static createValuesVector(builder:flatbuffers.Builder, data:number[] | Uint8Array):flatbuffers.Offset {
   builder.startVector(1, data.length, 1);
   for (var i = data.length - 1; i >= 0; i--) {
     builder.addInt8(data[i]);
@@ -1148,10 +1091,18 @@ valuesArray():Uint8Array|null {
 };
 
 /**
+ * @returns number
+ */
+rangeStride():number {
+  var offset = this.bb!.__offset(this.bb_pos, 14);
+  return offset ? this.bb!.readUint32(this.bb_pos + offset) : 1;
+};
+
+/**
  * @param flatbuffers.Builder builder
  */
 static startHeatmapPreview(builder:flatbuffers.Builder) {
-  builder.startObject(5);
+  builder.startObject(6);
 };
 
 /**
@@ -1191,7 +1142,7 @@ static addMaxOffsets(builder:flatbuffers.Builder, maxOffsetsOffset:flatbuffers.O
  * @param Array.<number> data
  * @returns flatbuffers.Offset
  */
-static createMaxOffsetsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset {
+static createMaxOffsetsVector(builder:flatbuffers.Builder, data:number[] | Uint8Array):flatbuffers.Offset {
   builder.startVector(1, data.length, 1);
   for (var i = data.length - 1; i >= 0; i--) {
     builder.addInt8(data[i]);
@@ -1220,7 +1171,7 @@ static addValues(builder:flatbuffers.Builder, valuesOffset:flatbuffers.Offset) {
  * @param Array.<number> data
  * @returns flatbuffers.Offset
  */
-static createValuesVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset {
+static createValuesVector(builder:flatbuffers.Builder, data:number[] | Uint8Array):flatbuffers.Offset {
   builder.startVector(1, data.length, 1);
   for (var i = data.length - 1; i >= 0; i--) {
     builder.addInt8(data[i]);
@@ -1238,6 +1189,14 @@ static startValuesVector(builder:flatbuffers.Builder, numElems:number) {
 
 /**
  * @param flatbuffers.Builder builder
+ * @param number rangeStride
+ */
+static addRangeStride(builder:flatbuffers.Builder, rangeStride:number) {
+  builder.addFieldInt32(5, rangeStride, 1);
+};
+
+/**
+ * @param flatbuffers.Builder builder
  * @returns flatbuffers.Offset
  */
 static endHeatmapPreview(builder:flatbuffers.Builder):flatbuffers.Offset {
@@ -1245,13 +1204,14 @@ static endHeatmapPreview(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 };
 
-static createHeatmapPreview(builder:flatbuffers.Builder, channelIndex:number, rows:number, columns:number, maxOffsetsOffset:flatbuffers.Offset, valuesOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createHeatmapPreview(builder:flatbuffers.Builder, channelIndex:number, rows:number, columns:number, maxOffsetsOffset:flatbuffers.Offset, valuesOffset:flatbuffers.Offset, rangeStride:number):flatbuffers.Offset {
   HeatmapPreview.startHeatmapPreview(builder);
   HeatmapPreview.addChannelIndex(builder, channelIndex);
   HeatmapPreview.addRows(builder, rows);
   HeatmapPreview.addColumns(builder, columns);
   HeatmapPreview.addMaxOffsets(builder, maxOffsetsOffset);
   HeatmapPreview.addValues(builder, valuesOffset);
+  HeatmapPreview.addRangeStride(builder, rangeStride);
   return HeatmapPreview.endHeatmapPreview(builder);
 }
 }
@@ -1554,7 +1514,7 @@ static addMetadata(builder:flatbuffers.Builder, metadataOffset:flatbuffers.Offse
  * @param Array.<number> data
  * @returns flatbuffers.Offset
  */
-static createMetadataVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset {
+static createMetadataVector(builder:flatbuffers.Builder, data:number[] | Uint8Array):flatbuffers.Offset {
   builder.startVector(1, data.length, 1);
   for (var i = data.length - 1; i >= 0; i--) {
     builder.addInt8(data[i]);

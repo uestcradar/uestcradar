@@ -11,8 +11,14 @@
 #include <unistd.h>
 
 namespace radar_qt_example {
+void ChildProcess::startAlgorithm(const QString& executable) {
+    expected_parent_pid_ = getpid();
+    QProcess::start(executable, QStringList{});
+}
 void ChildProcess::setupChildProcess() {
-    if (prctl(PR_SET_PDEATHSIG,SIGTERM)!=0 || getppid()==1) _exit(125);
+    // PID 1 is a valid Worker parent inside a container. Detect reparenting
+    // against the PID captured before fork, including death before prctl.
+    if (prctl(PR_SET_PDEATHSIG,SIGTERM)!=0 || getppid()!=expected_parent_pid_) _exit(125);
 }
 AlgorithmProcess::AlgorithmProcess(QString exe,QString dir,QString out,int timeout)
     : executable_(std::move(exe)),workdir_(std::move(dir)),output_dir_(std::move(out)),
@@ -33,7 +39,7 @@ void AlgorithmProcess::start() {
     process_.setProcessEnvironment(env);
     process_.setWorkingDirectory(workdir_);
     process_.setProcessChannelMode(QProcess::MergedChannels);
-    process_.start(executable_,QStringList{});
+    process_.startAlgorithm(executable_);
     if (!process_.waitForStarted(30000)) throw std::runtime_error("Cannot start algorithm executable");
 }
 void AlgorithmProcess::collect_logs() {

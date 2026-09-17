@@ -5,12 +5,17 @@
 #include <QProcess>
 #include <QFile>
 #include <memory>
+#include <sys/types.h>
 
 namespace radar_qt_example {
 // Linux parent-death signal also stops the algorithm if Worker is killed while SDK read blocks.
 class ChildProcess : public QProcess {
+public:
+    void startAlgorithm(const QString& executable);
 protected:
     void setupChildProcess() override;
+private:
+    pid_t expected_parent_pid_{};
 };
 class AlgorithmProcess {
 public:

@@ -509,12 +509,25 @@ func validatePreviewFrame(
 		heatmap := &fb.HeatmapPreview{}
 		heatmap.Init(table.Bytes, table.Pos)
 		cells := uint64(heatmap.Rows()) * uint64(heatmap.Columns())
-		if frame.Encoding() != fb.ValueEncodingFloat16 ||
-			heatmap.Rows() != frame.PoolRows() ||
+		if heatmap.Rows() != frame.PoolRows() ||
 			heatmap.Columns() != frame.PoolColumns() ||
-			cells > maxWireBytes ||
-			heatmap.MaxOffsetsLength() != int(cells) ||
-			heatmap.ValuesLength() != int(cells*2) {
+			cells > maxWireBytes/4 {
+			return routeKey{}, false
+		}
+		switch frame.Encoding() {
+		case fb.ValueEncodingFloat16:
+			if heatmap.MaxOffsetsLength() != int(cells) || heatmap.ValuesLength() != int(cells*2) {
+				return routeKey{}, false
+			}
+		case fb.ValueEncodingFloat32:
+			stride := heatmap.RangeStride()
+			if stride == 0 || stride != 1+(frame.OriginalRows()-1)/1600 ||
+				heatmap.Rows() != 1+(frame.OriginalRows()-1)/stride ||
+				heatmap.Columns() != frame.OriginalColumns() ||
+				heatmap.MaxOffsetsLength() != 0 || heatmap.ValuesLength() != int(cells*4) {
+				return routeKey{}, false
+			}
+		default:
 			return routeKey{}, false
 		}
 	default:

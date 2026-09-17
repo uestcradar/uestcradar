@@ -6,6 +6,8 @@
 #include <cstring>
 #include <iostream>
 #include <span>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace fb = uestcradar::preview;
@@ -205,8 +207,8 @@ bool verify_pulse_channels() {
 }
 
 bool verify_rd_channel_and_pooling() {
-    constexpr std::uint32_t rows = 16;
-    constexpr std::uint32_t columns = 16;
+    constexpr std::uint32_t rows = 3201;
+    constexpr std::uint32_t columns = 17;
     const RDMetadata metadata{3, rows, columns, 0, 1.5, 2.5};
     const std::size_t payload_bytes =
         sizeof(metadata) + rows * columns * sizeof(float);
@@ -224,6 +226,7 @@ bool verify_rd_channel_and_pooling() {
         frame.data() + sizeof(envelope) + sizeof(metadata));
     values[2 * columns + 5] = -50.0F;
     values[11 * columns + 12] = 80.0F;
+    values[3200 * columns + 16] = 1e8F;
 
     const auto encoded = sidecar::preview::encode_frame_for_test(
         frame, sidecar::preview::Leg::output);
@@ -233,20 +236,47 @@ bool verify_rd_channel_and_pooling() {
         ? nullptr
         : preview->body_as_HeatmapPreview();
     return preview != nullptr && heatmap != nullptr &&
-           preview->encoding() == fb::ValueEncoding::Float16 &&
-           preview->pool_rows() == 2 && preview->pool_columns() == 2 &&
+           preview->encoding() == fb::ValueEncoding::Float32 &&
+           preview->pool_rows() == 1067 && preview->pool_columns() == columns &&
            heatmap->channel_index() == 3 &&
-           heatmap->rows() == 2 && heatmap->columns() == 2 &&
-           heatmap->max_offsets()->Get(0) == 21 &&
-           heatmap->max_offsets()->Get(3) == 28;
+           heatmap->rows() == 1067 && heatmap->columns() == columns &&
+           heatmap->range_stride() == 3 &&
+           heatmap->max_offsets() == nullptr &&
+           heatmap->values()->size() == 1067 * columns * sizeof(float) &&
+           flatbuffers::ReadScalar<float>(heatmap->values()->Data() +
+               (1066 * columns + 16) * sizeof(float)) == 1e8F &&
+           flatbuffers::ReadScalar<float>(heatmap->values()->Data() +
+               (3 * columns + 12) * sizeof(float)) == 80.0F;
 }
 
 }  // namespace
 
+bool verify_dynamic_rd_sizes() {
+    for (const auto [rows, columns] : {std::pair{1U, 1U}, {19U, 3U}, {1601U, 65U}, {1U, 2100000U}}) {
+        const RDMetadata metadata{0, rows, columns, 0, 1.0, 1.0};
+        const auto payload_bytes = sizeof(metadata) + std::size_t(rows) * columns * 4;
+        std::vector<std::byte> frame(sizeof(uestcradar::Envelope) + payload_bytes);
+        const uestcradar::Envelope envelope{.type_id=3, .type_version=2,
+            .payload_length=static_cast<std::uint32_t>(payload_bytes)};
+        std::memcpy(frame.data(), &envelope, sizeof(envelope));
+        std::memcpy(frame.data()+sizeof(envelope), &metadata, sizeof(metadata));
+        try {
+            const auto encoded=sidecar::preview::encode_frame_for_test(frame,sidecar::preview::Leg::output);
+            if (columns==2100000U) return false;
+            const auto* result=fb::GetPreviewMessage(encoded.data())->payload_as_PreviewFrame();
+            const auto stride=1U+(rows-1U)/1600U;
+            if (result->pool_rows()!=1U+(rows-1U)/stride || result->pool_columns()!=columns) return false;
+        } catch (const std::invalid_argument&) {
+            if (columns!=2100000U) return false;
+        }
+    }
+    return true;
+}
+
 int main() {
     if (!verify_iq() || !verify_large_multichannel_iq_compression() ||
         !verify_pulse_channels() ||
-        !verify_rd_channel_and_pooling() || !rejects_truncated_frame()) {
+        !verify_rd_channel_and_pooling() || !verify_dynamic_rd_sizes() || !rejects_truncated_frame()) {
         std::cerr << "preview-test: failed\n";
         return 1;
     }

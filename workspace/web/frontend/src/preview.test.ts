@@ -6,6 +6,26 @@ import { adaptiveWaveformPeak, buildSubscription, decodeHalf, decodePreviewMessa
 const fb = uestcradar.preview;
 
 describe('preview protocol', () => {
+  it('decodes new heatmap float32 values without saturation and accepts legacy frames', () => {
+    for (const legacy of [false, true]) {
+      const b=new flatbuffers.Builder(512);
+      const bytes=new Uint8Array(legacy ? 4 : 8);
+      const view=new DataView(bytes.buffer);
+      if (legacy) {view.setUint16(0,0x3c00,true);view.setUint16(2,0x4000,true);}
+      else {view.setFloat32(0,1,true);view.setFloat32(4,1e8,true);}
+      const values=fb.HeatmapPreview.createValuesVector(b,bytes);
+      const body=fb.HeatmapPreview.createHeatmapPreview(b,0,1,2,0,values,1);
+      const node=b.createString('node-a'), instance=b.createString('instance-a');
+      const frame=fb.PreviewFrame.createPreviewFrame(b,node,instance,fb.Leg.Output,b.createLong(3,0),2,b.createLong(1,0),b.createLong(0,0),1,2,1,2,legacy?fb.ValueEncoding.Float16:fb.ValueEncoding.Float32,0,fb.PreviewBody.HeatmapPreview,body);
+      const message=fb.PreviewMessage.createPreviewMessage(b,1,fb.MessagePayload.PreviewFrame,frame);
+      fb.PreviewMessage.finishPreviewMessageBuffer(b,message);
+      const decoded=decodePreviewMessage(b.asUint8Array());
+      expect(decoded.kind).toBe('heatmap');
+      if (decoded.kind === 'status') throw new Error('unexpected status');
+      expect(Array.from(decoded.heatmap!.values)).toEqual([1,legacy?2:1e8]);
+      expect(decoded.heatmap!.legacy).toBe(legacy);
+    }
+  });
   it('parses only valid worker contracts', () => {
     expect(parseContract('1:2')).toEqual({typeId: '1', typeVersion: 2});
     expect(parseContract('none')).toBeUndefined();
