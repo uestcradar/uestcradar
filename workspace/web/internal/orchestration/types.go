@@ -33,6 +33,7 @@ type RDMAInterface struct {
 }
 
 type NodeInspection struct {
+	ErrorCode          string          `json:"error_code,omitempty"`
 	IP                 string          `json:"ip"`
 	Reachable          bool            `json:"reachable"`
 	Hostname           string          `json:"hostname,omitempty"`
@@ -100,6 +101,7 @@ type DeploymentPlan struct {
 }
 
 type Task struct {
+	ErrorCode          string            `json:"error_code,omitempty"`
 	ID                 string            `json:"id"`
 	Kind               string            `json:"kind"`
 	Status             string            `json:"status"`

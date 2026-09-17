@@ -19,6 +19,8 @@ export default function App() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [savedTopology] = useState(() => loadTopology());
   const pendingAction = useRef<null | (() => Promise<void>)>(null);
+  const retryIPs = useRef<string[]>([]);
+  const [loginReason, setLoginReason] = useState('');
   const [nodes, setNodes] = useState<NodeInspection[]>([]);
   const [chain, setChain] = useState<ChainEntry[]>(savedTopology.config.chain);
   const [snapshot, setSnapshot] = useState<ClusterSnapshot>({generated_at: '', nodes: []});
@@ -71,6 +73,15 @@ export default function App() {
       }
       if (latest.output_truncated) appendLog('远端输出超过 1 MiB，后续内容已截断。\n', 'stderr');
       appendLog(`${label}${latest.status === 'completed' ? '完成' : `结束：${latest.message || latest.status}`}\n`, latest.status === 'completed' ? 'system' : 'stderr', latest.current_ip);
+      if (latest.error_code === 'ssh_auth_failed') {
+        retryIPs.current = latest.current_ip ? [latest.current_ip] : [];
+        pendingAction.current = null;
+        setHostKeyNode(undefined);
+        setWorkerNode(undefined);
+        setLoginReason(`${latest.current_ip || '节点'} SSH 认证失败，请重新输入凭据；若连续失败，请检查账户是否被临时锁定。`);
+        setAuthenticated(false);
+        setLoginOpen(true);
+      }
       return latest;
     } finally {
       setBusy(false);
@@ -97,6 +108,10 @@ export default function App() {
       await refreshNodes();
       const refreshed = await api.fetchNodes();
       setNodes(refreshed);
+      if (result.error_code === 'ssh_auth_failed') {
+        retryIPs.current = refreshed.filter(node => node.error_code === 'ssh_auth_failed').map(node => node.ip);
+        return false;
+      }
       const hostKey = refreshed.find(node => node.host_key_required);
       setHostKeyNode(hostKey);
       if (hostKey) appendLog('请逐个确认 SSH 主机指纹，确认后将重新探查。\n', 'stderr');
@@ -156,17 +171,20 @@ export default function App() {
       await api.createSession(credentials);
       setAuthenticated(true);
       setLoginOpen(false);
-      appendLog(`SSH 凭证 Session 已建立，用户 ${credentials.username}。\n`);
+      setLoginReason('');
+      appendLog(`SSH 凭据已保存，用户 ${credentials.username}，连接验证待完成。\n`);
       setSessionLoading(true);
       try {
         const knownNodes = await api.fetchNodes();
-        for (const entry of chain) {
-          if (!knownNodes.some(node => node.ip === entry.ip)) await api.addNode(entry.ip);
+        const ips = [...new Set([...chain.map(entry => entry.ip), ...retryIPs.current])];
+        retryIPs.current = [];
+        for (const ip of ips) {
+          if (!knownNodes.some(node => node.ip === ip)) await api.addNode(ip);
         }
         await refreshNodes();
-        if (chain.length && !await inspectIPs(chain.map(entry => entry.ip))) {
+        if (ips.length && !await inspectIPs(ips)) {
           pendingAction.current = null;
-          appendLog('节点探查尚未通过，请确认指纹后重新执行所需操作。\n', 'stderr');
+          appendLog('节点探查尚未通过，请处理上述错误后重新执行所需操作。\n', 'stderr');
           return;
         }
       } finally {
@@ -255,6 +273,13 @@ export default function App() {
   return <div className="dashboard-shell">
     <header className="topbar">
       <div><span className="brand-kicker">UESTC RADAR</span><h1>UESTC Radar · 单页一体化控制台</h1></div>
+      <button className="outline-button" disabled={busy || sessionLoading} onClick={() => {
+        pendingAction.current = null;
+        setHostKeyNode(undefined);
+        setWorkerNode(undefined);
+        setLoginReason('');
+        setLoginOpen(true);
+      }}>重新登录</button>
       <button className={isStreamRunning ? 'stream-button stop' : 'stream-button start'} disabled={sessionLoading || busy || chain.some(entry => nodes.find(node => node.ip === entry.ip)?.host_key_required) || (!isStreamRunning && Boolean(chainError))} onClick={isStreamRunning ? stopStream : startStream}>
         <PowerIcon />{busy ? '任务执行中' : isStreamRunning ? '停止数据流' : '一键下发并全速启动数据流'}
       </button>
@@ -269,7 +294,7 @@ export default function App() {
         <Console logs={logs} onClear={() => setLogs([])} />
       </section>
     </main>
-    {loginOpen && <LoginModal onLogin={login} />}
+    {loginOpen && <LoginModal onLogin={login} reason={loginReason} />}
     {workerNode && <WorkerModal node={workerNode} onClose={() => setWorkerNode(undefined)} onSelect={image => updateWorker(workerNode, image)} />}
     {hostKeyNode && <HostKeyModal node={hostKeyNode} onClose={() => setHostKeyNode(undefined)} onConfirm={() => confirmHostKey(hostKeyNode)} />}
     {detail && !loginOpen && !hostKeyNode && <DetailDrawer entry={detail.entry} inspection={nodes.find(node => node.ip === detail.entry.ip)} node={telemetryForEntry(detail.index, snapshot.nodes)} onClose={() => setDetailKey(undefined)} />}
@@ -361,10 +386,10 @@ function Console({logs, onClear}: {logs: ConsoleEntry[]; onClear: () => void}) {
   return <section className="console-panel panel-surface"><div className="console-heading"><div><span className="section-kicker">COMMAND OUTPUT</span><h2>实时控制台与执行日志</h2></div><button className="outline-button" onClick={onClear}>清空日志</button></div><div className="console-output">{!logs.length && <span className="console-placeholder">等待执行操作，远端 SSH、Docker 与 Compose 输出将在这里显示。</span>}{logs.map(item => <div className={`console-entry ${item.stream}`} key={item.id}><span className="console-meta">{item.at.toLocaleTimeString('zh-CN', {hour12: false})}{item.ip ? `  ${item.ip}` : ''}{`  ${item.stream}`}</span><pre>{item.text}</pre></div>)}<div ref={end} /></div></section>;
 }
 
-function LoginModal({onLogin}: {onLogin: (body: Parameters<typeof api.createSession>[0]) => Promise<void>}) {
+function LoginModal({onLogin, reason}: {onLogin: (body: Parameters<typeof api.createSession>[0]) => Promise<void>; reason: string}) {
   const [username, setUsername] = useState('root'); const [mode, setMode] = useState<'password'|'key'>('password');
   const [password, setPassword] = useState(''); const [key, setKey] = useState(''); const [passphrase, setPassphrase] = useState(''); const [error, setError] = useState(''); const [submitting, setSubmitting] = useState(false);
-  return <Modal title="集群 SSH 安全登录"><form className="modal-form" onSubmit={async event => {event.preventDefault(); setSubmitting(true); setError(''); try {await onLogin(mode === 'password' ? {username, password} : {username, private_key: key, passphrase}); setPassword(''); setKey(''); setPassphrase('');} catch (value) {setError(errorMessage(value));} finally {setSubmitting(false);}}}><p>该凭证统一用于所有物理节点，并且只保存在 Web 后端内存 Session 中。各节点的“登录节点”按钮仅负责确认 Host Key 和验证连接，不会再次要求输入凭证。</p><label>SSH User<input value={username} onChange={event => setUsername(event.target.value)} /></label><div className="segmented"><button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>Password</button><button type="button" className={mode === 'key' ? 'active' : ''} onClick={() => setMode('key')}>Private Key</button></div>{mode === 'password' ? <label>Password<input type="password" required value={password} onChange={event => setPassword(event.target.value)} /></label> : <><label>Private Key<textarea required rows={7} value={key} onChange={event => setKey(event.target.value)} /></label><label>Passphrase<input type="password" value={passphrase} onChange={event => setPassphrase(event.target.value)} /></label></>} {error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? '正在建立 Session' : '登录集群'}</button></form></Modal>;
+  return <Modal title="集群 SSH 凭据"><form className="modal-form" onSubmit={async event => {event.preventDefault(); setSubmitting(true); setError(''); try {await onLogin(mode === 'password' ? {username, password} : {username, private_key: key, passphrase}); setPassword(''); setKey(''); setPassphrase('');} catch (value) {setError(errorMessage(value));} finally {setSubmitting(false);}}}><p>凭据仅保存在后端会话内存中，供各节点使用。保存后将在探查时验证 SSH 连接，保存成功不代表认证成功。</p>{reason && <p role="alert" className="form-error">{reason}</p>}<label>SSH User<input value={username} onChange={event => setUsername(event.target.value)} /></label><div className="segmented"><button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>Password</button><button type="button" className={mode === 'key' ? 'active' : ''} onClick={() => setMode('key')}>Private Key</button></div>{mode === 'password' ? <label>Password<input type="password" required value={password} onChange={event => setPassword(event.target.value)} /></label> : <><label>Private Key<textarea required rows={7} value={key} onChange={event => setKey(event.target.value)} /></label><label>Passphrase<input type="password" value={passphrase} onChange={event => setPassphrase(event.target.value)} /></label></>} {error && <p className="form-error">{error}</p>}<button className="primary-button" disabled={submitting}>{submitting ? '正在保存凭据' : '保存凭据并继续'}</button></form></Modal>;
 }
 
 function WorkerModal({node, onClose, onSelect}: {node: NodeInspection; onClose: () => void; onSelect: (image: string) => void}) {

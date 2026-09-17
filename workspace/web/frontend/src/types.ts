@@ -16,6 +16,7 @@ export interface RDMAInterface {
   physical_state: string;
 }
 export interface NodeInspection {
+  error_code?: string;
   ip: string;
   reachable: boolean;
   hostname?: string;
@@ -52,6 +53,7 @@ export interface PlannedNode {
 export interface DeploymentPlan { id: string; created_at: string; nodes: PlannedNode[] }
 export interface TaskOutputChunk { sequence: number; at: string; ip?: string; stream: 'stdout' | 'stderr' | 'system' | string; text: string }
 export interface Task {
+  error_code?: string;
   id: string;
   kind: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'partial' | string;

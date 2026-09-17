@@ -36,6 +36,21 @@ type HostKeyError struct {
 
 func (e *HostKeyError) Error() string { return "SSH host key confirmation required" }
 
+type SSHAuthError struct{ Cause error }
+
+func (e *SSHAuthError) Error() string {
+	return "SSH 认证失败：请检查用户名、密码或密钥，以及账户是否被临时锁定"
+}
+func (e *SSHAuthError) Unwrap() error { return e.Cause }
+
+func sshErrorCode(err error) string {
+	var auth *SSHAuthError
+	if errors.As(err, &auth) {
+		return "ssh_auth_failed"
+	}
+	return ""
+}
+
 type CommandOutput func(stream, text string)
 
 type RemoteBackend interface {
@@ -53,6 +68,10 @@ type SSHBackend struct{}
 func NewSSHBackend() *SSHBackend { return &SSHBackend{} }
 
 func (b *SSHBackend) client(session *Session, ip string) (*ssh.Client, error) {
+	return b.clientAt(session, ip, net.JoinHostPort(ip, "22"))
+}
+
+func (b *SSHBackend) clientAt(session *Session, ip, address string) (*ssh.Client, error) {
 	session.mu.Lock()
 	credentials := Credentials{
 		Username:   session.Credentials.Username,
@@ -84,6 +103,7 @@ func (b *SSHBackend) client(session *Session, ip string) (*ssh.Client, error) {
 	}
 
 	var observed string
+	var untrusted bool
 	config := &ssh.ClientConfig{
 		User: credentials.Username, Auth: auth, Timeout: 8 * time.Second,
 		HostKeyCallback: func(_ string, _ net.Addr, key ssh.PublicKey) error {
@@ -92,15 +112,20 @@ func (b *SSHBackend) client(session *Session, ip string) (*ssh.Client, error) {
 			trusted := session.TrustedKeys[ip]
 			session.mu.Unlock()
 			if trusted == "" || trusted != observed {
+				untrusted = true
 				return errors.New("untrusted host key")
 			}
 			return nil
 		},
 	}
-	client, err := ssh.Dial("tcp", net.JoinHostPort(ip, "22"), config)
+	client, err := ssh.Dial("tcp", address, config)
 	if err != nil {
-		if observed != "" {
+		if untrusted {
 			return nil, &HostKeyError{IP: ip, Fingerprint: observed}
+		}
+		// x/crypto/ssh does not export its client authentication error type.
+		if strings.Contains(err.Error(), "ssh: unable to authenticate") {
+			return nil, &SSHAuthError{Cause: err}
 		}
 		return nil, err
 	}

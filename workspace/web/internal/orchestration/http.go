@@ -309,6 +309,7 @@ func (s *Service) inspectNodes(session *Session, ips []string, taskID string) []
 					}
 				} else {
 					inspection.Error = err.Error()
+					inspection.ErrorCode = sshErrorCode(err)
 					if output != nil {
 						output("stderr", err.Error()+"\n")
 					}
@@ -353,8 +354,12 @@ func (s *Service) handleInspectionTask(writer http.ResponseWriter, request *http
 		s.updateTask(session, task.ID, "running", "", "inspecting nodes", nil)
 		results := s.inspectNodes(session, body.IPs, task.ID)
 		hostKeys, failures := 0, 0
+		errorCode, failedIP := "", ""
 		completed := make([]string, 0, len(results))
 		for _, result := range results {
+			if result.ErrorCode == "ssh_auth_failed" {
+				errorCode, failedIP = result.ErrorCode, result.IP
+			}
 			if result.HostKeyRequired {
 				hostKeys++
 			}
@@ -379,7 +384,7 @@ func (s *Service) handleInspectionTask(writer http.ResponseWriter, request *http
 		if hostKeys > 0 {
 			status = "confirmation_required"
 		}
-		s.updateTask(session, task.ID, status, "", message, completed)
+		s.updateTask(session, task.ID, status, failedIP, message, completed, errorCode)
 	}()
 	writeJSON(writer, http.StatusAccepted, task)
 }
@@ -419,12 +424,12 @@ func (s *Service) handleImageSync(writer http.ResponseWriter, request *http.Requ
 		s.updateTask(session, task.ID, "running", body.IP, "pulling Worker image", nil)
 		output := s.taskOutput(session, task.ID, body.IP)
 		if err := s.remote.PullWorker(session, body.IP, body.Image, output); err != nil {
-			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil)
+			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil, sshErrorCode(err))
 			return
 		}
 		inspection, err := s.remote.Inspect(session, body.IP, output)
 		if err != nil {
-			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil)
+			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil, sshErrorCode(err))
 			return
 		}
 		session.mu.Lock()
@@ -458,12 +463,12 @@ func (s *Service) handleSidecarSync(writer http.ResponseWriter, request *http.Re
 		s.updateTask(session, task.ID, "running", body.IP, "pulling Sidecar image", nil)
 		output := s.taskOutput(session, task.ID, body.IP)
 		if err := s.remote.PullSidecar(session, body.IP, output); err != nil {
-			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil)
+			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil, sshErrorCode(err))
 			return
 		}
 		inspection, err := s.remote.Inspect(session, body.IP, output)
 		if err != nil {
-			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil)
+			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil, sshErrorCode(err))
 			return
 		}
 		if inspection.SidecarContract != "sidecar/v2" || inspection.SidecarImageID == "" {
@@ -538,7 +543,7 @@ func (s *Service) deploy(session *Session, plan DeploymentPlan, confirmed bool, 
 	for _, node := range plan.Nodes {
 		existing, err := s.remote.HasDeployment(session, node.IP, s.taskOutput(session, taskID, node.IP))
 		if err != nil {
-			s.updateTask(session, taskID, "failed", node.IP, err.Error(), nil)
+			s.updateTask(session, taskID, "failed", node.IP, err.Error(), nil, sshErrorCode(err))
 			return
 		}
 		if existing && !confirmed {
@@ -549,7 +554,7 @@ func (s *Service) deploy(session *Session, plan DeploymentPlan, confirmed bool, 
 	s.updateTask(session, taskID, "running", "", "uploading and validating configuration", nil)
 	for _, node := range plan.Nodes {
 		if err := s.remote.UploadAndValidate(session, node, s.taskOutput(session, taskID, node.IP)); err != nil {
-			s.updateTask(session, taskID, "failed", node.IP, err.Error(), nil)
+			s.updateTask(session, taskID, "failed", node.IP, err.Error(), nil, sshErrorCode(err))
 			return
 		}
 	}
@@ -562,7 +567,7 @@ func (s *Service) deploy(session *Session, plan DeploymentPlan, confirmed bool, 
 			if len(completed) > 0 {
 				status = "partial"
 			}
-			s.updateTask(session, taskID, status, node.IP, err.Error(), completed)
+			s.updateTask(session, taskID, status, node.IP, err.Error(), completed, sshErrorCode(err))
 			return
 		}
 		completed = append(completed, node.IP)
@@ -610,7 +615,7 @@ func (s *Service) stopDeployment(session *Session, ips []string, taskID string) 
 			if len(completed) > 0 {
 				status = "partial"
 			}
-			s.updateTask(session, taskID, status, ip, err.Error(), completed)
+			s.updateTask(session, taskID, status, ip, err.Error(), completed, sshErrorCode(err))
 			return
 		}
 		completed = append(completed, ip)
@@ -634,7 +639,7 @@ func (s *Service) newTask(session *Session, kind string) Task {
 	return *task
 }
 
-func (s *Service) updateTask(session *Session, id, status, ip, message string, completed []string) {
+func (s *Service) updateTask(session *Session, id, status, ip, message string, completed []string, errorCode ...string) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	task := session.Tasks[id]
@@ -642,6 +647,10 @@ func (s *Service) updateTask(session *Session, id, status, ip, message string, c
 		return
 	}
 	task.Status, task.CurrentIP, task.Message, task.UpdatedAt = status, ip, message, time.Now()
+	task.ErrorCode = ""
+	if len(errorCode) > 0 {
+		task.ErrorCode = errorCode[0]
+	}
 	if completed != nil {
 		task.Completed = append([]string(nil), completed...)
 	}
