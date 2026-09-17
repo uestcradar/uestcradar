@@ -19,5 +19,3 @@ services:
       GFKD_TIMEOUT_MS: ${GFKD_TIMEOUT_MS:-600000}
       UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_qt5_algorithm_up
       UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_qt5_algorithm_down
-    volumes:
-      - ../output:/app/output

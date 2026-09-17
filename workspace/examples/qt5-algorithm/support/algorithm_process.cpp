@@ -2,7 +2,7 @@
 #include "vendor/matrixreader.h"
 #include <QCoreApplication>
 #include <QElapsedTimer>
-#include <QDir>
+#include <QFile>
 #include <QThread>
 #include <QDebug>
 #include <QUuid>
@@ -20,14 +20,11 @@ void ChildProcess::setupChildProcess() {
     // against the PID captured before fork, including death before prctl.
     if (prctl(PR_SET_PDEATHSIG,SIGTERM)!=0 || getppid()!=expected_parent_pid_) _exit(125);
 }
-AlgorithmProcess::AlgorithmProcess(QString exe,QString dir,QString out,int timeout)
-    : executable_(std::move(exe)),workdir_(std::move(dir)),output_dir_(std::move(out)),
+AlgorithmProcess::AlgorithmProcess(QString exe,QString dir,int timeout)
+    : executable_(std::move(exe)),workdir_(std::move(dir)),
       key_("uestcradar_gfkd_"+QUuid::createUuid().toString(QUuid::Id128)),timeout_ms_(timeout) {}
 AlgorithmProcess::~AlgorithmProcess() { stop(); }
 void AlgorithmProcess::start() {
-    QDir().mkpath(output_dir_);
-    log_.setFileName(output_dir_+"/algorithm.log");
-    if (!log_.open(QIODevice::WriteOnly|QIODevice::Truncate)) throw std::runtime_error("Cannot open algorithm log");
     for (const auto* csv : {"subband_filter_32x32.csv","subband_filter_64x64.csv"}) {
         if (!QFile::exists(workdir_+"/"+csv)) throw std::runtime_error("Missing algorithm filter CSV");
     }
@@ -38,19 +35,14 @@ void AlgorithmProcess::start() {
     env.insert("GFKD_INPUT_SHM_KEY",key_);
     process_.setProcessEnvironment(env);
     process_.setWorkingDirectory(workdir_);
-    process_.setProcessChannelMode(QProcess::MergedChannels);
+    process_.setProcessChannelMode(QProcess::ForwardedChannels);
     process_.startAlgorithm(executable_);
     if (!process_.waitForStarted(30000)) throw std::runtime_error("Cannot start algorithm executable");
 }
-void AlgorithmProcess::collect_logs() {
-    const auto data=process_.readAll();
-    if (!data.isEmpty()) { log_.write(data); log_.flush(); }
-}
 void AlgorithmProcess::check_process() {
     process_.waitForReadyRead(1);
-    collect_logs();
     if (process_.state()==QProcess::NotRunning)
-        throw std::runtime_error("Algorithm exited; see algorithm.log");
+        throw std::runtime_error("Algorithm exited; see container logs");
 }
 void AlgorithmProcess::write(const QByteArray& input) {
     QElapsedTimer timer; timer.start();
@@ -79,7 +71,6 @@ void AlgorithmProcess::stop() {
         process_.terminate();
         if (!process_.waitForFinished(3000)) { process_.kill(); process_.waitForFinished(3000); }
     }
-    collect_logs();
     output_.reset(); input_.reset();
 }
 }

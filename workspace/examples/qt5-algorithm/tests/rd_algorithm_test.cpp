@@ -66,7 +66,7 @@ void test_process(const QString& exe) {
     }
     for(const auto* mode:{"normal","exit","timeout"}) {
         qputenv("GFKD_TEST_MODE",mode);
-        AlgorithmProcess process(exe,dir.path(),dir.path(), mode==std::string("normal")?10000:100);
+        AlgorithmProcess process(exe,dir.path(), mode==std::string("normal")?10000:100);
         process.start();process.write("test CPI");
         if(mode==std::string("normal")) {
             auto r=process.wait_result();require(r.frequencies==2 && r.ranges==3,"Result shape");

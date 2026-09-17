@@ -13,14 +13,12 @@ qt5-algorithm/
 │   ├── Dockerfile.builder       # 维护 GFKD 开发镜像：安装 Qt5 开发依赖并验证示例
 │   ├── Dockerfile.infra         # 编译、测试并打包 RD Sink 基础设施镜像
 │   ├── docker-compose-infra.yaml  # 数据源、脉压、Sidecar 和 RD Sink 黑盒链路
-│   └── docker-compose-worker.yaml # Worker 构建运行、IPC、共享内存和输出挂载
+│   └── docker-compose-worker.yaml # Worker 构建运行、IPC 和共享内存
 ├── src/                         # 只保留 main.cpp，按顺序组织处理流程
 ├── support/                     # frame_converter.h、SDK 收发与组帧、共享内存、进程管理
 ├── algorithm/                   # 本地准备的 ARM64 可执行文件及 CSV，不纳入 Git
 ├── tests/                       # Worker 和帧转换的单元测试
-├── infra/                       # 测试辅助代码：数据源、结果接收与校验
-└── output/                      # 运行时生成，挂载到容器 /app/output
-    └── rdmap_result.pgm         # 最新一帧 RDMap 灰度图
+└── infra/                       # 测试辅助代码：数据源、结果接收与校验
 ```
 
 ## 目标架构
@@ -48,7 +46,7 @@ Worker 与算法进程运行在同一个容器中。`src/main.cpp` 只组织处�
 | --- | --- |
 | `src/main.cpp` | 初始化、启动算法进程，依次调用接收、转换、写入、等待结果和发送接口 |
 | `support/frame_converter.h` | 完整 CPI 转算法输入字节帧；算法结果转 RD 元数据和矩阵；校验尺寸、布局及数值转换 |
-| `support/` | SDK 输入输出、CPI 缓存与顺序校验、共享内存同步、结果等待、输入关联、进程启停与错误处理、图像保存 |
+| `support/` | SDK 输入输出、CPI 缓存与顺序校验、共享内存同步、结果等待、输入关联、进程启停与错误处理 |
 | `tests/` | Worker 和帧转换的单元测试，不放在 `src` 中 |
 | `infra/` | 独立测试基座的数据源、Sink 和基座测试，由维护者管理 |
 
@@ -193,7 +191,7 @@ Worker 基于 `registry.chengyistudio.com/cxx/algo-base:GFKD` 构建，镜像标
 
 运行要求：Docker Engine 20.10 或更新版本（API ≥ 1.41）及 Docker Compose v2。Docker 19.03 无法通过这里的 Compose v2 配置创建带 `platform` 参数的容器。
 
-以下命令均在 `qt5-algorithm/` 工程根目录执行。Docker 文件集中在 `docker/`，构建上下文仍为工程根目录，输出仍保存在根目录的 `output/`。
+以下命令均在 `qt5-algorithm/` 工程根目录执行。Docker 文件集中在 `docker/`，构建上下文仍为工程根目录，运行结果通过共享内存传输，不自动保存文件。
 
 ### 第一步：启动黑盒测试基座
 
@@ -221,14 +219,14 @@ docker compose -f docker/docker-compose-infra.yaml up -d
 1. 调用支撑库初始化共享内存、启动算法程序并设置 CSV 所在工作目录。
 2. 支撑库接收并组完整 CPI；转换层生成对方的 CPI 字节帧，再由支撑库写入输入共享内存。
 3. 支撑库等待并读取结果；转换层校验尺寸和数值，生成 `RDMetadata` 和输出矩阵。
-4. 支撑库保存 RDMap，通过 SDK 创建并提交与输入关联的输出，再处理下一个 CPI；停止时清理算法子进程。
+4. 支撑库通过 SDK 创建并提交与输入关联的输出，再处理下一个 CPI；停止时清理算法子进程。
 
-对方仅在 `ReciveManager/radar_data_source.cpp` 增加 `read_from_worker_shm()` 及必要头文件，并在 `read_from_radar_date()` 中按 `GFKD_INPUT_SHM_KEY` 调用；不修改原文件初始化、main、CMake、算法、解析器和输出。Worker 的 CMake 编译 `src/main.cpp` 并链接支撑库，单元测试源码从 `tests/` 编译；Dockerfile 纳入支撑库、测试及算法可执行文件、运行依赖和 CSV，并保证程序可执行。算法更新后沿用下面的构建、验证和发布流程。
+对方仅在 `ReciveManager/radar_data_source.cpp` 增加 `read_from_worker_shm()` 及必要头文件，并在 `read_from_radar_date()` 中按 `GFKD_INPUT_SHM_KEY` 调用；另关闭 `SendDataManager` 的 `send_data.bin` 文件保存；计算和共享内存输出格式保持不变。Worker 的 CMake 编译 `src/main.cpp` 并链接支撑库，单元测试源码从 `tests/` 编译；Dockerfile 纳入支撑库、测试及算法可执行文件、运行依赖和 CSV，并保证程序可执行。算法更新后沿用下面的构建、验证和发布流程。
 
 在本地准备算法产物（`GFKD_SOURCE` 指向已接入读取函数的工程）：
 ```bash
 export GFKD_SOURCE=/home/zikun/Documents/cxx/GFDK/GFKD_V1_ARM/GFKD_V1_ARM
-mkdir -p algorithm output
+mkdir -p algorithm
 docker run --rm --platform linux/arm64 --user "$(id -u):$(id -g)" \
   --entrypoint sh -v "$GFKD_SOURCE:/vendor:ro" -v "$PWD/algorithm:/artifacts" \
   registry.chengyistudio.com/cxx/algo-base:GFKD -c '
@@ -237,7 +235,7 @@ docker run --rm --platform linux/arm64 --user "$(id -u):$(id -g)" \
     cp /tmp/build/GFKD_V1_ARM /artifacts/ &&
     cp /vendor/subband_filter_*.csv /artifacts/'
 ```
-Worker 默认启动 `/app/algorithm/GFKD_V1_ARM`，工作目录为 `/app/algorithm`。运行日志保存为 `output/algorithm.log`；原程序的 `send_data.bin` 通过软链接写到 `output/algorithm_send_data.bin`。输入通道由 Worker 创建，32 MiB，头部四个 uint32 字段为 magic `0x47504631`、容量、有效长度、已读位置；双方使用 Qt 共享内存锁同步。
+Worker 默认启动 `/app/algorithm/GFKD_V1_ARM`，工作目录为 `/app/algorithm`。算法日志直接转发到容器控制台；不生成 `algorithm.log`、`send_data.bin`、`rd_frames.bin` 或 PGM 文件。输入通道由 Worker 创建，32 MiB，头部四个 uint32 字段为 magic `0x47504631`、容量、有效长度、已读位置；双方使用 Qt 共享内存锁同步。
 
 SDK 帧 API 见 [SDK 接口指南](../../sdk/README.md)，矩阵布局以 [脉压帧契约](../../sdk/contracts/pulse_compression.json)和 [RD 帧契约](../../sdk/contracts/rd.json)为准。
 
@@ -263,7 +261,7 @@ docker compose -f docker/docker-compose-infra.yaml logs -f signalsource pulsecom
 ```text
 [PASSED] RDFrame received=<n> shape=<range>x<doppler> peak_range=<r> peak_doppler=<d> magnitude=<v>
 ```
-最新一帧 RDMap 同时保存在 `output/rdmap_result.pgm`。
+RD 结果由下游 Sink 接收，可通过 Web 实时预览。
 
 修改代码后可单独重启 Worker，无需重启测试基座：
 ```bash
@@ -275,9 +273,9 @@ docker compose -f docker/docker-compose-worker.yaml down
 docker compose -f docker/docker-compose-infra.yaml down
 ```
 
-### 完整本地验收与 RD 图导出
+### 完整本地验收
 
-先完成算法产物准备、Worker 和本地 Sink 构建。验收前停止上一轮 Worker 和 Infra；将需要保留的旧 `output/` 结果另存，再创建空的 `output/`，避免追加记录混入本轮。
+先完成算法产物准备、Worker 和本地 Sink 构建。验收前停止上一轮 Worker 和 Infra。
 ```bash
 docker run --rm --platform linux/arm64 --entrypoint sh \
   -v "$PWD:/project:ro" registry.chengyistudio.com/cxx/algo-base:GFKD -c '
@@ -291,19 +289,10 @@ docker compose -f docker/docker-compose-worker.yaml up --abort-on-container-exit
 ```
 Sink 应收到 10 帧，Worker 正常退出。日志中应有对应 CSV 加载记录，不应出现丢帧、超时或 FAIL。`GFKD_TIMEOUT_MS` 默认 600000，可按运行环境设置。
 ```bash
-docker compose -f docker/docker-compose-infra.yaml logs --no-color > output/infra.log
-docker compose -f docker/docker-compose-worker.yaml logs --no-color > output/worker.log
-python3 tests/export_results.py output --frames 10
+docker compose -f docker/docker-compose-infra.yaml logs --no-color rd-sink
+docker compose -f docker/docker-compose-worker.yaml logs --no-color
 ```
-导出脚本在主机运行，需要 NumPy、Pillow 和 Matplotlib。脚本逐帧比对算法 double 结果与 SDK float32 数据，并与 Sink 日志中的现有摘要核对，确认下游收到相同矩阵，导出最后一帧：
-
-- `rdmap_result.pgm`：Worker 保存的原始尺寸灰度图。
-- `rdmap_result.npy`：原始 float32 矩阵，按 `[距离][频点]` 存储。
-- `rdmap_full_resolution.png`：完整分辨率图，横轴距离、纵轴频点。
-- `rdmap_result.png`：带坐标和色标的概览图，距离轴按区间最大值缩减，保留峰值。
-- `verification.json`：帧数、实际维度、数值范围和比对结果。
-
-结果验收后，使用第四步的 `down` 命令清理。此验收证明接入与格式转换一致，不代替算法精度评估。
+本轮不生成 RD 数据文件或图片。历史文件仍可用 `tests/export_results.py` 离线处理。验收后使用第四步的 `down` 命令清理；此验收不代替算法精度评估。
 
 ### 第五步：发布 RD 算法镜像
 

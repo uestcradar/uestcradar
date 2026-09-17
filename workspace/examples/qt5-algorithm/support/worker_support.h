@@ -1,6 +1,5 @@
 #pragma once
 #include "algorithm_process.h"
-#include "rd_image.h"
 #include <optional>
 namespace radar_qt_example {
 class WorkerSupport {

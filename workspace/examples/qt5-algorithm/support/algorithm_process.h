@@ -3,7 +3,6 @@
 #include "input_channel.h"
 #include "vendor/matrixringbuffer.h"
 #include <QProcess>
-#include <QFile>
 #include <memory>
 #include <sys/types.h>
 
@@ -19,7 +18,7 @@ private:
 };
 class AlgorithmProcess {
 public:
-    AlgorithmProcess(QString executable, QString workdir, QString output_dir, int timeout_ms);
+    AlgorithmProcess(QString executable, QString workdir, int timeout_ms);
     ~AlgorithmProcess();
     void start();
     void write(const QByteArray& input);
@@ -27,12 +26,10 @@ public:
     void stop();
 private:
     void check_process();
-    void collect_logs();
-    QString executable_,workdir_,output_dir_,key_;
+    QString executable_,workdir_,key_;
     int timeout_ms_;
     ChildProcess process_;
     std::unique_ptr<InputChannel> input_;
     std::unique_ptr<MatrixRingBuffer> output_;
-    QFile log_;
 };
 }

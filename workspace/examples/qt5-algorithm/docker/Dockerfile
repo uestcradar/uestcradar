@@ -24,8 +24,7 @@ WORKDIR /app
 RUN cp /build/qt5-algorithm /app/qt5-algorithm
 
 COPY algorithm/ /app/algorithm/
-RUN test -x /app/algorithm/GFKD_V1_ARM \
-    && ln -s /app/output/algorithm_send_data.bin /app/algorithm/send_data.bin
+RUN test -x /app/algorithm/GFKD_V1_ARM
 
 ENTRYPOINT ["/app/qt5-algorithm"]
 
