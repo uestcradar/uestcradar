@@ -12,6 +12,23 @@ func TestParseRDMASeparatesDeviceNetdevAndIP(t *testing.T) {
 	}
 }
 
+func TestCleanSSHCommandOutputRemovesLeadingEnvironmentDump(t *testing.T) {
+	input := "declare -x HOME=\"/root\"\n" +
+		"declare -x HOSTNAME=\"node10\"\n" +
+		"declare -x OLDPWD\n" +
+		"node10\n"
+	if result := cleanSSHCommandOutput(input); result != "node10" {
+		t.Fatalf("unexpected cleaned command output: %q", result)
+	}
+}
+
+func TestCleanSSHCommandOutputPreservesRegularMultilineOutput(t *testing.T) {
+	input := "link hns_1/1 state ACTIVE\nlink hns_2/1 state DOWN\n"
+	if result := cleanSSHCommandOutput(input); result != strings.TrimSpace(input) {
+		t.Fatalf("unexpected regular command output: %q", result)
+	}
+}
+
 func TestComposeCommandPrefersV1AndNeverPulls(t *testing.T) {
 	command := composeCommandFor(PlannedNode{}, "/tmp/compose.yaml", "/tmp/node.env", "up -d --no-build")
 	if !strings.Contains(command, "docker-compose version --short") || !strings.Contains(command, "elif docker compose version --short") || strings.Contains(command, "pull") {

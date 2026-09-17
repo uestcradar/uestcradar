@@ -122,7 +122,7 @@ func runSSHOutput(client *ssh.Client, command string, output CommandOutput) (str
 		if runErr != nil {
 			return "", fmt.Errorf("remote command failed: %s", strings.TrimSpace(string(combined)))
 		}
-		return strings.TrimSpace(string(combined)), nil
+		return cleanSSHCommandOutput(string(combined)), nil
 	}
 	output("system", "$ "+command+"\n")
 	stdoutPipe, err := remoteSession.StdoutPipe()
@@ -146,11 +146,37 @@ func runSSHOutput(client *ssh.Client, command string, output CommandOutput) (str
 	if runErr != nil {
 		message := strings.TrimSpace(stderrBuffer.String())
 		if message == "" {
-			message = strings.TrimSpace(stdoutBuffer.String())
+			message = cleanSSHCommandOutput(stdoutBuffer.String())
 		}
 		return "", fmt.Errorf("remote command failed: %s", message)
 	}
-	return strings.TrimSpace(stdoutBuffer.String()), nil
+	return cleanSSHCommandOutput(stdoutBuffer.String()), nil
+}
+
+// A bare `export` in a remote user's shell startup file prints the complete
+// environment before every SSH command. Keep that output in the live command
+// log, but do not let it become part of parsed inspection values.
+func cleanSSHCommandOutput(value string) string {
+	lines := strings.Split(strings.ReplaceAll(value, "\r\n", "\n"), "\n")
+	first := 0
+	foundEnvironmentDump := false
+	for first < len(lines) {
+		line := strings.TrimSpace(lines[first])
+		if line == "" {
+			first++
+			continue
+		}
+		if strings.HasPrefix(line, "declare -x ") {
+			foundEnvironmentDump = true
+			first++
+			continue
+		}
+		break
+	}
+	if foundEnvironmentDump {
+		return strings.TrimSpace(strings.Join(lines[first:], "\n"))
+	}
+	return strings.TrimSpace(value)
 }
 
 func copyCommandOutput(group *sync.WaitGroup, source io.Reader, destination *bytes.Buffer, stream string, output CommandOutput) {
