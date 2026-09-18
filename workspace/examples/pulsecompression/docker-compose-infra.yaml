@@ -130,7 +130,7 @@ services:
       retries: 90
 
   signalsink:
-    image: ${SIGNALSINK_IMAGE:-registry.chengyistudio.com/cxx/worker:signalsink-latest@sha256:b9d0b9468b56050f2c75d4218596b4ffd3dcf37e302ad3fb2ac8ebacea6c2eaa}
+    image: ${SIGNALSINK_IMAGE:-registry.chengyistudio.com/cxx/worker:pcsink-latest@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233}
     platform: linux/arm64
     network_mode: host
     ipc: service:sidecar-c
@@ -140,7 +140,11 @@ services:
       - --frames
       - "${SINK_FRAMES:-0}"
       - --log-every
-      - "10"
+      - "64"
+      - --workers
+      - "4"
+      - --queue-depth
+      - "8"
       - --target-range
       - "20480"
       - --target-half-width

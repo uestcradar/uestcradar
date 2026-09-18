@@ -12,6 +12,7 @@ RUN cmake -S . -B build \
     && cmake --build build --parallel \
     && ctest --test-dir build --output-on-failure \
     && cp build/signalsink /app/signalsink \
+    && cp build/pcsink-benchmark /app/pcsink-benchmark \
     && rm -rf CMakeLists.txt src build
 
 ENTRYPOINT ["/app/signalsink"]
