@@ -102,3 +102,18 @@ graph TD
 > [!IMPORTANT]
 > 📖 关于如何基于脚手架模板克隆新算法、制定数据格式、执行本地静态自检沙盒测试以及进行 AArch64 容器化交叉编译，请参阅：
 > **[C++ 算子开发模板专属指南 (algorithm_template/README.md)](.agents/skills/develop_cpp_algorithm/algorithm_template/README.md)**
+
+## 算法开发基座 (单机测试环境)
+
+在 `workspace/examples/` 目录下提供了单机测试黑盒环境（内置测试数据源与结果自动校验）。算法开发者在本地一键启动测试环境后，即可专心编写 C++ / Qt 算法代码，无需关心底层传输细节。
+
+### 算法开发指南
+
+| 算法开发基座 | 适用场景 | 说明文档 (相对路径) |
+| :--- | :--- | :--- |
+| **`pulsecompression`** | C++ 一维匹配滤波 / 脉冲压缩算法开发 | **[脉冲压缩算法开发指南](workspace/examples/pulsecompression/README.md)** |
+| **`qt5-algorithm`** | Qt5 框架下二维距离-多普勒 (RDMap) 算法开发 | **[Qt5 RD 图算法开发指南](workspace/examples/qt5-algorithm/README.md)** |
+
+> [!TIP]
+> 📖 关于各种雷达数据帧（IQ 数据、脉脉冲压缩数据、RD 图）的具体字段含义和读取方法，请参阅：
+> **[SDK 数据读写指南](workspace/sdk/README.md)**

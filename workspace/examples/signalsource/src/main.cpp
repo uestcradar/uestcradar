@@ -1,72 +1,86 @@
 #include <data.h>
-#include <sdk.h>
 
-#include "my_waveform.hpp"
+#include "cpi_data.hpp"
 
-#include <chrono>
-#include <complex>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
 #include <iostream>
-#include <thread>
-#include <vector>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
 
-int main() {
-    try {
-        using namespace uestcradar;
+namespace {
 
-        // 启动独立线程作 Loopback 数据消费，解锁算法输出背压
-        std::thread drain_thread([]() {
-            try {
-                Input<PulseCompressionFrame> pc_input;
-                std::cout << "[signalsource 回环端] 成功启动 Loopback 接收线程，持续释放槽位...\n";
-                while (true) {
-                    auto frame = pc_input.read();
-                }
-            } catch (const std::exception& e) {
-                std::cerr << "[signalsource 回环端] 接收异常退出: " << e.what() << "\n";
-            }
-        });
-        drain_thread.detach();
+struct Options {
+    std::filesystem::path data_root{"/data"};
+    std::uint64_t frames{0};
+};
 
-        Output<IQFrame> output;
-        std::vector<std::complex<float>> waveform(1024);
-        RadarSource::generate_sine_wave(waveform);
-        std::uint64_t frame_id = 0;
-        std::cout << "成功生成模拟 IQ 波形，开始持续发送...\n";
+std::uint64_t parse_uint64(const char* value, const char* option) {
+    char* end = nullptr;
+    const auto result = std::strtoull(value, &end, 10);
+    if (end == value || *end != '\0') {
+        throw std::invalid_argument(std::string{"invalid "} + option);
+    }
+    return result;
+}
 
-        for (;;) {
-            const auto now = std::chrono::system_clock::now();
-            auto frame = output.create({
-                .frame_id = ++frame_id,
-                .timestamp_unix_ns =
-                    static_cast<std::uint64_t>(
-                        std::chrono::duration_cast<
-                            std::chrono::nanoseconds>(
-                            now.time_since_epoch())
-                            .count()),
-                .channel_count = 1,
-                .samples_per_channel =
-                    static_cast<std::uint32_t>(waveform.size()),
-                .sample_rate_hz = 1000.0,
-                .center_frequency_hz = 0.0,
-            });
-            for (std::size_t index = 0;
-                 index < waveform.size();
-                 ++index) {
-                frame.data[0][index] = {
-                    static_cast<std::int16_t>(
-                        waveform[index].real() * 30'000.0F),
-                    static_cast<std::int16_t>(
-                        waveform[index].imag() * 30'000.0F),
-                };
-            }
-            output.write(frame);
-
-            // 保持 100Hz 稳定模拟物理雷达发送帧率 (10ms)
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+Options parse_options(int argc, char** argv) {
+    Options options;
+    for (int index = 1; index < argc; ++index) {
+        const std::string_view argument{argv[index]};
+        if (argument == "--data-root" && index + 1 < argc) {
+            options.data_root = argv[++index];
+        } else if (argument == "--data-dir" && index + 1 < argc) {
+            const std::filesystem::path legacy = argv[++index];
+            options.data_root = legacy.filename() == "CPI0"
+                ? legacy.parent_path()
+                : legacy;
+        } else if (argument == "--frames" && index + 1 < argc) {
+            options.frames = parse_uint64(argv[++index], "--frames");
+        } else {
+            throw std::invalid_argument("unknown or incomplete option");
         }
+    }
+    return options;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    try {
+        std::cout << std::unitbuf;
+        const Options options = parse_options(argc, argv);
+        const auto cpis = radar_example::load_cpi_sequence(options.data_root);
+        uestcradar::Output<uestcradar::IQFrame> output;
+
+        std::uint64_t sent = 0;
+        while (options.frames == 0 || sent < options.frames) {
+            const std::size_t offline_index =
+                static_cast<std::size_t>(sent % cpis.size());
+            const auto& cpi = cpis[offline_index];
+            auto metadata = cpi.metadata;
+            metadata.cpi_index = sent;
+            auto frame = output.create(metadata);
+            radar_example::copy_cpi_samples(cpi, frame);
+            output.write(std::move(frame));
+            if (sent == 0 || (sent + 1) % 20 == 0) {
+                std::cout << "[source] sent_frames=" << sent + 1
+                          << " cpi_index=" << sent
+                          << " offline_cpi=CPI" << offline_index
+                          << " cs16_bytes=" << cpi.cs16.size() << '\n';
+            }
+            if (sent == std::numeric_limits<std::uint64_t>::max()) {
+                throw std::overflow_error("global cpi_index exhausted");
+            }
+            ++sent;
+        }
+        return 0;
     } catch (const std::exception& error) {
-        std::cerr << "发送 IQ 数据失败：" << error.what() << '\n';
+        std::cerr << "[source] error=" << error.what() << '\n';
         return 1;
     }
 }

@@ -1,31 +1,39 @@
 cmake_minimum_required(VERSION 3.16)
-project(qt5-algorithm-example LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# 自动处理 Qt 的 MOC, UIC, RCC
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
-
-# 寻找 Qt5 Core 模块
-find_package(Qt5 COMPONENTS Core REQUIRED)
-
-# 寻找我们自研的通信基座 SDK
-find_package(cycomm_sdk REQUIRED)
-
-# 添加可执行文件
-add_executable(qt5_algo
-    src/main.cpp
-    src/radar_reader.cpp
-    src/radar_reader.hpp
-    src/channel_processor.cpp
-    src/channel_processor.hpp
-)
-
-# 链接库
-target_link_libraries(qt5_algo PRIVATE
-    Qt5::Core
-    cycomm::sdk
-)
+project(uestcradar_qt5_rd_developer_base LANGUAGES CXX)
+include(CTest)
+find_package(Qt5 REQUIRED COMPONENTS Core)
+find_package(cycomm_sdk CONFIG REQUIRED)
+option(BUILD_INFRA "Build the black-box source and QA sink" ON)
+function(configure_sdk_executable target)
+    target_link_libraries(${target} PRIVATE cycomm::sdk)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/support)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+endfunction()
+add_library(worker-support STATIC
+    support/algorithm_process.cpp support/worker_support.cpp
+    support/vendor/matrixreader.cpp support/vendor/matrixringbuffer.cpp)
+target_include_directories(worker-support PUBLIC support)
+target_link_libraries(worker-support PUBLIC Qt5::Core cycomm::sdk)
+target_compile_features(worker-support PUBLIC cxx_std_20)
+add_executable(qt5-algorithm src/main.cpp)
+configure_sdk_executable(qt5-algorithm)
+target_link_libraries(qt5-algorithm PRIVATE worker-support)
+if(BUILD_INFRA)
+    add_executable(rd-sink infra/rd_sink.cpp)
+    configure_sdk_executable(rd-sink)
+endif()
+if(BUILD_TESTING)
+    add_executable(mock-algorithm tests/mock_algorithm.cpp)
+    target_link_libraries(mock-algorithm PRIVATE worker-support)
+    add_executable(rd-algorithm-test tests/rd_algorithm_test.cpp)
+    configure_sdk_executable(rd-algorithm-test)
+    target_link_libraries(rd-algorithm-test PRIVATE worker-support)
+    add_dependencies(rd-algorithm-test mock-algorithm)
+    add_test(NAME rd-algorithm-test COMMAND rd-algorithm-test $<TARGET_FILE:mock-algorithm>)
+    if(TARGET rd-sink)
+        add_executable(infra-test infra/infra_test.cpp)
+        configure_sdk_executable(infra-test)
+        add_test(NAME infra-test COMMAND infra-test)
+    endif()
+endif()

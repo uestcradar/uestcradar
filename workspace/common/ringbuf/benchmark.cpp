@@ -45,6 +45,8 @@ struct Shared {
     double consumer_cpu_seconds{0};
     double p50_ns{0};
     double p99_ns{0};
+    double read_hot_p50_ns{0};
+    double read_hot_p99_ns{0};
 };
 
 std::uint64_t monotonic_ns() {
@@ -124,7 +126,9 @@ void consumer(
     Shared* shared) {
     RingBuffer* ring = ringbuf_open(name.c_str());
     std::vector<double> latency_samples;
+    std::vector<double> read_hot_samples;
     latency_samples.reserve(kLatencySampleLimit);
+    read_hot_samples.reserve(kLatencySampleLimit);
     bool measuring = false;
     double cpu_started = 0;
     shared->ready.store(true, std::memory_order_release);
@@ -135,6 +139,7 @@ void consumer(
             cpu_started = process_cpu_seconds();
         }
         RingReadLease lease;
+        const std::uint64_t hot_started = monotonic_ns();
         const RingResult result = ringbuf_acquire(ring, lease);
         if (result == RingResult::ok) {
             if (measuring) {
@@ -153,6 +158,11 @@ void consumer(
             if (ringbuf_release(lease) != RingResult::ok) {
                 ::_exit(2);
             }
+            if (measuring &&
+                read_hot_samples.size() < kLatencySampleLimit) {
+                read_hot_samples.push_back(
+                    static_cast<double>(monotonic_ns() - hot_started));
+            }
             continue;
         }
         if (result != RingResult::would_block) {
@@ -170,16 +180,22 @@ void consumer(
         shared->p50_ns = percentile(latency_samples, 0.50);
         shared->p99_ns = percentile(latency_samples, 0.99);
     }
+    if (!read_hot_samples.empty()) {
+        shared->read_hot_p50_ns = percentile(read_hot_samples, 0.50);
+        shared->read_hot_p99_ns = percentile(read_hot_samples, 0.99);
+    }
     ringbuf_close(ring);
 }
 
 void produce_until(
     RingBuffer* ring,
     std::size_t payload_bytes,
-    Clock::time_point deadline) {
+    Clock::time_point deadline,
+    std::vector<double>* hot_samples = nullptr) {
     std::uint64_t sequence = 0;
     while (Clock::now() < deadline) {
         RingWriteLease lease;
+        const std::uint64_t hot_started = monotonic_ns();
         if (ringbuf_reserve(ring, lease) != RingResult::ok) {
             std::this_thread::yield();
             continue;
@@ -190,8 +206,20 @@ void produce_until(
             lease.payload().data() + sizeof(now),
             &sequence,
             sizeof(sequence));
-        if (ringbuf_commit(lease, payload_bytes) != RingResult::ok) {
+        lease.envelope() = {
+            .frame_id = sequence,
+            .timestamp = now,
+            .type_id = ring->header->type_id,
+            .type_version = ring->header->type_version,
+            .payload_length = static_cast<std::uint32_t>(payload_bytes),
+        };
+        if (ringbuf_commit(lease) != RingResult::ok) {
             throw std::runtime_error("benchmark commit failed");
+        }
+        if (hot_samples != nullptr &&
+            hot_samples->size() < kLatencySampleLimit) {
+            hot_samples->push_back(
+                static_cast<double>(monotonic_ns() - hot_started));
         }
         ++sequence;
     }
@@ -235,12 +263,15 @@ void run_case(
     }
     const double producer_cpu_started = process_cpu_seconds();
     const auto started = Clock::now();
+    std::vector<double> write_hot_samples;
+    write_hot_samples.reserve(kLatencySampleLimit);
     shared->measure.store(true, std::memory_order_release);
     produce_until(
         ring, payload,
         started + std::chrono::duration_cast<Clock::duration>(
                       std::chrono::duration<double>{
-                          arguments.duration_seconds}));
+                          arguments.duration_seconds}),
+        &write_hot_samples);
     const auto production_ended = Clock::now();
     shared->stop.store(true, std::memory_order_release);
     int status = 0;
@@ -249,6 +280,10 @@ void run_case(
         std::chrono::duration<double>(production_ended - started).count();
     const double producer_cpu =
         process_cpu_seconds() - producer_cpu_started;
+    const double write_hot_p50_ns =
+        percentile(write_hot_samples, 0.50);
+    const double write_hot_p99_ns =
+        percentile(write_hot_samples, 0.99);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0 ||
         shared->messages == 0) {
         throw std::runtime_error("benchmark consumer failed");
@@ -271,6 +306,12 @@ void run_case(
             << ",\"latency_us_mean\":" << mean_us
             << ",\"latency_us_p50\":" << shared->p50_ns / 1000.0
             << ",\"latency_us_p99\":" << shared->p99_ns / 1000.0
+            << ",\"write_hot_us_p50\":" << write_hot_p50_ns / 1000.0
+            << ",\"write_hot_us_p99\":" << write_hot_p99_ns / 1000.0
+            << ",\"read_hot_us_p50\":"
+            << shared->read_hot_p50_ns / 1000.0
+            << ",\"read_hot_us_p99\":"
+            << shared->read_hot_p99_ns / 1000.0
             << ",\"producer_cpu_pct\":" << producer_cpu / wall * 100.0
             << ",\"consumer_cpu_pct\":"
             << shared->consumer_cpu_seconds / wall * 100.0 << "}\n";
@@ -283,6 +324,12 @@ void run_case(
                   << " mean_us=" << mean_us
                   << " p50_us=" << shared->p50_ns / 1000.0
                   << " p99_us=" << shared->p99_ns / 1000.0
+                  << " write_hot_p50_us=" << write_hot_p50_ns / 1000.0
+                  << " write_hot_p99_us=" << write_hot_p99_ns / 1000.0
+                  << " read_hot_p50_us="
+                  << shared->read_hot_p50_ns / 1000.0
+                  << " read_hot_p99_us="
+                  << shared->read_hot_p99_ns / 1000.0
                   << " producer_cpu=" << producer_cpu / wall * 100.0
                   << "% consumer_cpu="
                   << shared->consumer_cpu_seconds / wall * 100.0

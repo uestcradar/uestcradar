@@ -1,0 +1,50 @@
+# syntax=docker/dockerfile:1.7
+
+ARG GO_VERSION=1.24
+
+# 这个阶段始终运行在真实构建主机架构 (如 AMD64)，进行零 QEMU 开销的纯 Go 原生交叉编译
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS tool-builder
+
+ARG TARGETOS
+ARG TARGETARCH
+
+# 配置国内 GOPROXY 镜像代理
+ENV GOPROXY=https://goproxy.cn,direct
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /out \
+    && CGO_ENABLED=0 \
+       GOOS="${TARGETOS}" \
+       GOARCH="${TARGETARCH}" \
+       go install \
+       google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6 \
+    && (cp /go/bin/${TARGETOS}_${TARGETARCH}/protoc-gen-go /out/protoc-gen-go 2>/dev/null \
+        || cp /go/bin/protoc-gen-go /out/protoc-gen-go)
+
+FROM --platform=$TARGETPLATFORM node:20-bookworm-slim AS node-runtime
+
+# 最终的目标平台镜像 (如 ARM64)
+FROM --platform=$TARGETPLATFORM golang:${GO_VERSION}-bookworm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       flatbuffers-compiler \
+       protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=tool-builder \
+    /out/protoc-gen-go \
+    /usr/local/bin/protoc-gen-go
+
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+WORKDIR /opt/web-frontend
+COPY workspace/web/frontend/package.json workspace/web/frontend/package-lock.json ./
+RUN npm ci
+
+RUN protoc-gen-go --version \
+    && node --version

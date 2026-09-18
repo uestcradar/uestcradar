@@ -1,114 +1,208 @@
 package server
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	pb "uestcradar/telemetry/internal/telemetrypb"
 )
 
-func metric(nodeID, linkID string, sequence uint64) *pb.RingBufferMetric {
-	return &pb.RingBufferMetric{
-		NodeId:   nodeID,
-		LinkId:   linkID,
-		Sequence: sequence,
+func heartbeat(
+	nodeID string,
+	instanceID string,
+	sequence uint64,
+	usedSlots uint32,
+	connection pb.LinkConnectionState,
+	bytes uint64,
+) *pb.NodeHeartbeat {
+	return &pb.NodeHeartbeat{
+		NodeId:     nodeID,
+		InstanceId: instanceID,
+		Sequence:   sequence,
+		Links: []*pb.LinkMetric{
+			{
+				LinkId:            "upstream",
+				PeerNodeId:        "node-a",
+				Direction:         pb.LinkDirection_LINK_DIRECTION_INGRESS,
+				ConnectionState:   connection,
+				Transport:         pb.TransportKind_TRANSPORT_KIND_TCP,
+				PayloadBytesTotal: bytes,
+				Ring: &pb.RingBufferSnapshot{
+					CapacitySlots: 10,
+					UsedSlots:     usedSlots,
+					WritePosition: uint64(100 + usedSlots),
+					ReadPosition:  100,
+				},
+			},
+		},
 	}
 }
 
-func TestStoreRegistersAndGroupsNodes(t *testing.T) {
-	store := NewStore(3)
-	seenAt := time.Date(2026, time.July, 30, 12, 0, 0, 0, time.UTC)
-	store.Update(metric("node-b", "upstream", 1), seenAt)
-	store.Update(metric("node-a", "upstream", 2), seenAt)
-	store.Update(metric("node-a", "downstream", 3), seenAt)
+func TestNodeStateDoesNotDependOnDisconnectedLeg(t *testing.T) {
+	store := NewStore()
+	seenAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
+	store.UpdateHeartbeat(
+		heartbeat(
+			"node-b",
+			"instance-1",
+			1,
+			7,
+			pb.LinkConnectionState_LINK_CONNECTION_STATE_DISCONNECTED,
+			0,
+		),
+		seenAt,
+	)
 
-	nodes := store.NodesSnapshot()
-	if len(nodes) != 2 {
-		t.Fatalf("node count = %d, want 2", len(nodes))
+	node := store.Snapshot(seenAt).Nodes[0]
+	if node.Status != NodeNormal || node.Links[0].Status != LinkDisconnected {
+		t.Fatalf("node/link status = %q/%q", node.Status, node.Links[0].Status)
 	}
-	if nodes[0].NodeID != "node-a" || nodes[1].NodeID != "node-b" {
-		t.Fatalf("node order = %q, %q", nodes[0].NodeID, nodes[1].NodeID)
-	}
-	if nodes[0].Status != NodeOnline || !nodes[0].LastSeen.Equal(seenAt) {
-		t.Fatalf("node-a lease = %q at %v", nodes[0].Status, nodes[0].LastSeen)
-	}
-	if len(nodes[0].Links) != 2 ||
-		nodes[0].Links[0].LinkID != "downstream" ||
-		nodes[0].Links[1].LinkID != "upstream" {
-		t.Fatalf("node-a links = %#v", nodes[0].Links)
+
+	store.UpdateHeartbeat(
+		heartbeat(
+			"node-b",
+			"instance-1",
+			2,
+			8,
+			pb.LinkConnectionState_LINK_CONNECTION_STATE_DISCONNECTED,
+			0,
+		),
+		seenAt.Add(100*time.Millisecond),
+	)
+	node = store.Snapshot(seenAt).Nodes[0]
+	if node.Status != NodeWarning || node.Links[0].Status != LinkDisconnected {
+		t.Fatalf("warning/link status = %q/%q", node.Status, node.Links[0].Status)
 	}
 }
 
-func TestStoreBoundedHistoryAndSnapshotIsolation(t *testing.T) {
-	store := NewStore(2)
-	seenAt := time.Now()
-	for _, sequence := range []uint64{1, 2, 3} {
-		store.Update(metric("node", "link", sequence), seenAt)
+func TestHeartbeatLeaseExpiresStrictlyAfterTTLAndMarksLinksStale(t *testing.T) {
+	store := NewStore()
+	startedAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
+	store.UpdateHeartbeat(
+		heartbeat(
+			"node-b",
+			"instance-1",
+			1,
+			0,
+			pb.LinkConnectionState_LINK_CONNECTION_STATE_CONNECTED,
+			0,
+		),
+		startedAt,
+	)
+
+	if store.MarkOffline(startedAt.Add(3*time.Second), 3*time.Second) {
+		t.Fatal("node expired at exact TTL")
+	}
+	if !store.MarkOffline(
+		startedAt.Add(3*time.Second+time.Nanosecond),
+		3*time.Second,
+	) {
+		t.Fatal("node did not expire after TTL")
+	}
+	node := store.Snapshot(startedAt.Add(4 * time.Second)).Nodes[0]
+	if node.Status != NodeOffline || !node.Links[0].Stale ||
+		node.Links[0].Status != LinkConnected {
+		t.Fatalf("offline snapshot = %#v", node)
 	}
 
-	first := store.NodesSnapshot()
-	points := first[0].Links[0].Points
-	if len(points) != 2 || points[0].Sequence != 2 || points[1].Sequence != 3 {
-		t.Fatalf("bounded points = %#v", points)
-	}
-	points[0].Sequence = 99
-	if got := store.NodesSnapshot()[0].Links[0].Points[0].Sequence; got != 2 {
-		t.Fatalf("snapshot mutated store: sequence = %d", got)
+	store.UpdateHeartbeat(
+		heartbeat(
+			"node-b",
+			"instance-2",
+			1,
+			0,
+			pb.LinkConnectionState_LINK_CONNECTION_STATE_CONNECTED,
+			0,
+		),
+		startedAt.Add(5*time.Second),
+	)
+	node = store.Snapshot(startedAt.Add(5 * time.Second)).Nodes[0]
+	if node.Status != NodeNormal || node.Links[0].Stale {
+		t.Fatalf("recovered snapshot = %#v", node)
 	}
 }
 
-func TestStoreLeaseExpiresAndRecovers(t *testing.T) {
-	store := NewStore(2)
-	startedAt := time.Date(2026, time.July, 30, 12, 0, 0, 0, time.UTC)
-	store.Update(metric("node", "upstream", 1), startedAt)
-
-	store.MarkOffline(startedAt.Add(3*time.Second), 3*time.Second)
-	if got := store.NodesSnapshot()[0].Status; got != NodeOnline {
-		t.Fatalf("status at TTL = %q, want online", got)
+func TestGoodputUsesCumulativeCounterAndResetsWithInstance(t *testing.T) {
+	store := NewStore()
+	startedAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
+	store.UpdateHeartbeat(
+		heartbeat(
+			"node-b",
+			"instance-1",
+			1,
+			0,
+			pb.LinkConnectionState_LINK_CONNECTION_STATE_CONNECTED,
+			1_000,
+		),
+		startedAt,
+	)
+	store.UpdateHeartbeat(
+		heartbeat(
+			"node-b",
+			"instance-1",
+			2,
+			0,
+			pb.LinkConnectionState_LINK_CONNECTION_STATE_CONNECTED,
+			1_000_001_000,
+		),
+		startedAt.Add(time.Second),
+	)
+	got := store.Snapshot(startedAt).Nodes[0].Links[0].GoodputGBPS
+	if math.Abs(got-1) > 0.000001 {
+		t.Fatalf("goodput = %f, want 1 GB/s", got)
 	}
-	store.MarkOffline(startedAt.Add(3*time.Second+time.Nanosecond), 3*time.Second)
-	if got := store.NodesSnapshot()[0].Status; got != NodeOffline {
-		t.Fatalf("status after TTL = %q, want offline", got)
+
+	store.UpdateHeartbeat(
+		heartbeat(
+			"node-b",
+			"instance-2",
+			1,
+			0,
+			pb.LinkConnectionState_LINK_CONNECTION_STATE_CONNECTED,
+			5,
+		),
+		startedAt.Add(2*time.Second),
+	)
+	if got := store.Snapshot(startedAt).Nodes[0].Links[0].GoodputGBPS; got != 0 {
+		t.Fatalf("restart goodput = %f, want 0", got)
 	}
 
-	recoveredAt := startedAt.Add(4 * time.Second)
-	store.Update(metric("node", "upstream", 2), recoveredAt)
-	node := store.NodesSnapshot()[0]
-	if node.Status != NodeOnline || !node.LastSeen.Equal(recoveredAt) {
-		t.Fatalf("recovered lease = %q at %v", node.Status, node.LastSeen)
+	old := heartbeat(
+		"node-b",
+		"instance-1",
+		3,
+		0,
+		pb.LinkConnectionState_LINK_CONNECTION_STATE_CONNECTED,
+		2_000_001_000,
+	)
+	if store.UpdateHeartbeat(old, startedAt.Add(3*time.Second)) {
+		t.Fatal("accepted delayed heartbeat from retired instance")
+	}
+	if got := store.Snapshot(startedAt).Nodes[0].InstanceID; got != "instance-2" {
+		t.Fatalf("instance after delayed packet = %q", got)
 	}
 }
 
-func TestStoreRejectsMalformedIdentity(t *testing.T) {
-	store := NewStore(2)
-	store.Update(nil, time.Now())
-	store.Update(metric("", "upstream", 1), time.Now())
-	store.Update(metric("node", "", 1), time.Now())
-	if got := store.NodesSnapshot(); len(got) != 0 {
-		t.Fatalf("registered malformed nodes: %#v", got)
+func TestRejectsMalformedAndOutOfOrderHeartbeat(t *testing.T) {
+	store := NewStore()
+	now := time.Now()
+	if store.UpdateHeartbeat(nil, now) {
+		t.Fatal("accepted nil heartbeat")
 	}
-}
-
-func TestMetricsSnapshotRemainsFlattened(t *testing.T) {
-	store := NewStore(2)
-	seenAt := time.Now()
-	store.Update(metric("node-b", "upstream", 1), seenAt)
-	store.Update(metric("node-a", "upstream", 2), seenAt)
-	store.Update(metric("node-a", "downstream", 3), seenAt)
-
-	series := store.MetricsSnapshot()
-	if len(series) != 3 {
-		t.Fatalf("series count = %d, want 3", len(series))
+	valid := heartbeat(
+		"node-b",
+		"instance-1",
+		2,
+		0,
+		pb.LinkConnectionState_LINK_CONNECTION_STATE_CONNECTED,
+		0,
+	)
+	if !store.UpdateHeartbeat(valid, now) {
+		t.Fatal("rejected valid heartbeat")
 	}
-	got := []string{
-		series[0].NodeID + "/" + series[0].LinkID,
-		series[1].NodeID + "/" + series[1].LinkID,
-		series[2].NodeID + "/" + series[2].LinkID,
-	}
-	want := []string{"node-a/downstream", "node-a/upstream", "node-b/upstream"}
-	for index := range want {
-		if got[index] != want[index] {
-			t.Errorf("series[%d] = %q, want %q", index, got[index], want[index])
-		}
+	valid.Sequence = 1
+	if store.UpdateHeartbeat(valid, now.Add(time.Second)) {
+		t.Fatal("accepted out-of-order heartbeat")
 	}
 }

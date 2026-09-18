@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "name": "iq",
+  "cpp_frame": "IQFrame",
+  "cpp_metadata": "IQMetadata",
+  "type_id": 1,
+  "type_version": 3,
+  "byte_order": "little_endian",
+  "metadata_size": 2136,
+  "fields": [
+    {"name": "cpi_index", "type": "uint64", "offset": 0},
+    {"name": "channel_count", "type": "uint32", "offset": 8},
+    {"name": "samples_per_channel", "type": "uint32", "offset": 12},
+    {"name": "pulse_count", "type": "uint32", "offset": 16},
+    {"name": "wave_process_type", "type": "uint32", "offset": 20},
+    {"name": "velocity_oversampling", "type": "uint32", "offset": 24},
+    {"name": "reserved0", "type": "uint32", "offset": 28, "reserved": true},
+    {"name": "sample_rate_hz", "type": "float64", "offset": 32},
+    {"name": "nominal_carrier_frequency_hz", "type": "float64", "offset": 40},
+    {"name": "bandwidth_hz", "type": "float64", "offset": 48},
+    {"name": "pulse_width_s", "type": "float64", "offset": 56},
+    {"name": "nominal_prt_s", "type": "float64", "offset": 64},
+    {"name": "observation_max_range_m", "type": "float64", "offset": 72},
+    {"name": "dequantization_scale", "type": "float64", "offset": 80},
+    {"name": "pulse_time_offset_s", "type": "float64", "count": 64, "offset": 88},
+    {"name": "pulse_phase_rad", "type": "float64", "count": 64, "offset": 600},
+    {"name": "pulse_frequency_hz", "type": "float64", "count": 64, "offset": 1112},
+    {"name": "coherent_weight", "type": "float64", "count": 64, "offset": 1624}
+  ],
+  "payload": {
+    "kind": "matrix",
+    "element_type": "complex_int16",
+    "cpp_element": "ComplexInt16",
+    "rows": "channel_count",
+    "columns": "samples_per_channel",
+    "offset": 2136
+  },
+  "visualization": {
+    "kind": "waveform",
+    "row_axis": "channel",
+    "column_axis": "sample",
+    "sample_rate_field": "sample_rate_hz"
+  }
+}

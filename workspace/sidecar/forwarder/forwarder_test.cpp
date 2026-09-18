@@ -2,7 +2,7 @@
 #include "network/ucx_transport.hpp"
 #include "ringbuf/ringbuf.hpp"
 
-#include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -10,11 +10,10 @@
 #include <exception>
 #include <future>
 #include <iostream>
-#include <span>
 #include <string>
 #include <thread>
-#include <vector>
 #include <unistd.h>
+#include <vector>
 
 namespace {
 
@@ -24,12 +23,9 @@ using sidecar::network::UCXTransport;
 
 class TestRing {
 public:
-    TestRing(std::string name, RingBufferConfig config)
+    TestRing(std::string name, const RingBufferConfig& config)
         : name_(std::move(name)),
           ring_(ringbuf_create(name_.c_str(), config)) {}
-
-    TestRing(const TestRing&) = delete;
-    TestRing& operator=(const TestRing&) = delete;
 
     ~TestRing() {
         ringbuf_shutdown(ring_);
@@ -46,182 +42,140 @@ private:
     RingBuffer* ring_;
 };
 
-bool write_all(
-    RingBuffer* ring,
-    std::span<const std::byte> bytes) {
-    const auto deadline =
-        std::chrono::steady_clock::now() + std::chrono::seconds{10};
-    while (std::chrono::steady_clock::now() < deadline) {
-        const std::int32_t result = ringbuf_write(
-            ring, bytes.data(), bytes.size());
-        if (result == static_cast<std::int32_t>(bytes.size())) {
-            return true;
-        } else if (result == 0) {
-            std::this_thread::yield();
-        } else {
+bool write_record(RingBuffer* ring, const std::vector<std::byte>& data) {
+    for (int attempt = 0; attempt < 20'000; ++attempt) {
+        RingWriteLease lease;
+        const RingResult result = ringbuf_reserve(ring, lease);
+        if (result == RingResult::ok) {
+            std::copy(data.begin(), data.end(), lease.payload().begin());
+            lease.envelope() = {
+                .frame_id = 1,
+                .timestamp = 2,
+                .type_id = ring->header->type_id,
+                .type_version = ring->header->type_version,
+                .payload_length = static_cast<std::uint32_t>(data.size()),
+            };
+            return ringbuf_commit(lease) == RingResult::ok;
+        }
+        if (result != RingResult::would_block) {
             return false;
         }
+        std::this_thread::sleep_for(std::chrono::microseconds{50});
     }
     return false;
 }
 
-bool read_all(
-    RingBuffer* ring,
-    std::span<std::byte> bytes) {
-    const auto deadline =
-        std::chrono::steady_clock::now() + std::chrono::seconds{10};
-    while (std::chrono::steady_clock::now() < deadline) {
-        const std::int32_t result = ringbuf_read(
-            ring, bytes.data(), bytes.size());
-        if (result == static_cast<std::int32_t>(bytes.size())) {
-            return true;
-        } else if (result == 0) {
-            std::this_thread::yield();
-        } else {
+bool read_record(RingBuffer* ring, std::vector<std::byte>& data) {
+    for (int attempt = 0; attempt < 20'000; ++attempt) {
+        RingReadLease lease;
+        const RingResult result = ringbuf_acquire(ring, lease);
+        if (result == RingResult::ok) {
+            data.assign(lease.payload().begin(), lease.payload().end());
+            return ringbuf_release(lease) == RingResult::ok;
+        }
+        if (result != RingResult::would_block) {
             return false;
         }
+        std::this_thread::sleep_for(std::chrono::microseconds{50});
     }
     return false;
-}
-
-void shutdown_all(
-    TestRing& a_upstream,
-    TestRing& a_downstream,
-    TestRing& b_upstream,
-    TestRing& b_downstream) {
-    ringbuf_shutdown(a_upstream.get());
-    ringbuf_shutdown(a_downstream.get());
-    ringbuf_shutdown(b_upstream.get());
-    ringbuf_shutdown(b_downstream.get());
 }
 
 }  // namespace
 
 int main() {
     ::setenv("UCX_TLS", "tcp,self", 1);
-
     const std::string prefix =
         "/uestcradar_forwarder_test_" + std::to_string(::getpid());
     constexpr std::uint32_t kPayloadBytes = 256 * 1024;
-    const RingBufferConfig type_one{4, kPayloadBytes, 1, 1};
-    const RingBufferConfig type_two{4, kPayloadBytes, 2, 1};
-    TestRing a_upstream{prefix + "_a_up", type_two};
-    TestRing a_downstream{prefix + "_a_down", type_one};
-    TestRing b_upstream{prefix + "_b_up", type_one};
-    TestRing b_downstream{prefix + "_b_down", type_two};
-
+    const RingBufferConfig config{4, kPayloadBytes, 17, 3};
+    TestRing source{prefix + "_source", config};
+    TestRing destination{prefix + "_destination", config};
     const auto port = static_cast<std::uint16_t>(
         20'000 + (::getpid() % 20'000));
-    volatile std::sig_atomic_t a_running = 1;
-    volatile std::sig_atomic_t b_running = 1;
-    std::exception_ptr a_error;
-    std::exception_ptr b_error;
+    volatile std::sig_atomic_t egress_running = 1;
+    volatile std::sig_atomic_t ingress_running = 1;
+    sidecar::forwarder::LegMetrics egress_metrics;
+    sidecar::forwarder::LegMetrics ingress_metrics;
+    std::exception_ptr egress_error;
+    std::exception_ptr ingress_error;
 
-    std::thread a_forwarder([&] {
+    std::thread ingress([&] {
         try {
             UCXTransport transport = UCXTransport::accept_one(
                 EndpointOptions{
-                    "127.0.0.1",
-                    port,
-                    std::chrono::seconds{10},
-                });
-            UCXMemoryRegion upstream_memory =
-                transport.register_memory(
-                    ringbuf_storage(a_upstream.get()));
-            UCXMemoryRegion downstream_memory =
-                transport.register_memory(
-                    ringbuf_storage(a_downstream.get()));
-            sidecar::forwarder::run_forwarder(
-                a_running,
-                a_upstream.get(),
-                a_downstream.get(),
+                    "127.0.0.1", port, std::chrono::seconds{10}});
+            UCXMemoryRegion memory = transport.register_memory(
+                ringbuf_storage(destination.get()));
+            sidecar::forwarder::run_ingress_session(
+                ingress_running,
+                destination.get(),
                 transport,
-                upstream_memory,
-                downstream_memory);
+                memory,
+                ingress_metrics);
         } catch (...) {
-            a_error = std::current_exception();
-            a_running = 0;
+            ingress_error = std::current_exception();
         }
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
-    std::thread b_forwarder([&] {
+    std::thread egress([&] {
         try {
             UCXTransport transport = UCXTransport::connect(
                 EndpointOptions{
-                    "127.0.0.1",
-                    port,
-                    std::chrono::seconds{10},
-                });
-            UCXMemoryRegion upstream_memory =
-                transport.register_memory(
-                    ringbuf_storage(b_upstream.get()));
-            UCXMemoryRegion downstream_memory =
-                transport.register_memory(
-                    ringbuf_storage(b_downstream.get()));
-            sidecar::forwarder::run_forwarder(
-                b_running,
-                b_upstream.get(),
-                b_downstream.get(),
+                    "127.0.0.1", port, std::chrono::seconds{10}});
+            UCXMemoryRegion memory = transport.register_memory(
+                ringbuf_storage(source.get()));
+            sidecar::forwarder::run_egress_session(
+                egress_running,
+                source.get(),
                 transport,
-                upstream_memory,
-                downstream_memory);
+                memory,
+                egress_metrics);
         } catch (...) {
-            b_error = std::current_exception();
-            b_running = 0;
+            egress_error = std::current_exception();
         }
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds{200});
-
-    std::vector<std::byte> a_to_b(256 * 1024);
-    std::vector<std::byte> b_to_a(256 * 1024);
-    for (std::size_t index = 0; index < a_to_b.size(); ++index) {
-        a_to_b[index] =
-            static_cast<std::byte>((index * 17 + 3) & 0xff);
-        b_to_a[index] =
-            static_cast<std::byte>((index * 29 + 7) & 0xff);
+    std::vector<std::byte> expected(kPayloadBytes);
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+        expected[index] = static_cast<std::byte>((index * 17 + 3) & 0xff);
     }
-    std::vector<std::byte> received_by_a(b_to_a.size());
-    std::vector<std::byte> received_by_b(a_to_b.size());
+    std::vector<std::byte> actual;
+    const bool transfer_ok =
+        write_record(source.get(), expected) &&
+        read_record(destination.get(), actual);
+    const bool sessions_connected =
+        egress_metrics.connected.load(std::memory_order_acquire) &&
+        ingress_metrics.connected.load(std::memory_order_acquire);
 
-    auto write_a = std::async(
-        std::launch::async,
-        [&] { return write_all(a_downstream.get(), a_to_b); });
-    auto write_b = std::async(
-        std::launch::async,
-        [&] { return write_all(b_downstream.get(), b_to_a); });
-    auto read_a = std::async(
-        std::launch::async,
-        [&] { return read_all(a_upstream.get(), received_by_a); });
-    auto read_b = std::async(
-        std::launch::async,
-        [&] { return read_all(b_upstream.get(), received_by_b); });
+    egress_running = 0;
+    ingress_running = 0;
+    ringbuf_shutdown(source.get());
+    ringbuf_shutdown(destination.get());
+    egress.join();
+    ingress.join();
 
-    const bool transfers_ok =
-        write_a.get() && write_b.get() && read_a.get() && read_b.get();
-    a_running = 0;
-    b_running = 0;
-    shutdown_all(
-        a_upstream, a_downstream, b_upstream, b_downstream);
-    a_forwarder.join();
-    b_forwarder.join();
-
-    if (a_error != nullptr || b_error != nullptr) {
+    if (egress_error != nullptr || ingress_error != nullptr) {
         try {
-            if (a_error != nullptr) {
-                std::rethrow_exception(a_error);
+            if (egress_error != nullptr) {
+                std::rethrow_exception(egress_error);
             }
-            std::rethrow_exception(b_error);
+            std::rethrow_exception(ingress_error);
         } catch (const std::exception& error) {
             std::cerr << "forwarder-test: " << error.what() << '\n';
         }
         return 1;
     }
-    if (!transfers_ok ||
-        received_by_a != b_to_a ||
-        received_by_b != a_to_b) {
-        std::cerr << "forwarder-test: byte-stream mismatch\n";
+    if (!transfer_ok || !sessions_connected || actual != expected) {
+        std::cerr << "forwarder-test: payload mismatch\n";
+        return 1;
+    }
+    if (egress_metrics.payload_bytes_total.load() != expected.size() ||
+        ingress_metrics.payload_bytes_total.load() != expected.size() ||
+        egress_metrics.connected.load() || ingress_metrics.connected.load()) {
+        std::cerr << "forwarder-test: telemetry metrics mismatch\n";
         return 1;
     }
     return 0;

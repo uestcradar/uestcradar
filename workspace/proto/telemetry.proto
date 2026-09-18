@@ -17,6 +17,52 @@ message RingBufferMetric {
   bool shutdown = 9;
 }
 
+enum LinkDirection {
+  LINK_DIRECTION_UNSPECIFIED = 0;
+  LINK_DIRECTION_INGRESS = 1;
+  LINK_DIRECTION_EGRESS = 2;
+}
+
+enum LinkConnectionState {
+  LINK_CONNECTION_STATE_UNSPECIFIED = 0;
+  LINK_CONNECTION_STATE_DISABLED = 1;
+  LINK_CONNECTION_STATE_DISCONNECTED = 2;
+  LINK_CONNECTION_STATE_CONNECTED = 3;
+}
+
+enum TransportKind {
+  TRANSPORT_KIND_UNSPECIFIED = 0;
+  TRANSPORT_KIND_TCP = 1;
+  TRANSPORT_KIND_RDMA = 2;
+}
+
+message RingBufferSnapshot {
+  uint32 capacity_slots = 1;
+  uint32 used_slots = 2;
+  uint64 write_position = 3;
+  uint64 read_position = 4;
+  bool shutdown = 5;
+}
+
+message LinkMetric {
+  string link_id = 1;
+  string peer_node_id = 2;
+  LinkDirection direction = 3;
+  LinkConnectionState connection_state = 4;
+  TransportKind transport = 5;
+  uint64 payload_bytes_total = 6;
+  RingBufferSnapshot ring = 7;
+}
+
+message NodeHeartbeat {
+  string node_id = 1;
+  string instance_id = 2;
+  uint64 sequence = 3;
+  uint64 observed_unix_ns = 4;
+  repeated LinkMetric links = 5;
+}
+
 message TelemetryPacket {
-  repeated RingBufferMetric rings = 1;
+  repeated RingBufferMetric rings = 1 [deprecated = true];
+  NodeHeartbeat heartbeat = 2;
 }

@@ -1,0 +1,4 @@
+/algorithm/*
+!/algorithm/.gitkeep
+/output/
+/build/

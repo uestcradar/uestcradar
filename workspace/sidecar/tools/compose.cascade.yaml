@@ -1,0 +1,174 @@
+version: "2.4"
+
+services:
+  sidecar-a:
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
+    platform: linux/arm64
+    network_mode: host
+    ipc: shareable
+    shm_size: ${SIDECAR_SHM_SIZE:-256m}
+    environment:
+      NODE_ID: cascade-a
+      SIDECAR_UPSTREAM_ROLE: disabled
+      SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_HOST: 127.0.0.1
+      SIDECAR_DOWNSTREAM_PORT: ${CASCADE_AB_PORT:-23337}
+      SIDECAR_DOWNSTREAM_CONNECT_TIMEOUT_MS: "1000"
+      SIDECAR_DOWNSTREAM_DATA_PATH: ${SIDECAR_DATA_PATH:-functional}
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_a_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_a_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
+      SIDECAR_UPSTREAM_TYPE_ID: ${TYPE_ID:-1}
+      SIDECAR_UPSTREAM_TYPE_VERSION: ${TYPE_VERSION:-3}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
+      SIDECAR_DOWNSTREAM_TYPE_ID: ${TYPE_ID:-1}
+      SIDECAR_DOWNSTREAM_TYPE_VERSION: ${TYPE_VERSION:-3}
+      UCX_TLS: ${UCX_TLS:-tcp,self}
+      TELEMETRY_HOST: 127.0.0.1
+
+  sidecar-b:
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
+    platform: linux/arm64
+    network_mode: host
+    ipc: shareable
+    shm_size: ${SIDECAR_SHM_SIZE:-256m}
+    environment:
+      NODE_ID: cascade-b
+      SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
+      SIDECAR_UPSTREAM_PORT: ${CASCADE_AB_PORT:-23337}
+      SIDECAR_UPSTREAM_CONNECT_TIMEOUT_MS: "1000"
+      SIDECAR_UPSTREAM_DATA_PATH: ${SIDECAR_DATA_PATH:-functional}
+      SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_HOST: 127.0.0.1
+      SIDECAR_DOWNSTREAM_PORT: ${CASCADE_BC_PORT:-23338}
+      SIDECAR_DOWNSTREAM_CONNECT_TIMEOUT_MS: "1000"
+      SIDECAR_DOWNSTREAM_DATA_PATH: ${SIDECAR_DATA_PATH:-functional}
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_b_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_b_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
+      SIDECAR_UPSTREAM_TYPE_ID: ${TYPE_ID:-1}
+      SIDECAR_UPSTREAM_TYPE_VERSION: ${TYPE_VERSION:-3}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
+      SIDECAR_DOWNSTREAM_TYPE_ID: ${TYPE_ID:-1}
+      SIDECAR_DOWNSTREAM_TYPE_VERSION: ${TYPE_VERSION:-3}
+      UCX_TLS: ${UCX_TLS:-tcp,self}
+      TELEMETRY_HOST: 127.0.0.1
+
+  sidecar-c:
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
+    platform: linux/arm64
+    network_mode: host
+    ipc: shareable
+    shm_size: ${SIDECAR_SHM_SIZE:-256m}
+    environment:
+      NODE_ID: cascade-c
+      SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
+      SIDECAR_UPSTREAM_PORT: ${CASCADE_BC_PORT:-23338}
+      SIDECAR_UPSTREAM_CONNECT_TIMEOUT_MS: "1000"
+      SIDECAR_UPSTREAM_DATA_PATH: ${SIDECAR_DATA_PATH:-functional}
+      SIDECAR_DOWNSTREAM_ROLE: disabled
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_c_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_c_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
+      SIDECAR_UPSTREAM_TYPE_ID: ${TYPE_ID:-1}
+      SIDECAR_UPSTREAM_TYPE_VERSION: ${TYPE_VERSION:-3}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-8}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-4194304}
+      SIDECAR_DOWNSTREAM_TYPE_ID: ${TYPE_ID:-1}
+      SIDECAR_DOWNSTREAM_TYPE_VERSION: ${TYPE_VERSION:-3}
+      UCX_TLS: ${UCX_TLS:-tcp,self}
+      TELEMETRY_HOST: 127.0.0.1
+
+  worker-a:
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/cascade-worker:latest}
+    platform: linux/arm64
+    network_mode: host
+    ipc: service:sidecar-a
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_a_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_a_downstream
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - source
+      - --test
+      - ${TEST_MODE:-correctness}
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-10000}
+      - --seed
+      - ${SEED:-324508639}
+      - --warmup-seconds
+      - ${WARMUP_SECONDS:-3}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-30}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-0}
+    depends_on:
+      - sidecar-a
+
+  worker-b:
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/cascade-worker:latest}
+    platform: linux/arm64
+    network_mode: host
+    ipc: service:sidecar-b
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_b_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_b_downstream
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - operator
+      - --test
+      - ${TEST_MODE:-correctness}
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-10000}
+      - --seed
+      - ${SEED:-324508639}
+      - --warmup-seconds
+      - ${WARMUP_SECONDS:-3}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-30}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-0}
+    depends_on:
+      - sidecar-b
+
+  worker-c:
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/cascade-worker:latest}
+    platform: linux/arm64
+    network_mode: host
+    ipc: service:sidecar-c
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_c_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_c_downstream
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - sink
+      - --test
+      - ${TEST_MODE:-correctness}
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-10000}
+      - --seed
+      - ${SEED:-324508639}
+      - --warmup-seconds
+      - ${WARMUP_SECONDS:-3}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-30}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-0}
+    depends_on:
+      - sidecar-c

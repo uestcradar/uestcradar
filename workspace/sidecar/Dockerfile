@@ -1,105 +1,73 @@
 # syntax=docker/dockerfile:1
 
-ARG BASE_IMAGE=registry.chengyistudio.com/cxx/ubuntu:24.04
+ARG SIDECAR_PLATFORM=linux/arm64
+ARG BUILD_BASE=registry.chengyistudio.com/cxx/sidecar:build-base
+ARG RUNTIME_BASE=registry.chengyistudio.com/cxx/sidecar:runtime-base
 
-FROM ${BASE_IMAGE} AS builder
+FROM --platform=${SIDECAR_PLATFORM} ${BUILD_BASE} AS build
 
-ENV DEBIAN_FRONTEND=noninteractive
-RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-       cmake g++ libprotobuf-dev libucx-dev ninja-build pkg-config \
-       protobuf-compiler \
-    && rm -rf /var/lib/apt/lists/*
+ARG BUILD_JOBS=2
+RUN test "$(uname -m)" = "aarch64"
 
 WORKDIR /src
-COPY workspace/common/ringbuf/ ./common/ringbuf/
-COPY workspace/sidecar/ ./sidecar/
+COPY workspace/common/ ./common/
+COPY workspace/proto/ ./proto/
 COPY workspace/sdk/ ./sdk/
-COPY workspace/proto/telemetry.proto ./proto/telemetry.proto
-RUN mkdir -p /out \
-    && cmake -S sidecar -B sidecar-build -G Ninja \
-       -DCMAKE_BUILD_TYPE=Release \
-       -DBUILD_TESTING=OFF \
-    && cmake --build sidecar-build --parallel --target sidecar \
+COPY workspace/sidecar/ ./sidecar/
+
+RUN cmake -S sidecar -B sidecar-build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_TESTING=ON \
+    && cmake --build sidecar-build --parallel "${BUILD_JOBS}" \
+    && ctest --test-dir sidecar-build --output-on-failure \
+      --exclude-regex '^ucx-transport-test$' \
     && cmake -S sdk -B sdk-build -G Ninja \
-       -DCMAKE_BUILD_TYPE=Release \
-       -DBUILD_TESTING=OFF \
-    && cmake --build sdk-build --parallel --target uestcradar_sdk \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_TESTING=ON \
+    && cmake --build sdk-build --parallel "${BUILD_JOBS}" \
+    && ctest --test-dir sdk-build --output-on-failure
+
+RUN mkdir -p /out \
     && g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic \
-       -I/src/sdk/include \
-       sidecar/tools/e2e_benchmark.cpp \
-       -L/src/sdk-build -Wl,-rpath,/app \
-       -luestcradar_sdk \
-       -o /out/e2e-benchmark \
-    && cp sidecar-build/sidecar /out/sidecar
+      -I/src/sdk/include \
+      -I/src/common \
+      sidecar/tools/cascade_worker.cpp \
+      -L/src/sdk-build -Wl,-rpath,/app \
+      -luestcradar_sdk \
+      -o /out/cascade-worker \
+    && cp sidecar-build/sidecar /out/sidecar \
+    && cp sidecar-build/network/ucx-network-benchmark \
+      /out/ucx-network-benchmark \
+    && cp sidecar-build/network/sidecar-network-benchmark \
+      /out/sidecar-network-benchmark
 
-FROM ${BASE_IMAGE} AS network-builder
+FROM --platform=${SIDECAR_PLATFORM} ${RUNTIME_BASE} AS runtime
 
-ENV DEBIAN_FRONTEND=noninteractive
-RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-       cmake g++ libucx-dev ninja-build pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+LABEL io.uestcradar.contract="sidecar/v2"
 
-WORKDIR /src/sidecar
-COPY workspace/sidecar/network/ ./network/
-COPY workspace/sidecar/forwarder/forwarder_protocol.hpp ./forwarder/forwarder_protocol.hpp
-COPY workspace/sidecar/tools/network_benchmark.cpp ./tools/network_benchmark.cpp
-RUN cmake -S network -B network/build -G Ninja \
-       -DCMAKE_BUILD_TYPE=Release \
-       -DBUILD_TESTING=ON \
-    && cmake --build network/build --parallel \
-    && ctest --test-dir network/build --output-on-failure
-
-FROM ${BASE_IMAGE} AS network-benchmark
-
-ENV DEBIAN_FRONTEND=noninteractive
-RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends libucx0 ucx-utils \
-    && rm -rf /var/lib/apt/lists/*
-
+RUN test "$(uname -m)" = "aarch64"
 WORKDIR /app
-COPY --from=network-builder \
-    /src/sidecar/network/build/ucx-network-benchmark \
-    /app/ucx-network-benchmark
-
-ENTRYPOINT ["/app/ucx-network-benchmark"]
-
-FROM ${BASE_IMAGE} AS forwarder-benchmark
-
-ENV DEBIAN_FRONTEND=noninteractive
-RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends libucx0 \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-COPY --from=network-builder \
-    /src/sidecar/network/build/sidecar-network-benchmark \
-    /app/network-benchmark
-
-ENTRYPOINT ["/app/network-benchmark"]
-
-FROM ${BASE_IMAGE} AS runtime
-
-ENV DEBIAN_FRONTEND=noninteractive
-RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends libucx0 \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-COPY --from=builder /out/sidecar /app/sidecar
-
+COPY --from=build /out/sidecar /app/sidecar
 ENTRYPOINT ["/app/sidecar"]
 
-FROM ${BASE_IMAGE} AS e2e-benchmark
+FROM --platform=${SIDECAR_PLATFORM} ${RUNTIME_BASE} AS cascade-worker
 
+RUN test "$(uname -m)" = "aarch64"
 WORKDIR /app
-COPY --from=builder /out/e2e-benchmark /app/e2e-benchmark
-COPY --from=builder /src/sdk-build/libuestcradar_sdk.so* /app/
+COPY --from=build /out/cascade-worker /app/cascade-worker
+COPY --from=build /src/sdk-build/libuestcradar_sdk.so* /app/
+ENTRYPOINT ["/app/cascade-worker"]
 
-ENTRYPOINT ["/app/e2e-benchmark"]
+FROM --platform=${SIDECAR_PLATFORM} ${RUNTIME_BASE} AS network-benchmark
+
+RUN test "$(uname -m)" = "aarch64"
+WORKDIR /app
+COPY --from=build /out/ucx-network-benchmark /app/ucx-network-benchmark
+ENTRYPOINT ["/app/ucx-network-benchmark"]
+
+FROM --platform=${SIDECAR_PLATFORM} ${RUNTIME_BASE} AS forwarder-benchmark
+
+RUN test "$(uname -m)" = "aarch64"
+WORKDIR /app
+COPY --from=build /out/sidecar-network-benchmark /app/network-benchmark
+ENTRYPOINT ["/app/network-benchmark"]

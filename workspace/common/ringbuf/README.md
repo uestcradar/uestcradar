@@ -16,19 +16,20 @@ Slot 1: 64-byte SlotHeader | max_payload_bytes Payload | alignment
 ```
 
 控制头包含 magic、ABI version、`slot_count`、`max_payload_bytes`、
-`type_id`、`type_version` 和分离缓存行的读写位置。SlotHeader 第一版只保存
-有效 Payload 长度。提交状态由单生产者写位置发布，不为每个 Slot 增加原子量。
+`type_id`、`type_version` 和分离缓存行的读写位置。Ring ABI v6 的 SlotHeader
+就是冻结的 64B Envelope，包含 `frame_id/timestamp/type_id/type_version/`
+`payload_length/flags/reserved[28]`。Payload 紧随 Envelope；
+`max_payload_bytes` 不包含 Envelope。
 
 ## 生命周期与内存序
 
-- 生产者：`ringbuf_reserve` → 写 Payload → `ringbuf_commit`。
+- 生产者：`ringbuf_reserve` → 写 Envelope/Payload → `ringbuf_commit`。
 - 消费者：`ringbuf_acquire` → 使用 Payload → `ringbuf_release`。
 - 放弃尚未提交的写入使用 `ringbuf_cancel`。
 - commit 以 release 发布；acquire 以 acquire 观察。
 - Ring 满时返回 `would_block`，绝不覆盖未释放 Slot。
 - Read Lease 或 UCX send 完成前不得 release；UCX receive 成功且长度合法后才
   commit。
-- `ringbuf_write/read` 是 SDK 兼容用的一记录一次调用拷贝接口。
 
 RingBuffer 仍是 SPSC：不能同时存在两个生产者或两个消费者。热路径不分配
 Payload、不使用 Mutex。

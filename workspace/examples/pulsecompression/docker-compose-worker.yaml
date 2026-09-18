@@ -1,0 +1,18 @@
+# Developer-owned Worker build/run configuration; edit as needed.
+name: uestcradar-pulsecompression-worker
+
+services:
+  pulsecompression:
+    image: uestcradar/pulsecompression:dev
+    platform: linux/arm64
+    build:
+      context: .
+      pull: true
+      args:
+        ALGO_BASE: ${ALGO_BASE:-registry.chengyistudio.com/cxx/algo-base@sha256:d63bad75fc9cc8c4f0fe4b8bbee0e4089a6634318ee2be57692b83fd59425487}
+    network_mode: host
+    ipc: container:uestcradar-pulsecompression-sidecar
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_local_pulsecompression_up
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_local_pulsecompression_down
+    command: ["--frames", "${OPERATOR_FRAMES:-0}", "--log-every", "10"]

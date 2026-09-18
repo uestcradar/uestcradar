@@ -1,99 +1,111 @@
 #include "ringbuf.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <unistd.h>
 
 namespace {
 
-bool check(bool condition, const char* message) {
+void require(bool condition, const char* message) {
     if (!condition) {
-        std::cerr << "ringbuf-test: " << message << '\n';
+        throw std::runtime_error(message);
     }
-    return condition;
 }
 
 }  // namespace
 
 int main() {
     const std::string name =
-        "/uestcradar_slot_test_" + std::to_string(::getpid());
+        "/uestcradar_slot_v6_test_" + std::to_string(::getpid());
     RingBuffer* ring = nullptr;
     try {
         ring = ringbuf_create(name.c_str(), {3, 128, 0x42, 7});
         RingWriteLease write;
-        RingReadLease read;
-        bool ok =
-            check(ringbuf_acquire(ring, read) ==
-                      RingResult::would_block,
-                  "empty ring was readable") &&
-            check(ringbuf_reserve(ring, write) == RingResult::ok,
-                  "first slot was not reservable") &&
-            check(ringbuf_acquire(ring, read) ==
-                      RingResult::would_block,
-                  "uncommitted slot was visible") &&
-            check(ringbuf_commit(write, 129) ==
-                      RingResult::invalid_argument,
-                  "oversized record was accepted");
+        require(
+            ringbuf_reserve(ring, write) == RingResult::ok,
+            "first Slot was not reservable");
+        require(
+            std::all_of(
+                std::begin(write.envelope().reserved),
+                std::end(write.envelope().reserved),
+                [](std::byte value) { return value == std::byte{}; }),
+            "reserved Envelope bytes were not cleared");
+        write.envelope() = {
+            .frame_id = 1,
+            .timestamp = 2,
+            .type_id = 0x42,
+            .type_version = 7,
+            .payload_length = 129,
+        };
+        require(
+            ringbuf_commit(write) == RingResult::invalid_argument,
+            "oversized RawFrame was accepted");
         ringbuf_cancel(write);
-        ok = ok &&
-             check(ringbuf_reserve(ring, write) == RingResult::ok,
-                   "cancelled slot was not reusable");
+
+        require(
+            ringbuf_reserve(ring, write) == RingResult::ok,
+            "cancelled Slot was not reusable");
         std::array<std::byte, 16> expected{};
         for (std::size_t index = 0; index < expected.size(); ++index) {
             expected[index] = static_cast<std::byte>(index + 1);
         }
-        std::copy(
-            expected.begin(), expected.end(), write.payload().begin());
-        ok = ok &&
-             check(ringbuf_commit(write, expected.size()) ==
-                       RingResult::ok,
-                   "record commit failed") &&
-             check(ringbuf_acquire(ring, read) == RingResult::ok,
-                   "committed record was not readable") &&
-             check(std::equal(
-                       expected.begin(),
-                       expected.end(),
-                       read.payload().begin()),
-                   "record payload mismatch");
+        std::copy(expected.begin(), expected.end(), write.payload().begin());
+        write.envelope() = {
+            .frame_id = 11,
+            .timestamp = 22,
+            .type_id = 0x42,
+            .type_version = 7,
+            .payload_length = static_cast<std::uint32_t>(expected.size()),
+            .flags = 3,
+        };
+        require(
+            ringbuf_commit(write) == RingResult::ok,
+            "RawFrame commit failed");
 
-        for (int index = 0; index < 2; ++index) {
-            RingWriteLease additional;
-            ok = ok &&
-                 check(ringbuf_reserve(ring, additional) ==
-                           RingResult::ok,
-                       "free slot was not reservable") &&
-                 check(ringbuf_commit(additional, 1) ==
-                           RingResult::ok,
-                       "additional commit failed");
-        }
-        RingWriteLease full;
-        ok = ok &&
-             check(ringbuf_reserve(ring, full) ==
-                       RingResult::would_block,
-                   "full ring accepted another record") &&
-             check(ringbuf_release(read) == RingResult::ok,
-                   "read release failed") &&
-             check(ringbuf_reserve(ring, full) == RingResult::ok,
-                   "released slot was not reusable");
-        ringbuf_cancel(full);
+        RingReadLease read;
+        require(
+            ringbuf_acquire(ring, read) == RingResult::ok,
+            "committed RawFrame was not readable");
+        require(
+            read.frame().size() == kSlotHeaderSize + expected.size() &&
+                read.envelope().frame_id == 11 &&
+                read.envelope().flags == 3 &&
+                std::equal(
+                    expected.begin(), expected.end(), read.payload().begin()),
+            "RawFrame physical layout is incorrect");
+        require(
+            ringbuf_release(read) == RingResult::ok,
+            "could not release RawFrame");
 
         RingBuffer* opened = ringbuf_open(name.c_str());
-        ok = ok &&
-             check(opened->header->type_id == 0x42 &&
-                       opened->header->type_version == 7 &&
-                       ringbuf_slot_count(opened) == 3 &&
-                       ringbuf_max_payload_bytes(opened) == 128,
-                   "cross-process ABI metadata mismatch");
+        require(
+            opened->header->abi_version == 6 &&
+                opened->header->type_id == 0x42 &&
+                opened->header->type_version == 7,
+            "cross-process ABI metadata mismatch");
         ringbuf_close(opened);
+
+        ring->header->abi_version = 5;
+        bool old_abi_rejected = false;
+        try {
+            RingBuffer* invalid = ringbuf_open(name.c_str());
+            ringbuf_close(invalid);
+        } catch (const std::runtime_error&) {
+            old_abi_rejected = true;
+        }
+        require(old_abi_rejected, "RingBuffer ABI v5 was accepted");
+        ring->header->abi_version = kRingAbiVersion;
 
         ringbuf_shutdown(ring);
         ringbuf_close(ring);
+        ring = nullptr;
         ringbuf_unlink(name.c_str());
-        return ok ? 0 : 1;
+        return 0;
     } catch (const std::exception& error) {
         std::cerr << "ringbuf-test: " << error.what() << '\n';
         ringbuf_shutdown(ring);

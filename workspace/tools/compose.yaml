@@ -1,0 +1,173 @@
+services:
+  sidecar-a:
+    container_name: sidecar-a
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
+    ipc: shareable
+    shm_size: ${SHM_SIZE:-256m}
+    init: true
+    environment:
+      NODE_ID: node-a
+      SIDECAR_UPSTREAM_ROLE: disabled
+      SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_HOST: sidecar-b
+      SIDECAR_DOWNSTREAM_PORT: 23337
+      SIDECAR_DOWNSTREAM_PEER_NODE_ID: node-b
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_a_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_a_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      UCX_TLS: ${UCX_TLS:-tcp,self}
+      TELEMETRY_HOST: ${TELEMETRY_HOST:-telemetry-web}
+      TELEMETRY_PORT: ${TELEMETRY_PORT:-9900}
+    depends_on:
+      - telemetry-web
+
+  worker-a:
+    container_name: worker-a
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-worker-latest}
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - source
+      - --test
+      - benchmark
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-1000000}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-86400}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-100}
+    ipc: service:sidecar-a
+    init: true
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_a_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_a_downstream
+    depends_on:
+      - sidecar-a
+
+  sidecar-b:
+    container_name: sidecar-b
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
+    ipc: shareable
+    shm_size: ${SHM_SIZE:-256m}
+    init: true
+    environment:
+      NODE_ID: node-b
+      SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
+      SIDECAR_UPSTREAM_PORT: 23337
+      SIDECAR_UPSTREAM_PEER_NODE_ID: node-a
+      SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_HOST: sidecar-c
+      SIDECAR_DOWNSTREAM_PORT: 23338
+      SIDECAR_DOWNSTREAM_PEER_NODE_ID: node-c
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_b_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_b_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      UCX_TLS: ${UCX_TLS:-tcp,self}
+      TELEMETRY_HOST: ${TELEMETRY_HOST:-telemetry-web}
+      TELEMETRY_PORT: ${TELEMETRY_PORT:-9900}
+    depends_on:
+      - telemetry-web
+      - sidecar-a
+
+  worker-b:
+    container_name: worker-b
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-worker-latest}
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - operator
+      - --test
+      - benchmark
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-1000000}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-86400}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-0}
+    ipc: service:sidecar-b
+    init: true
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_b_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_b_downstream
+    depends_on:
+      - sidecar-b
+
+  sidecar-c:
+    container_name: sidecar-c
+    image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest}
+    ipc: shareable
+    shm_size: ${SHM_SIZE:-256m}
+    init: true
+    environment:
+      NODE_ID: node-c
+      SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
+      SIDECAR_UPSTREAM_PORT: 23338
+      SIDECAR_UPSTREAM_PEER_NODE_ID: node-b
+      SIDECAR_DOWNSTREAM_ROLE: disabled
+      SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_c_upstream
+      SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_c_downstream
+      SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-1048576}
+      UCX_TLS: ${UCX_TLS:-tcp,self}
+      TELEMETRY_HOST: ${TELEMETRY_HOST:-telemetry-web}
+      TELEMETRY_PORT: ${TELEMETRY_PORT:-9900}
+    depends_on:
+      - telemetry-web
+      - sidecar-b
+
+  worker-c:
+    container_name: worker-c
+    image: ${CASCADE_IMAGE:-registry.chengyistudio.com/cxx/worker:cascade-worker-latest}
+    entrypoint: ["/app/cascade-worker"]
+    command:
+      - --role
+      - sink
+      - --test
+      - benchmark
+      - --payload-bytes
+      - ${PAYLOAD_BYTES:-65536}
+      - --frames
+      - ${FRAMES:-1000000}
+      - --duration-seconds
+      - ${DURATION_SECONDS:-86400}
+      - --rate-mib-s
+      - ${RATE_MIB_S:-0}
+    ipc: service:sidecar-c
+    init: true
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_c_upstream
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_c_downstream
+    depends_on:
+      - sidecar-c
+
+  telemetry-web:
+    container_name: telemetry-web
+    image: ${TELEMETRY_IMAGE:-registry.chengyistudio.com/cxx/web:latest}
+    environment:
+      TELEMETRY_ALLOW_INSECURE_HTTP: "true"
+      TELEMETRY_ADVERTISE_HOST: ${TELEMETRY_ADVERTISE_HOST:-127.0.0.1}
+    ports:
+      - "8081:8080"
+      - "9900:9900/udp"
+      - "9901:9901/tcp"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.50

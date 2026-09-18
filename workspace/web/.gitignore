@@ -1,3 +1,6 @@
 /internal/telemetrypb/
 /telemetry
 /coverage.out
+/frontend/node_modules/
+/web/dist/*
+!/web/dist/.keep

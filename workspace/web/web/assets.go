@@ -1,8 +1,17 @@
 package webassets
 
-import _ "embed"
+import (
+	"embed"
+	"io/fs"
+)
 
-// Index is the embedded telemetry dashboard.
-//
-//go:embed index.html
-var Index []byte
+//go:embed dist/*
+var assets embed.FS
+
+func Files() fs.FS {
+	result, err := fs.Sub(assets, "dist")
+	if err != nil {
+		panic(err)
+	}
+	return result
+}

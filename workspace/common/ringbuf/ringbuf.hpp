@@ -1,5 +1,7 @@
 #pragma once
 
+#include "raw_frame.hpp"
+
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -8,7 +10,7 @@
 inline constexpr char kUpstreamBufName[] = "/uestcradar_upstream";
 inline constexpr char kDownstreamBufName[] = "/uestcradar_downstream";
 inline constexpr std::uint32_t kRingMagic = 0x52494E47;
-inline constexpr std::uint16_t kRingAbiVersion = 5;
+inline constexpr std::uint16_t kRingAbiVersion = 6;
 inline constexpr std::size_t kRingHeaderSize = 4096;
 inline constexpr std::size_t kSlotHeaderSize = 64;
 inline constexpr std::uint32_t kDefaultSlotCount = 8;
@@ -46,10 +48,7 @@ struct alignas(kRingHeaderSize) RingBufferHeader {
     std::byte reserved[kRingHeaderSize - 256]{};
 };
 
-struct alignas(kSlotHeaderSize) RingSlotHeader {
-    std::uint32_t payload_length{0};
-    std::byte reserved[kSlotHeaderSize - sizeof(std::uint32_t)]{};
-};
+using RingSlotHeader = uestcradar::Envelope;
 
 struct RingBuffer {
     RingBufferHeader* header{nullptr};
@@ -74,6 +73,8 @@ public:
     RingWriteLease& operator=(const RingWriteLease&) = delete;
 
     [[nodiscard]] std::span<std::byte> payload() const noexcept;
+    [[nodiscard]] uestcradar::Envelope& envelope() const noexcept;
+    [[nodiscard]] std::span<std::byte> frame_capacity() const noexcept;
     [[nodiscard]] bool active() const noexcept;
 
 private:
@@ -82,12 +83,13 @@ private:
     RingBuffer* ring_{nullptr};
     std::uint64_t position_{0};
     std::byte* payload_{nullptr};
+    uestcradar::Envelope* envelope_{nullptr};
     std::size_t capacity_{0};
 
     friend RingResult ringbuf_reserve(
         RingBuffer*, RingWriteLease&) noexcept;
     friend RingResult ringbuf_commit(
-        RingWriteLease&, std::size_t) noexcept;
+        RingWriteLease&) noexcept;
     friend void ringbuf_cancel(RingWriteLease&) noexcept;
 };
 
@@ -100,6 +102,8 @@ public:
     RingReadLease& operator=(const RingReadLease&) = delete;
 
     [[nodiscard]] std::span<const std::byte> payload() const noexcept;
+    [[nodiscard]] const uestcradar::Envelope& envelope() const noexcept;
+    [[nodiscard]] std::span<const std::byte> frame() const noexcept;
     [[nodiscard]] bool active() const noexcept;
 
 private:
@@ -108,6 +112,7 @@ private:
     RingBuffer* ring_{nullptr};
     std::uint64_t position_{0};
     const std::byte* payload_{nullptr};
+    const uestcradar::Envelope* envelope_{nullptr};
     std::size_t length_{0};
 
     friend RingResult ringbuf_acquire(
@@ -132,8 +137,7 @@ static_assert(offsetof(RingBufferHeader, shutdown) == 192);
     RingBuffer* ring,
     RingWriteLease& lease) noexcept;
 [[nodiscard]] RingResult ringbuf_commit(
-    RingWriteLease& lease,
-    std::size_t payload_length) noexcept;
+    RingWriteLease& lease) noexcept;
 void ringbuf_cancel(RingWriteLease& lease) noexcept;
 
 [[nodiscard]] RingResult ringbuf_acquire(
@@ -141,16 +145,6 @@ void ringbuf_cancel(RingWriteLease& lease) noexcept;
     RingReadLease& lease) noexcept;
 [[nodiscard]] RingResult ringbuf_release(
     RingReadLease& lease) noexcept;
-
-// Record-copy compatibility primitives used by the C SDK.
-[[nodiscard]] std::int32_t ringbuf_write(
-    RingBuffer* ring,
-    const void* data,
-    std::size_t len);
-[[nodiscard]] std::int32_t ringbuf_read(
-    RingBuffer* ring,
-    void* data,
-    std::size_t capacity);
 
 [[nodiscard]] std::uint32_t ringbuf_slot_count(
     const RingBuffer* ring) noexcept;

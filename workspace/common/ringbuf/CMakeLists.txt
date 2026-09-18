@@ -18,6 +18,10 @@ target_include_directories(uestcradar_ringbuf
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>"
 )
 
+if(UNIX AND NOT APPLE)
+    target_link_libraries(uestcradar_ringbuf PUBLIC rt)
+endif()
+
 set(_ringbuf_benchmark_default OFF)
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     set(_ringbuf_benchmark_default ON)

@@ -1,0 +1,4 @@
+// name, public frame type, public metadata type
+UESTCRADAR_CONTRACT(iq, IQFrame, IQMetadata)
+UESTCRADAR_CONTRACT(pulse_compression, PulseCompressionFrame, PulseCompressionMetadata)
+UESTCRADAR_CONTRACT(rd, RDFrame, RDMetadata)

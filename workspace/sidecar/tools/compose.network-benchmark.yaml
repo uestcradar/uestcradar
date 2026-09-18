@@ -1,3 +1,5 @@
+version: "2.4"
+
 services:
   sidecar-test:
     container_name: sidecar-forwarder-test
@@ -5,27 +7,27 @@ services:
       context: ../../..
       dockerfile: workspace/sidecar/Dockerfile
       target: runtime
-      args:
-        BASE_IMAGE: ${BASE_IMAGE:-registry.chengyistudio.com/cxx/ubuntu:24.04}
     image: ${SIDECAR_IMAGE:-uestcradar-sidecar:forwarder-test}
+    platform: linux/arm64
     network_mode: host
     ipc: shareable
     shm_size: ${SIDECAR_SHM_SIZE:-64m}
-    init: true
     environment:
       NODE_ID: Forwarder-Test
       SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
       SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-262144}
       SIDECAR_UPSTREAM_TYPE_ID: "1"
-      SIDECAR_UPSTREAM_TYPE_VERSION: "1"
+      SIDECAR_UPSTREAM_TYPE_VERSION: "2"
       SIDECAR_DOWNSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
       SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: ${MAX_PAYLOAD_BYTES:-262144}
       SIDECAR_DOWNSTREAM_TYPE_ID: "1"
-      SIDECAR_DOWNSTREAM_TYPE_VERSION: "1"
-      SIDECAR_UCX_ROLE: listen
-      SIDECAR_UCX_BIND_HOST: 0.0.0.0
-      SIDECAR_UCX_PORT: ${SIDECAR_UCX_PORT:-13337}
-      SIDECAR_UCX_DATA_PATH: functional
+      SIDECAR_DOWNSTREAM_TYPE_VERSION: "2"
+      SIDECAR_UPSTREAM_ROLE: disabled
+      SIDECAR_DOWNSTREAM_ROLE: listen
+      SIDECAR_DOWNSTREAM_PEER_NODE_ID: Benchmark-Peer
+      SIDECAR_DOWNSTREAM_BIND_HOST: 0.0.0.0
+      SIDECAR_DOWNSTREAM_PORT: ${SIDECAR_LINK_PORT:-13337}
+      SIDECAR_DOWNSTREAM_DATA_PATH: functional
       UCX_TLS: tcp,self
       TELEMETRY_HOST: 127.0.0.1
       TELEMETRY_PORT: "9900"
@@ -38,21 +40,23 @@ services:
     build:
       context: ../../..
       dockerfile: workspace/sidecar/Dockerfile
-      target: e2e-benchmark
-      args:
-        BASE_IMAGE: ${BASE_IMAGE:-registry.chengyistudio.com/cxx/ubuntu:24.04}
+      target: cascade-worker
     image: ${WORKER_IMAGE:-uestcradar-worker:forwarder-test}
+    platform: linux/arm64
     network_mode: host
     ipc: service:sidecar-test
-    init: true
     environment:
       UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_upstream
       UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_downstream
     command:
-      - --mode
-      - producer
+      - --role
+      - source
+      - --test
+      - benchmark
       - --payload-bytes
       - ${PAYLOAD_BYTES:-65536}
+      - --warmup-seconds
+      - "0"
       - --duration-seconds
       - ${DURATION_SECONDS:-10}
     depends_on:
@@ -64,6 +68,7 @@ services:
       context: ../../..
       dockerfile: workspace/web/Dockerfile
     image: ${TELEMETRY_IMAGE:-uestcradar-telemetry:forwarder-test}
+    platform: linux/arm64
     network_mode: host
     read_only: true
     cap_drop:

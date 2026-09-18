@@ -8,171 +8,274 @@ import (
 	pb "uestcradar/telemetry/internal/telemetrypb"
 )
 
-// NodeStatus is the lease state of a registered Sidecar node.
+const warningWatermarkPct = 70.0
+
 type NodeStatus string
 
 const (
-	NodeOnline  NodeStatus = "online"
+	NodeNormal  NodeStatus = "normal"
+	NodeWarning NodeStatus = "warning"
 	NodeOffline NodeStatus = "offline"
 )
 
-// Point is the JSON representation retained for one ring sample.
-type Point struct {
-	ObservedUnixNS uint64 `json:"observed_unix_ns"`
-	CapacityBytes  uint64 `json:"capacity_bytes"`
-	UsedBytes      uint64 `json:"used_bytes"`
-	WritePosition  uint64 `json:"write_position"`
-	ReadPosition   uint64 `json:"read_position"`
-	Sequence       uint64 `json:"sequence"`
-	Shutdown       bool   `json:"shutdown"`
+type LinkStatus string
+
+const (
+	LinkDisabled     LinkStatus = "disabled"
+	LinkDisconnected LinkStatus = "disconnected"
+	LinkConnected    LinkStatus = "connected"
+)
+
+type RingSnapshot struct {
+	CapacitySlots uint32  `json:"capacity_slots"`
+	UsedSlots     uint32  `json:"used_slots"`
+	WritePosition uint64  `json:"write_position"`
+	ReadPosition  uint64  `json:"read_position"`
+	WatermarkPct  float64 `json:"watermark_pct"`
+	Shutdown      bool    `json:"shutdown"`
 }
 
-// Series is the backwards-compatible flattened metric representation.
-type Series struct {
-	NodeID string  `json:"node_id"`
-	LinkID string  `json:"link_id"`
-	Points []Point `json:"points"`
-}
-
-// LinkSnapshot contains one link's bounded history inside a node.
 type LinkSnapshot struct {
-	LinkID string  `json:"link_id"`
-	Points []Point `json:"points"`
+	LinkID            string       `json:"link_id"`
+	PeerNodeID        string       `json:"peer_node_id"`
+	Direction         string       `json:"direction"`
+	Status            LinkStatus   `json:"status"`
+	Transport         string       `json:"transport"`
+	PayloadBytesTotal uint64       `json:"payload_bytes_total"`
+	GoodputGBPS       float64      `json:"goodput_gbps"`
+	Ring              RingSnapshot `json:"ring"`
+	Stale             bool         `json:"stale"`
 }
 
-// NodeSnapshot is the node-centric representation consumed by the dashboard.
 type NodeSnapshot struct {
-	NodeID   string         `json:"node_id"`
-	Status   NodeStatus     `json:"status"`
-	LastSeen time.Time      `json:"last_seen"`
-	Links    []LinkSnapshot `json:"links"`
+	NodeID       string         `json:"node_id"`
+	InstanceID   string         `json:"instance_id"`
+	Status       NodeStatus     `json:"status"`
+	LastSeen     time.Time      `json:"last_seen"`
+	GoodputGBPS  float64        `json:"goodput_gbps"`
+	WatermarkPct float64        `json:"watermark_pct"`
+	Links        []LinkSnapshot `json:"links"`
+}
+
+type ClusterSnapshot struct {
+	GeneratedAt time.Time      `json:"generated_at"`
+	Nodes       []NodeSnapshot `json:"nodes"`
+}
+
+type linkRecord struct {
+	snapshot        LinkSnapshot
+	previousBytes   uint64
+	previousAt      time.Time
+	hasRateBaseline bool
 }
 
 type nodeRecord struct {
-	lastSeen time.Time
-	status   NodeStatus
-	links    map[string]Series
+	instanceID       string
+	retiredInstances map[string]struct{}
+	sequence         uint64
+	lastSeen         time.Time
+	status           NodeStatus
+	links            map[string]*linkRecord
 }
 
-// Store retains a process-lifetime node registry and bounded link histories.
 type Store struct {
 	mu    sync.RWMutex
-	limit int
 	nodes map[string]*nodeRecord
 }
 
-// NewStore creates an empty registry.
-func NewStore(limit int) *Store {
-	if limit < 1 {
-		limit = 1
-	}
-	return &Store{
-		limit: limit,
-		nodes: make(map[string]*nodeRecord),
-	}
+func NewStore() *Store {
+	return &Store{nodes: make(map[string]*nodeRecord)}
 }
 
-// Update registers or refreshes a node and appends one link sample.
-func (s *Store) Update(metric *pb.RingBufferMetric, receivedAt time.Time) {
-	if metric == nil || metric.NodeId == "" || metric.LinkId == "" {
-		return
-	}
-
-	point := Point{
-		ObservedUnixNS: metric.ObservedUnixNs,
-		CapacityBytes:  metric.CapacityBytes,
-		UsedBytes:      metric.UsedBytes,
-		WritePosition:  metric.WritePosition,
-		ReadPosition:   metric.ReadPosition,
-		Sequence:       metric.Sequence,
-		Shutdown:       metric.Shutdown,
+func (s *Store) UpdateHeartbeat(
+	heartbeat *pb.NodeHeartbeat,
+	receivedAt time.Time,
+) bool {
+	if heartbeat == nil || heartbeat.NodeId == "" ||
+		heartbeat.InstanceId == "" || heartbeat.Sequence == 0 {
+		return false
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	node := s.nodes[metric.NodeId]
+	node := s.nodes[heartbeat.NodeId]
 	if node == nil {
 		node = &nodeRecord{
-			status: NodeOnline,
-			links:  make(map[string]Series),
+			instanceID:       heartbeat.InstanceId,
+			retiredInstances: make(map[string]struct{}),
+			links:            make(map[string]*linkRecord),
 		}
-		s.nodes[metric.NodeId] = node
+		s.nodes[heartbeat.NodeId] = node
+	} else if node.instanceID != heartbeat.InstanceId {
+		if _, retired := node.retiredInstances[heartbeat.InstanceId]; retired {
+			return false
+		}
+		node.retiredInstances[node.instanceID] = struct{}{}
+		node.instanceID = heartbeat.InstanceId
+		node.sequence = 0
+		node.links = make(map[string]*linkRecord)
 	}
-	node.lastSeen = receivedAt
-	node.status = NodeOnline
+	if heartbeat.Sequence <= node.sequence {
+		return false
+	}
 
-	series := node.links[metric.LinkId]
-	series.NodeID = metric.NodeId
-	series.LinkID = metric.LinkId
-	if len(series.Points) == s.limit {
-		copy(series.Points, series.Points[1:])
-		series.Points[len(series.Points)-1] = point
-	} else {
-		series.Points = append(series.Points, point)
+	node.sequence = heartbeat.Sequence
+	node.lastSeen = receivedAt
+	seenLinks := make(map[string]struct{}, len(heartbeat.Links))
+	maximumWatermark := 0.0
+	for _, metric := range heartbeat.Links {
+		if metric == nil || metric.LinkId == "" || metric.Ring == nil {
+			continue
+		}
+		seenLinks[metric.LinkId] = struct{}{}
+		record := node.links[metric.LinkId]
+		if record == nil {
+			record = &linkRecord{}
+			node.links[metric.LinkId] = record
+		}
+
+		watermark := watermarkPct(
+			metric.Ring.UsedSlots,
+			metric.Ring.CapacitySlots,
+		)
+		goodput := 0.0
+		if record.hasRateBaseline &&
+			metric.PayloadBytesTotal >= record.previousBytes {
+			seconds := receivedAt.Sub(record.previousAt).Seconds()
+			if seconds > 0 {
+				goodput = float64(
+					metric.PayloadBytesTotal-record.previousBytes,
+				) / seconds / 1_000_000_000
+			}
+		}
+		record.previousBytes = metric.PayloadBytesTotal
+		record.previousAt = receivedAt
+		record.hasRateBaseline = true
+		record.snapshot = LinkSnapshot{
+			LinkID:            metric.LinkId,
+			PeerNodeID:        metric.PeerNodeId,
+			Direction:         directionName(metric.Direction),
+			Status:            linkStatus(metric.ConnectionState),
+			Transport:         transportName(metric.Transport),
+			PayloadBytesTotal: metric.PayloadBytesTotal,
+			GoodputGBPS:       goodput,
+			Ring: RingSnapshot{
+				CapacitySlots: metric.Ring.CapacitySlots,
+				UsedSlots:     metric.Ring.UsedSlots,
+				WritePosition: metric.Ring.WritePosition,
+				ReadPosition:  metric.Ring.ReadPosition,
+				WatermarkPct:  watermark,
+				Shutdown:      metric.Ring.Shutdown,
+			},
+		}
+		if watermark > maximumWatermark {
+			maximumWatermark = watermark
+		}
 	}
-	node.links[metric.LinkId] = series
+	for linkID := range node.links {
+		if _, ok := seenLinks[linkID]; !ok {
+			delete(node.links, linkID)
+		}
+	}
+	if maximumWatermark > warningWatermarkPct {
+		node.status = NodeWarning
+	} else {
+		node.status = NodeNormal
+	}
+	return true
 }
 
-// MarkOffline expires node leases without deleting their last known metrics.
-func (s *Store) MarkOffline(now time.Time, ttl time.Duration) {
+func (s *Store) MarkOffline(now time.Time, ttl time.Duration) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	changed := false
 	for _, node := range s.nodes {
-		if now.Sub(node.lastSeen) > ttl {
+		if now.Sub(node.lastSeen) > ttl && node.status != NodeOffline {
 			node.status = NodeOffline
+			changed = true
 		}
 	}
+	return changed
 }
 
-// NodesSnapshot returns an isolated, deterministically ordered registry view.
-func (s *Store) NodesSnapshot() []NodeSnapshot {
+func (s *Store) Snapshot(now time.Time) ClusterSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	result := make([]NodeSnapshot, 0, len(s.nodes))
+	result := ClusterSnapshot{
+		GeneratedAt: now,
+		Nodes:       make([]NodeSnapshot, 0, len(s.nodes)),
+	}
 	for nodeID, node := range s.nodes {
 		links := make([]LinkSnapshot, 0, len(node.links))
-		for _, series := range node.links {
-			links = append(links, LinkSnapshot{
-				LinkID: series.LinkID,
-				Points: append([]Point(nil), series.Points...),
-			})
+		goodput := 0.0
+		maximumWatermark := 0.0
+		for _, record := range node.links {
+			link := record.snapshot
+			link.Stale = node.status == NodeOffline
+			links = append(links, link)
+			goodput += link.GoodputGBPS
+			if link.Ring.WatermarkPct > maximumWatermark {
+				maximumWatermark = link.Ring.WatermarkPct
+			}
 		}
 		sort.Slice(links, func(i, j int) bool {
 			return links[i].LinkID < links[j].LinkID
 		})
-		result = append(result, NodeSnapshot{
-			NodeID:   nodeID,
-			Status:   node.status,
-			LastSeen: node.lastSeen,
-			Links:    links,
+		result.Nodes = append(result.Nodes, NodeSnapshot{
+			NodeID:       nodeID,
+			InstanceID:   node.instanceID,
+			Status:       node.status,
+			LastSeen:     node.lastSeen,
+			GoodputGBPS:  goodput,
+			WatermarkPct: maximumWatermark,
+			Links:        links,
 		})
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].NodeID < result[j].NodeID
+	sort.Slice(result.Nodes, func(i, j int) bool {
+		return result.Nodes[i].NodeID < result.Nodes[j].NodeID
 	})
 	return result
 }
 
-// MetricsSnapshot preserves the original flattened /api/metrics contract.
-func (s *Store) MetricsSnapshot() []Series {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]Series, 0)
-	for _, node := range s.nodes {
-		for _, series := range node.links {
-			series.Points = append([]Point(nil), series.Points...)
-			result = append(result, series)
-		}
+func watermarkPct(used uint32, capacity uint32) float64 {
+	if capacity == 0 {
+		return 0
 	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].NodeID == result[j].NodeID {
-			return result[i].LinkID < result[j].LinkID
-		}
-		return result[i].NodeID < result[j].NodeID
-	})
-	return result
+	return float64(used) * 100 / float64(capacity)
+}
+
+func directionName(direction pb.LinkDirection) string {
+	switch direction {
+	case pb.LinkDirection_LINK_DIRECTION_INGRESS:
+		return "ingress"
+	case pb.LinkDirection_LINK_DIRECTION_EGRESS:
+		return "egress"
+	default:
+		return "unknown"
+	}
+}
+
+func linkStatus(state pb.LinkConnectionState) LinkStatus {
+	switch state {
+	case pb.LinkConnectionState_LINK_CONNECTION_STATE_DISABLED:
+		return LinkDisabled
+	case pb.LinkConnectionState_LINK_CONNECTION_STATE_CONNECTED:
+		return LinkConnected
+	default:
+		return LinkDisconnected
+	}
+}
+
+func transportName(transport pb.TransportKind) string {
+	switch transport {
+	case pb.TransportKind_TRANSPORT_KIND_TCP:
+		return "tcp"
+	case pb.TransportKind_TRANSPORT_KIND_RDMA:
+		return "rdma"
+	default:
+		return "unknown"
+	}
 }
