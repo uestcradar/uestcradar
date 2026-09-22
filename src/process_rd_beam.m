@@ -97,6 +97,26 @@ for channel_idx = 1:numel(channel_ids)
     mf.(output_names{channel_idx})(1, 1, total_frames) = complex(single(0), single(0));
 
     for k = 1:total_frames
+        % ---- 本扫描本波位的脉冲偏移（按扫描模式）----
+        if isfield(rd_ctx, 'scan_mode') && strcmp(rd_ctx.scan_mode, 'triangle')
+            d = rd_ctx.scan_direction(k);
+            if d > 0   % 升序(0->38)：波位2..39 有驻留；波位1 复用前一扫描末尾 idx-0 驻留
+                if beam_id < 2
+                    beam_offset = -pulses_per_dwell;   % 读前一降序扫描末尾的 idx-0 驻留
+                else
+                    beam_offset = (beam_id - 2) * pulses_per_dwell;
+                end
+            else       % 降序(38->0)：波位1..38 有驻留；波位39 复用前一扫描末尾 idx-38 驻留
+                if beam_id > rd_ctx.num_beams - 1
+                    beam_offset = -pulses_per_dwell;   % 读前一升序扫描末尾的 idx-38 驻留
+                else
+                    beam_offset = (rd_ctx.num_beams - 1 - beam_id) * pulses_per_dwell;
+                end
+            end
+        else
+            beam_offset = rd_ctx.beam_start_offset;
+        end
+
         skip_pri = 0;
         if isfield(rd_ctx, 'skip_pri'), skip_pri = rd_ctx.skip_pri; end
         if isfield(rd_ctx, 'initial_scan_pri') && rd_ctx.initial_scan_pri ~= 0
@@ -104,7 +124,7 @@ for channel_idx = 1:numel(channel_ids)
         else
             pri_base = (k - 1) * pulses_per_scan;
         end
-        start_pri = skip_pri + pri_base + rd_ctx.beam_start_offset + 1;
+        start_pri = skip_pri + pri_base + beam_offset + 1;
         end_pri   = start_pri + pulses_per_dwell - 1;
         N_cur = pulses_per_dwell;
 
@@ -112,30 +132,28 @@ for channel_idx = 1:numel(channel_ids)
         samp_e = end_pri * pri_len;
 
         total_samples_in_mat = double(parse_bundle.rx_param.total_samples);
-        if samp_s < 1 || samp_e > total_samples_in_mat
+        if samp_s < 1
+            % 仅发生在首扫描的端点复用（无前一扫描可复用）：写零块保持块索引与扫描号对齐
+            n_blocks_written = n_blocks_written + 1;
+            mf.(output_names{channel_idx})(1:rd_ctx.max_calc_samples, 1:rd_ctx.n_cpi, n_blocks_written) = complex(single(0), single(0));
+            continue;
+        end
+        if samp_e > total_samples_in_mat
             status_cb(sprintf('[RD Beam %d] 扫描 %d 数据不完整（samp %d:%d / %d），跳过', ...
                 beam_id, k, samp_s, samp_e, total_samples_in_mat));
             continue;
         end
 
-        % 波位归属验证
-        if isfield(parse_bundle, 'beam_meta') && ~isempty(parse_bundle.beam_meta)
+        % 波位归属验证：用显式 current_beam_idx（替代 az/el 角度容差，更精确）
+        if isfield(rd_ctx, 'beam_idx') && ~isempty(rd_ctx.beam_idx) ...
+           && isfield(parse_bundle, 'beam_meta') && ~isempty(parse_bundle.beam_meta)
             bm = parse_bundle.beam_meta;
-            check_pri = [start_pri, start_pri + floor(pulses_per_dwell/2), end_pri];
-            for pi = 1:numel(check_pri)
-                pi_idx = check_pri(pi);
-                if pi_idx > numel(bm.meta_valid) || ~bm.meta_valid(pi_idx)
-                    continue;
-                end
-                az_ok = abs(double(bm.az_deg(pi_idx)) - beam_az) < 0.5;
-                el_ok = abs(double(bm.el_deg(pi_idx)) - beam_el) < 0.5;
-                if ~az_ok || ~el_ok
-                    error('process_rd_beam:BeamMixing', ...
-                        '[RD Beam %d] 扫描 %d PRI=%d: 元数据角度=(%.2f, %.2f), 期望=(%.2f, %.2f)', ...
-                        beam_id, k, pi_idx, ...
-                        double(bm.az_deg(pi_idx)), double(bm.el_deg(pi_idx)), ...
-                        beam_az, beam_el);
-                end
+            if start_pri <= numel(bm.current_beam_idx) ...
+               && double(bm.current_beam_idx(start_pri)) ~= rd_ctx.beam_idx
+                error('process_rd_beam:BeamMixing', ...
+                    '[RD Beam %d] 扫描 %d PRI=%d: current_beam_idx=%d, 期望=%d', ...
+                    beam_id, k, start_pri, ...
+                    double(bm.current_beam_idx(start_pri)), rd_ctx.beam_idx);
             end
         end
 

@@ -18,7 +18,7 @@ cfg.paths.tx_file_name = 'lfm_tx.bin'; % 发射参考波形文件名称；位于
 cfg.paths.tx_meta_name = 'metadata.json'; % 发射参考元数据文件名称；位于 TX 的具体配置子目录中。
 cfg.paths.rx_root_dir = 'RX'; % 接收数据根目录名称；其下通常按采集批次继续分子目录。
 cfg.paths.rx_meta_name = 'metadata.json'; % 接收批次元数据文件名称。
-cfg.paths.rx_pattern = '*_data_seg*.mat'; % RX 前端预处理 mat 文件匹配规则。
+cfg.paths.rx_pattern = '*.mat'; % RX 前端预处理 mat 文件匹配规则。
 cfg.paths.frontend_mat_file = ''; % 前端 .mat 文件路径；空=弹窗选择。
 cfg.paths.result_dir_name = 'Results'; % 结果输出目录名称；最终会在每个数据集目录下生成该子目录。
 
@@ -27,8 +27,13 @@ cfg.beam.output_rd_per_beam = true;     % 是否保留逐波位 RD_Proc_beam*.ma
 cfg.beam.test_single_beam = 0;          % 单波位测试模式：0=全部波位；N=仅处理波位 N
 cfg.beam.max_azimuth = inf;              % 方位角上限 (°)；az>此值跳过；inf=不限制
 cfg.beam.min_azimuth = -inf;             % 方位角下限 (°)；az<此值跳过；-inf=不限制
-cfg.beam.max_elevation = inf;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
-cfg.beam.min_elevation = -inf;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制
+cfg.beam.max_elevation = 10;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
+cfg.beam.min_elevation = 5;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制
+
+%% 1c. 参数区：扫描模式开关
+% 'triangle' : 三角往返(蛇形)——一轮扫描=一个方向，波位顺序逐轮交替（当前数据）
+% 'sawtooth' : 锯齿波(单向)——一轮扫描=固定39波位顺序，扫描间跳回（后续实验）
+cfg.scan_mode = 'triangle';
 
 %% 2. 参数区：运行开关
 cfg.run.do_process = true; % 是否重新执行 RD 处理；false 表示直接复用已有 RD_Proc_*.mat。
@@ -56,13 +61,13 @@ cfg.radar.fc = 9.5e9; % 雷达载频，单位 Hz；用于波长和速度轴计�
 %% 5. 参数区：RD 处理参数
 cfg.rd.n_cpi = 256; % CPI 脉冲数；多波位模式下由波位文件逐波位覆写。
 cfg.rd.n_overlap = 0; % 块间重叠脉冲数；多波位模式下固定为 0（无重叠）。
-cfg.rd.max_range_m = 700; % 最大处理距离，单位米；只保留该距离以内的距离单元参与后续处理。
+cfg.rd.max_range_m =800; % 最大处理距离，单位米；只保留该距离以内的距离单元参与后续处理。800 给 CFAR 距离维 20 格边界盲区留余量，使 ~700m 内目标可测。
 cfg.rd.frames_per_chunk = 4096; % 预处理分块大小，用于 freq_offsets 数组长度估算
 cfg.rd.do_mti_twopulse = true; % 是否执行两脉冲相消；用于进一步增强运动目标、压制静态背景。
 cfg.rd.zero_doppler_cells = -1;   % 零多普勒清除半宽度；RD 后 DC ± N 格置零；0=仅清DC本身；负值=不清除
 
 %% 6. 参数区：目标检测参数
-cfg.detect.range_window_m = [200, 700]; % 检测阶段使用的距离显示/分析范围，单位米。
+cfg.detect.range_window_m = [200, 800]; % 检测阶段使用的距离显示/分析范围，单位米。
 cfg.detect.velocity_window_mps = [-50, 50]; % 检测阶段使用的速度显示/分析范围，单位米每秒。
 cfg.detect.cfar_guard_r = 4; % CFAR 在距离维的保护单元数；避免参考窗污染目标主瓣。
 cfg.detect.cfar_guard_d = 8; % CFAR 在速度维的保护单元数；避免参考窗污染目标主瓣。
@@ -83,7 +88,7 @@ cfg.fusion.dbscan_eps_grid = 2;      % 融合 Grid-DBSCAN 邻域半径（网格�
 cfg.fusion.dbscan_minpts_grid = 2;   % 融合 Grid-DBSCAN 最少点数；1=不过滤，2=最少两个点才成簇
 
 %% 8. 参数区：测角参数
-cfg.angle.range_window_m = [200, 700]; % 测角阶段保留目标的距离范围，单位米。
+cfg.angle.range_window_m = [200, 800]; % 测角阶段保留目标的距离范围，单位米。
 cfg.angle.velocity_window_mps = [-50, 50]; % 测角阶段保留目标的速度范围，单位米每秒。
 cfg.angle.min_display_power_dB = 120; % 测角时参与输出的最小显示功率阈值，单位 dB。
 
@@ -116,13 +121,13 @@ cfg.track.q = 0.03;                    % 过程噪声强度因子
 cfg.track.v_tan_std_init = 10.0;      % 初始切向速度不确定性 (m/s)
 cfg.track.M = 7;                      % M/N 逻辑：最少命中次数（7/9 确认，滤除间歇性杂波）
 cfg.track.N = 9;                      % M/N 逻辑：判定窗口帧数
-cfg.track.max_predictions = 3;        % 连续丢失终止阈值：航迹连续未关联帧数超过该值即终止
+cfg.track.max_predictions = 4;        % 连续丢失终止阈值：航迹连续未关联帧数超过该值即终止
 cfg.track.gate_confidence = 0.95;    % Chi-squared 关联门限置信度
 cfg.track.newborn_gate_confidence = 0.95; % 新生航迹关联门限置信度（前3帧放宽用；=成熟航迹门限即不放宽）
-cfg.track.max_history_length = 20;   % 航迹历史最大存储点数
+cfg.track.max_history_length = 200;   % 航迹历史最大存储点数
 
 %% 11. 参数区：绘图参数
-cfg.plot.range_window_m = [200, 700]; % 绘图显示的距离范围，单位米。
+cfg.plot.range_window_m = [200, 800]; % 绘图显示的距离范围，单位米。
 cfg.plot.velocity_window_mps = [-50, 50]; % 绘图显示的速度范围，单位米每秒。
 cfg.plot.clim_dB = [110, 155]; % RD 幅度图颜色条范围，单位 dB；用于统一不同帧的显示亮度。
 cfg.plot.frame_step = 1; % GIF 抽帧步长；1=全帧，20=每20帧取1帧
@@ -202,13 +207,17 @@ for di = 1:numel(cfg.paths.data_folders)
     fprintf('  [步骤2] 加载前端预处理数据\n');
     parse_bundle = load_frontend_mat(mat_file, tx_dir, lg);
 
+    % ---- 载频取自数据 /param/fc（决策4），覆盖配置区硬编码的 9.5e9 ----
+    cfg.radar.fc = parse_bundle.rx_param.fc;
+    cfg.angle.pattern_fc_hz = parse_bundle.rx_param.fc;
+
     % ---- 波位排布加载（从帧内嵌波位元数据提取）----
     if ~isfield(parse_bundle, 'beam_meta') || isempty(parse_bundle.beam_meta)
         error('run_batch_pipeline:MissingBeamMeta', ...
             'parse_bundle 缺少 beam_meta。请使用新解析器重新解析数据 (cfg.run.do_parse=true)。');
     end
-    beam_schedule = build_beam_schedule_from_meta(parse_bundle.beam_meta, ...
-        parse_bundle.rx_param.pri_per_frame);
+    beam_schedule = build_beam_schedule_from_meta(parse_bundle, ...
+        parse_bundle.rx_param.pri_per_frame, cfg.scan_mode);
 
     % 报告剔除的异常扫描
     if ~isempty(beam_schedule.invalid_scans)
@@ -263,7 +272,7 @@ for di = 1:numel(cfg.paths.data_folders)
     angle_stat_total = struct('n_clu', 0, 'n_el_oob', 0, 'n_az_oob', 0, ...
         'n_el_nan', 0, 'n_az_nan', 0, 'n_pwr_reject', 0, 'n_kept', 0, ...
         'max_abs_el_oob', 0, 'max_abs_az_oob', 0);
-    scan_period = beam_schedule.total_pulses / parse_bundle.rx_param.prf;
+    scan_period = mean(diff(beam_schedule.scan_times));   % 含扫描边界死区的真实扫描周期
     num_cpi_files = numel(parse_bundle.rx_param.cpi_files);
 
     % 基础分辨率（用于融合网格量化，所有波位共用）
@@ -297,6 +306,10 @@ for di = 1:numel(cfg.paths.data_folders)
         beam_rd_ctx.num_chunks = beam_rd_ctx.total_blocks;
         beam_rd_ctx.beam_start_offset = sum(beam_schedule.pulses_per_dwell(1:beam_id-1));
         beam_rd_ctx.initial_scan_pri = beam_schedule.initial_scan_pri;
+        beam_rd_ctx.beam_idx = beam_schedule.beam_idx(beam_id);   % 该波位的 current_beam_idx（供 RD 校验）
+        beam_rd_ctx.scan_mode = beam_schedule.scan_mode;          % 扫描模式（RD 层据此决定偏移方式）
+        beam_rd_ctx.scan_direction = beam_schedule.scan_direction;% 每轮扫描方向（triangle 用）
+        beam_rd_ctx.num_beams = beam_schedule.num_beams;          % 波位总数（triangle 偏移翻转用）
 
         if mod(beam_id, 20) == 1 || beam_id == beam_schedule.num_beams
             lg(sprintf('[波位 %3d/%d] az=%+.1f°, el=%+.1f°, 帧数=%d', ...
@@ -418,9 +431,8 @@ for di = 1:numel(cfg.paths.data_folders)
                         plot_az = beam_az + az_off(:);
                         plot_el = beam_el + el_off(:);
 
-                        % 测量时刻：扫描起点 + 波位驻留中心偏移
-                        dwell_center_offset = sum(beam_schedule.pulses_per_dwell(1:beam_id-1)) + pulses_per_dwell / 2;
-                        time_val = ((k - 1) * beam_schedule.total_pulses + dwell_center_offset) / parse_bundle.rx_param.prf;
+                        % 测量时刻：该扫描的代表时间（决策3：中间波位中间时间戳）
+                        time_val = beam_schedule.scan_times(k);
                         all_raw_plots = [all_raw_plots; ...
                             r_m(:), plot_az, plot_el, ...
                             v_m(:), repmat(time_val, n_pts, 1), ...

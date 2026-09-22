@@ -2,8 +2,7 @@ function align_result = align_direct_wave_range(raw_spec, tx, pri_len, preproces
 %ALIGN_DIRECT_WAVE_RANGE 直达波定位与距离零点校准。
 %
 % 输入：
-%   raw_spec       - 原始输入路径集合；新格式需含 parsed_ch1_file/parsed_ch1_var；
-%                    旧格式需含 rx_files, rx_meta_file；兼容 data_dir
+%   raw_spec       - 原始输入路径集合；需含 parsed_ch1_file/parsed_ch1_var/initial_scan_pri
 %   tx             - TX 参考波形结构体
 %   pri_len        - 单个 PRI 的采样点数
 %   preprocess_cfg - 预处理配置，使用 do_dw_calibrate 和 dw_bin_manual
@@ -12,19 +11,13 @@ function align_result = align_direct_wave_range(raw_spec, tx, pri_len, preproces
 %   align_result   - 直达波对齐结果结构体，包含 dw_bin、range_zero_bin 和 mode
 % 作用：
 %   根据入口配置决定使用手动直达波 bin 还是自动标定结果。
-%   新帧格式优先从已解析 flat .mat 读取干净数据；旧格式回退到原始 bin。
+%   从已解析 flat .mat 读取干净数据，跨波位相干平均自动定位直达波。
 
 if nargin < 5 || isempty(status_cb)
     status_cb = @(msg) fprintf('%s\n', msg);
 end
 
 align_result = struct();
-data_dir = '';
-if isstruct(raw_spec) && isfield(raw_spec, 'data_dir')
-    data_dir = raw_spec.data_dir;
-elseif ischar(raw_spec) || isStringScalar(raw_spec)
-    data_dir = char(raw_spec);
-end
 if ~preprocess_cfg.do_dw_calibrate
     align_result.range_zero_bin = preprocess_cfg.dw_bin_manual - 1;
     align_result.dw_bin = preprocess_cfg.dw_bin_manual;
@@ -33,15 +26,11 @@ if ~preprocess_cfg.do_dw_calibrate
     return;
 end
 
-tx_abs = abs(tx.data);
-active_mask = tx_abs > 0.01 * max(tx_abs);
-tx_active = tx.data(active_mask);
-tx_active = tx_active(:);
-ref_len = numel(tx_active);
-tx_ref_norm = tx_active / sqrt(sum(abs(tx_active).^2));
-matched_filter = conj(flipud(tx_ref_norm));
+% 频域匹配滤波参考（与 preprocess.m 的 rd_ctx.conj_ref_freq 一致）
+ref_freq = fft(single(tx.data), pri_len);
+conj_ref_freq = conj(ref_freq) .* single(hamming(pri_len));
 
-% ---- 选择标定数据源：已解析 .mat > 原始 bin > 旧目录结构 ----
+% ---- 选择标定数据源：已解析 flat .mat ----
 if isfield(raw_spec, 'parsed_ch1_file') && ~isempty(raw_spec.parsed_ch1_file) ...
         && isfield(raw_spec, 'parsed_ch1_var') && ~isempty(raw_spec.parsed_ch1_var)
     % 新帧格式：从 flat 通道 mat 文件读取（变量在顶层，无嵌套）
@@ -52,28 +41,10 @@ if isfield(raw_spec, 'parsed_ch1_file') && ~isempty(raw_spec.parsed_ch1_file) ..
     end
     range_zero_bin = local_calibrate_range_zero_from_parsed( ...
         raw_spec.parsed_ch1_file, raw_spec.parsed_ch1_var, pri_len, ...
-        256, matched_filter, ref_len, cal_offset_pri);
-
-elseif isfield(raw_spec, 'rx_files') && ~isempty(raw_spec.rx_files)
-    % 旧格式兼容：直接读原始 bin 文件（CS16 交错）
-    first_cpi = raw_spec.rx_files{1};
-    rx_meta = [];
-    if isfield(raw_spec, 'rx_meta_file') && ~isempty(raw_spec.rx_meta_file) ...
-            && exist(raw_spec.rx_meta_file, 'file')
-        rx_meta = jsondecode(fileread(raw_spec.rx_meta_file));
-    end
-    if isempty(rx_meta)
-        num_rx_channels = 3;
-    else
-        num_rx_channels = numel(double(rx_meta.channels));
-    end
-    status_cb('[直达波] 使用原始 bin 文件进行标定');
-    range_zero_bin = local_calibrate_range_zero(first_cpi, pri_len, 256, ...
-        num_rx_channels, 1, matched_filter, ref_len);
-
+        256, conj_ref_freq, cal_offset_pri);
 else
     error('align_direct_wave_range:NoCalibrationSource', ...
-        '未找到可用于直达波标定的数据源（需 parsed_ch1_file 或 rx_files）。');
+        '未找到可用于直达波标定的数据源（需 parsed_ch1_file）。');
 end
 
 align_result.range_zero_bin = range_zero_bin;
@@ -84,109 +55,59 @@ status_cb(sprintf('[直达波] 自动标定完成：rangeZeroBin=%d，dw_bin=%d'
 end
 
 % =========================================================================
-%  旧格式标定：从原始 CS16 bin 文件读取
-% =========================================================================
-
-function range_zero_bin = local_calibrate_range_zero(file_path, pri_len, coherent_pri, ...
-    num_rx_channels, selected_channel_pos, matched_filter, ref_len)
-%LOCAL_CALIBRATE_RANGE_ZERO 从旧 CS16 bin 文件估计距离零点。
-
-cal_pri_num = min(64, coherent_pri);
-rx_cal_mat_raw = local_read_cpri(file_path, pri_len, 1, 2 * cal_pri_num, num_rx_channels, selected_channel_pos);
-
-mean_raw = mean(abs(rx_cal_mat_raw), 1);
-energy_sum = conv(mean_raw, ones(1, 128), 'valid');
-[~, min_offset] = min(energy_sum(1:min(pri_len, numel(energy_sum))));
-
-rx_win = zeros(cal_pri_num, pri_len);
-for pri_idx = 1:cal_pri_num
-    dp = [rx_cal_mat_raw(2 * pri_idx - 1, :), rx_cal_mat_raw(2 * pri_idx, :)];
-    rx_win(pri_idx, :) = dp(min_offset:min_offset + pri_len - 1);
-end
-
-rx_win = rx_win - mean(rx_win, 2);
-pc_cal = conv2(rx_win, matched_filter.', 'full');
-profile = mean(abs(pc_cal), 1);
-
-thr = 5 * median(profile);
-peak_idx = [];
-for i = 2:numel(profile) - 1
-    if profile(i) > thr && profile(i) >= profile(i - 1) && profile(i) >= profile(i + 1)
-        peak_idx = i;
-        break;
-    end
-end
-if isempty(peak_idx)
-    [~, peak_idx] = max(profile);
-end
-
-range_zero_bin = mod(min_offset + peak_idx - ref_len - 1, pri_len);
-end
-
-function rx_mat = local_read_cpri(file_path, pri_len, start_pri, num_pri, num_rx_channels, channel_pos)
-%LOCAL_READ_CPRI 从旧 CS16 bin 文件读取连续 PRI 块。
-
-bytes_per_pri = pri_len * num_rx_channels * 4;
-fid = fopen(file_path, 'rb');
-if fid == -1
-    error('align_direct_wave_range:OpenFailed', '无法打开文件：%s', file_path);
-end
-fseek(fid, (start_pri - 1) * bytes_per_pri, 'bof');
-raw = fread(fid, num_pri * pri_len * num_rx_channels * 2, 'int16=>single', 0, 'ieee-le');
-fclose(fid);
-
-raw_mat = reshape(raw, 2 * num_rx_channels, []);
-i_row = (channel_pos - 1) * 2 + 1;
-rx = complex(raw_mat(i_row, :), raw_mat(i_row + 1, :));
-rx_mat = reshape(rx, pri_len, num_pri).';
-end
-
-% =========================================================================
 %  新格式标定：从 flat .mat 读取（变量在顶层，无嵌套）
 % =========================================================================
 
 function range_zero_bin = local_calibrate_range_zero_from_parsed(mat_file, var_name, pri_len, ...
-    coherent_pri, matched_filter, ref_len, cal_offset_pri)
+    coherent_pri, conj_ref_freq, cal_offset_pri)
 %LOCAL_CALIBRATE_RANGE_ZERO_FROM_PARSED 从 flat 通道 mat 文件估计距离零点。
 % 拆分后变量（ch0/ch1/ch2）在 .mat 顶层，直接用 matfile 访问。
+%
+% 直达波是数字域漏泄（TX 数字 -> RX 数字内部通路），位置由硬件流水延迟决定，
+% 每次上电不同（约 202~226 样本）。它在每个波位/每个 PRI 里完全相同（内部通路，
+% 与波位指向无关），而目标回波随波位指向变化。因此关键不是“找最强峰”（最强峰
+% 可能是某个波位指向上的回波），而是“跨波位相干平均”：直达波相位稳定、相干累加
+% 顶出；回波相位随波位漂移、平均相消。再在盲区窗口 [dw_search_lo, dw_search_hi]
+% 内取峰，位置即 range_zero_bin。
 
-cal_pri_num = min(64, coherent_pri);
-total_rows = 2 * cal_pri_num;
+dw_search_lo = 100;   % 盲区窗口下界（0 基 bin，硬件流水延迟 ~200 样本 ± 裕量）
+dw_search_hi = 250;   % 盲区窗口上界（0 基 bin）
 
-total_samples = total_rows * pri_len;
-samp0 = double(cal_offset_pri) * pri_len + 1;
+n_dwell = 40;                       % 采样驻留数（跨整段采集，覆盖多个波位）
+dwell_pri = coherent_pri;           % 每个驻留的 PRI 数（= CPI 脉冲数）
+
+% 通道数据总 PRI 数（从变量尺寸反推，用于把驻留均匀撒到整段采集）
+w = whos('-file', mat_file);
+w = w(strcmp({w.name}, var_name));
+if isempty(w)
+    error('align_direct_wave_range:MissingVar', 'mat 文件 %s 中未找到变量 %s', mat_file, var_name);
+end
+total_pri = floor(double(w.size(1)) / pri_len);
 
 mf = matfile(mat_file);
-rx_data = mf.(var_name)(samp0 : samp0 + total_samples - 1, 1);
-rx_cal_mat_raw = reshape(double(rx_data), pri_len, total_rows).';
 
-% 能量估计
-mean_raw = mean(abs(rx_cal_mat_raw), 1);
-energy_sum = conv(mean_raw, ones(1, 128), 'valid');
-[~, min_offset] = min(energy_sum(1:min(pri_len, numel(energy_sum))));
+% 均匀采样 n_dwell 个驻留，跨多个波位；逐驻留频域匹配滤波 + 驻留内相干平均，
+% 再跨驻留相干累加（复数），最后取模。直达波被顶出，波位相关回波被压制。
+% 从 initial_scan_pri（首个完整扫描起点）往后撒驻留，避开采集启动瞬态。
+start_base = max(1, double(cal_offset_pri));
+span = total_pri - dwell_pri - 1 - start_base;
+if span < 0, span = 0; end
+prof_coh = zeros(pri_len, 1);
+for di = 1:n_dwell
+    start_pri = round(start_base + (di - 1) * span / max(n_dwell - 1, 1));
+    samp0 = (start_pri - 1) * pri_len + 1;
+    rx = reshape(double(mf.(var_name)(samp0 : samp0 + dwell_pri * pri_len - 1, 1)), ...
+        pri_len, dwell_pri);
 
-% 匹配滤波
-rx_win = zeros(cal_pri_num, pri_len);
-for pri_idx = 1:cal_pri_num
-    dp = [rx_cal_mat_raw(2*pri_idx-1, :), rx_cal_mat_raw(2*pri_idx, :)];
-    rx_win(pri_idx, :) = dp(min_offset:min_offset + pri_len - 1);
+    rx = rx - mean(rx, 1);   % 快时间去均值（与 preprocess 的 DC 去除一致）
+    % 频域匹配滤波（与 preprocess.m 的 rd_ctx.conj_ref_freq 一致）
+    pc = ifft(bsxfun(@times, fft(rx, pri_len, 1), conj_ref_freq), pri_len, 1);
+    prof_coh = prof_coh + mean(pc, 2);   % 驻留内相干平均，跨驻留相干累加（复数）
 end
+profile = abs(prof_coh).';
 
-rx_win = rx_win - mean(rx_win, 2);
-pc_cal = conv2(rx_win, matched_filter.', 'full');
-profile = mean(abs(pc_cal), 1);
-
-thr = 5 * median(profile);
-peak_idx = [];
-for i = 2:numel(profile) - 1
-    if profile(i) > thr && profile(i) >= profile(i - 1) && profile(i) >= profile(i + 1)
-        peak_idx = i;
-        break;
-    end
-end
-if isempty(peak_idx)
-    [~, peak_idx] = max(profile);
-end
-
-range_zero_bin = mod(min_offset + peak_idx - ref_len - 1, pri_len);
+% 在盲区窗口内找直达波峰（1 基索引：bin 190~240 => 列 191~241）
+seg = profile(dw_search_lo + 1 : dw_search_hi + 1);
+[~, local_idx] = max(seg);
+range_zero_bin = dw_search_lo + local_idx - 1;   % 0 基 bin
 end

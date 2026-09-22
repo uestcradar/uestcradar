@@ -193,7 +193,7 @@ function plot_point_trace_2d(fused_plots, beam_schedule, result_dir)
 %   result_dir    : 输出目录
 % 作用：
 %   X=x(m), Y=y(m) 笛卡尔地面投影（原点=雷达）。球坐标转笛卡尔：
-%   x=r·cos(el)·cos(az), y=-r·cos(el)·sin(az)（正 az=左侧）。
+%   x=r·cos(el)·cos(az), y=-r·cos(el)·sin(az)（正 az=右侧）。
 %   每个唯一波位方位角画一条从原点出发的虚线射线，隔开各波位。
 
 if isempty(fused_plots)
@@ -205,7 +205,7 @@ r  = fused_plots(:, 1);
 az = fused_plots(:, 2);
 el = fused_plots(:, 3);
 x = r .* cosd(el) .* cosd(az);
-y = -r .* cosd(el) .* sind(az);   % 正方位角=左侧 → Y负半轴（Y+=右侧）
+y = -r .* cosd(el) .* sind(az);   % 正方位角=右侧 → Y负半轴（Y+=左侧）
 
 fig = figure('Visible', 'off', 'Position', [100, 100, 900, 900]);
 
@@ -214,11 +214,11 @@ plot(0, 0, 'ks', 'MarkerSize', 10, 'MarkerFaceColor', 'k');
 hold on;
 
 % 波位方位虚线射线（去重：多个波位可能同方位不同俯仰）
-% 波位方位角为前端约定（正=左侧），显示帧 Y+=右侧，故射线取负对齐。
+% 波位方位角为前端约定（正=右侧），显示帧 Y+=左侧，故射线取负对齐。
 uniq_az = unique(beam_schedule.beam_positions(:, 1));
 for b = 1:numel(uniq_az)
     th = -uniq_az(b);
-    plot([0, 600 * cosd(th)], [0, 600 * sind(th)], ...
+    plot([0, 700 * cosd(th)], [0, 700 * sind(th)], ...
         '--', 'Color', [0.60 0.60 0.60], 'LineWidth', 0.8);
 end
 
@@ -227,7 +227,7 @@ scatter(x, y, 24, 'b', 'filled');
 
 hold off;
 axis equal;
-xlim([0, 600]);
+xlim([0, 700]);
 ylim([-300, 300]);
 xlabel('X (m)');
 ylabel('Y (m)');
@@ -276,11 +276,11 @@ plot(0, 0, 'ks', 'MarkerSize', 10, 'MarkerFaceColor', 'k');
 hold on;
 
 % 波位方位虚线射线（去重：多个波位可能同方位不同俯仰）
-% 波位方位角为前端约定（正=左侧），显示帧 Y+=右侧，故射线取负对齐。
+% 波位方位角为前端约定（正=右侧），显示帧 Y+=左侧，故射线取负对齐。
 uniq_az = unique(beam_schedule.beam_positions(:, 1));
 for b = 1:numel(uniq_az)
     th = -uniq_az(b);
-    plot([0, 600 * cosd(th)], [0, 600 * sind(th)], ...
+    plot([0, 700 * cosd(th)], [0, 700 * sind(th)], ...
         '--', 'Color', [0.60 0.60 0.60], 'LineWidth', 0.8);
 end
 
@@ -302,7 +302,7 @@ end
 hold off;
 
 axis equal;
-xlim([0, 600]);
+xlim([0, 700]);
 ylim([-300, 300]);
 xlabel('X (m)');
 ylabel('Y (m)');
@@ -385,7 +385,7 @@ for fi = 1:frame_step:total_frames
             az = fused_plots(mask, 2);
             el = fused_plots(mask, 3);
             x = r .* cosd(el) .* cosd(az);
-            y = -r .* cosd(el) .* sind(az);   % 正方位角=左侧 → Y负半轴（Y+=右侧）
+            y = -r .* cosd(el) .* sind(az);   % 正方位角=右侧 → Y负半轴（Y+=左侧）
             z = r .* sind(el) + radar_height;
             h = plot3(x, y, z, 'b.', 'MarkerSize', 8);
             if ~has_meas

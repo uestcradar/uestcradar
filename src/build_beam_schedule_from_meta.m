@@ -1,237 +1,147 @@
-function beam_schedule = build_beam_schedule_from_meta(beam_meta, pri_per_frame)
-%BUILD_BEAM_SCHEDULE_FROM_META 从新格式 beam_meta 构建 beam_schedule。
+function beam_schedule = build_beam_schedule_from_meta(parse_bundle, pri_per_frame, scan_mode)
+%BUILD_BEAM_SCHEDULE_FROM_META 从新格式 parse_bundle 构建 beam_schedule。
 %
-% 用波位1的出现间隔检测扫描边界，取第二轮的波位帧数作为模板。
-% 首轮（可能因前导帧数偏差）丢弃，末尾 floor 自动丢弃残帧。
-% 新增：逐轮验证波位帧数是否匹配模板，剔除异常扫描轮次。
+% 新格式 mat 内含显式 current_beam_idx (0..38)，直接用其确定波位顺序与扫描边界。
+% 支持两种扫描模式（由主函数 cfg.scan_mode 开关切换）：
+%   'sawtooth' 锯齿波(单向)：一轮扫描 = 固定 39 波位顺序，扫描间 beam_idx 回卷跳变(|diff|>1)；
+%              beam 偏移固定 = (beam_id-1)*n_cpi。用于后续实验。
+%   'triangle' 三角往返(蛇形)：一轮扫描 = 一个方向(38 驻留，端点波位在相邻方向共享)，
+%              波位顺序逐轮交替(降序/升序)；用 sweep_count 定位折返点；每轮方向记录于
+%              scan_direction(+1 升序 / -1 降序)，供 RD 层按方向翻转偏移。
+% 同时用 frame_timestamp + t0 计算每轮扫描的代表时间（决策3：中间波位中间时间戳）。
+% 首轮（采集起始可能截断）丢弃，末尾 floor 自动丢弃残帧。
 %
-% 输入:  beam_meta, pri_per_frame (固定为4)
-% 输出:  beam_schedule (含 invalid_scans 供检测后过滤)
+% 输入:  parse_bundle (含 beam_meta / frame_timestamp / rx_param.t0 / rx_param.fs)
+%        pri_per_frame (固定 4)
+%        scan_mode     ('sawtooth' | 'triangle')
+% 输出:  beam_schedule (含 scan_times、beam_idx、scan_direction、scan_mode 供下游)
 
-frame_az = beam_meta.az_deg(1:pri_per_frame:end);
-frame_el = beam_meta.el_deg(1:pri_per_frame:end);
-frame_valid = beam_meta.meta_valid(1:pri_per_frame:end);
-frame_sweep = double(beam_meta.sweep_count(1:pri_per_frame:end));
-n_frames = numel(frame_az);
-
-n_valid = sum(frame_valid);
-fprintf('[波位] 帧级有效元数据：%d/%d (%.1f%%)\n', n_valid, n_frames, n_valid/n_frames*100);
-if n_valid > 0 && n_valid < n_frames
-    valid_idx = find(frame_valid);
-    fprintf('[波位] 有效帧号范围：%d ~ %d，间隔均值=%.1f 帧\n', ...
-        valid_idx(1), valid_idx(end), mean(diff(valid_idx)));
-    fprintf('[波位] 有效帧中的唯一方位角：%s\n', mat2str(unique(frame_az(frame_valid)), 3));
-end
-
-if ~any(frame_valid)
-    error('build_beam_schedule_from_meta:NoValidMeta', ...
-        'beam_meta 中没有有效的波位元数据。');
-end
-
-% ---- 步骤 1: 扫描边界检测（先用任意稳定波位做 sweep_count 跟踪）----
-first_valid = find(frame_valid, 1, 'first');
-b1_az = frame_az(first_valid); b1_el = frame_el(first_valid);
-b1_frames = find(frame_valid & abs(frame_az - b1_az) < 0.001 & abs(frame_el - b1_el) < 0.001);
-
-% 同一扫描内所有波位1帧的 sweep_count 相同，跳变处即为扫描边界
-b1_sweep = frame_sweep(b1_frames);
-scan_starts = [1; find(diff(b1_sweep) ~= 0) + 1];  % 索引为 b1_frames 下标
-total_scans_raw = numel(scan_starts);
-fprintf('[波位] sweep_count 扫描检测：%d 个扫描边界\n', total_scans_raw);
-fprintf('[波位]   初始锚点 az=%.2f°, el=%.2f°（首个有效帧 #%d），共 %d 个匹配帧\n', ...
-    b1_az, b1_el, first_valid, numel(b1_frames));
-
-% ---- 步骤 2: 用 sweep_count 定位扫描2首帧，提取波位顺序 ----
-scan2_sweep = b1_sweep(scan_starts(2));
-s2_start = find(frame_sweep == scan2_sweep & frame_valid, 1, 'first');
-scan3_sweep = mod(scan2_sweep + 1, 32);
-s3_candidates = find(frame_sweep == scan3_sweep & frame_valid);
-s3_start = s3_candidates(find(s3_candidates > s2_start, 1, 'first'));
-scan2_start = s2_start;
-scan2_end   = s3_start - 1;
-fprintf('[波位] 扫描 2 帧范围: %d→%d (sweep=%d)\n', scan2_start, scan2_end, scan2_sweep);
-
-uniq_az = []; uniq_el = [];
-for fi = scan2_start:scan2_end
-    if ~frame_valid(fi), continue; end
-    az = frame_az(fi); el = frame_el(fi);
-    if isempty(uniq_az) || ~any(abs(uniq_az - az) < 0.001 & abs(uniq_el - el) < 0.001)
-        uniq_az(end+1) = az; %#ok<AGROW>
-        uniq_el(end+1) = el; %#ok<AGROW>
+    if nargin < 3 || isempty(scan_mode)
+        scan_mode = 'sawtooth';
     end
-end
-num_beams = numel(uniq_az);
-if num_beams < 1
-    error('build_beam_schedule_from_meta:NoBeams', '未能识别任何波位。');
-end
-% 用正确的波位1重新计算 b1_frames 和 scan_starts
-b1_az = uniq_az(1); b1_el = uniq_el(1);
-b1_frames = find(frame_valid & abs(frame_az - b1_az) < 0.001 & abs(frame_el - b1_el) < 0.001);
-b1_sweep = frame_sweep(b1_frames);
-scan_starts = [1; find(diff(b1_sweep) ~= 0) + 1];
-total_scans_raw = numel(scan_starts);
-fprintf('[波位] 用扫描2波位1 (az=%.2f°) 重建边界：%d 扫描\n', b1_az, total_scans_raw);
-fprintf('[波位]   修正后锚点共 %d 个匹配帧，sweep_count 值: %s\n', ...
-    numel(b1_frames), mat2str(b1_sweep(:)'));
 
-% ---- 步骤 3: 提取模板（默认用第二轮，若第二轮异常则顺延）----
-scan_frame_counts = [];
-template_scan_idx = 0;
+    beam_meta = parse_bundle.beam_meta;
 
-for trial = 2:min(total_scans_raw, 5)
-    s_start = b1_frames(scan_starts(trial));
-    counts = zeros(1, num_beams);
-    cur_az = b1_az; cur_el = b1_el; bi = 1; cnt = 0;
-    s_end   = b1_frames(scan_starts(trial + 1)) - 1;  % 限制在本轮内
-	    for fi = s_start:s_end
-        if ~frame_valid(fi), continue; end
-        if abs(frame_az(fi) - cur_az) < 0.001 && abs(frame_el(fi) - cur_el) < 0.001
-            cnt = cnt + 1;
-        else
-            counts(bi) = cnt;
-            bi = bi + 1; if bi > num_beams, break; end
-            cur_az = frame_az(fi); cur_el = frame_el(fi);
-            cnt = 1;
-        end
+    % ---- 帧级数组（元数据按帧记录，每 pri_per_frame 取一帧）----
+    frame_az   = double(beam_meta.az_deg(1:pri_per_frame:end));
+    frame_el   = double(beam_meta.el_deg(1:pri_per_frame:end));
+    frame_idx  = double(beam_meta.current_beam_idx(1:pri_per_frame:end));
+    frame_sw   = double(beam_meta.sweep_count(1:pri_per_frame:end));
+    n_frames   = numel(frame_idx);
+
+    frame_ts   = double(parse_bundle.frame_timestamp);
+    t0         = double(parse_bundle.rx_param.t0);
+    fs         = double(parse_bundle.rx_param.sample_rate);
+
+    % ---- 1. 波位顺序 ----
+    switch scan_mode
+        case 'sawtooth'
+            % 锯齿波：波位顺序 = 首现时序（即物理扫描顺序）
+            uniq_idx = unique(frame_idx, 'stable');
+        case 'triangle'
+            % 三角：波位顺序 = 升序规范序 (0..38 = 波位1..39)，扫描顺序逐轮交替
+            uniq_idx = unique(frame_idx);   % 升序
+        otherwise
+            error('build_beam_schedule_from_meta:BadScanMode', ...
+                '未知扫描模式 "%s"（应为 sawtooth 或 triangle）。', scan_mode);
     end
-    if bi <= num_beams, counts(bi) = cnt; end
-
-    % 简单自检：模板必须覆盖全部波位且每波位帧数>0
-    if all(counts > 0)
-        scan_frame_counts = counts;
-        template_scan_idx = trial;
-        break;
+    num_beams = numel(uniq_idx);
+    if num_beams < 1
+        error('build_beam_schedule_from_meta:NoBeams', '未能从 current_beam_idx 识别波位。');
     end
-end
 
-if isempty(scan_frame_counts)
-    error('build_beam_schedule_from_meta:NoValidTemplate', ...
-        '无法从扫描 %d~%d 中提取有效波位模板。', 2, min(total_scans_raw, 5));
-end
+    beam_az = zeros(num_beams, 1);
+    beam_el = zeros(num_beams, 1);
+    for b = 1:num_beams
+        f = find(frame_idx == uniq_idx(b), 1, 'first');
+        beam_az(b) = frame_az(f);
+        beam_el(b) = frame_el(f);
+    end
 
-fprintf('[波位] 模板来自第 %d 轮扫描：%s\n', template_scan_idx, mat2str(scan_frame_counts));
+    % ---- 2. 扫描边界 ----
+    switch scan_mode
+        case 'sawtooth'
+            % 扫描边界 = beam_idx 回卷（|跳变|>1）
+            scan_start_frames = find(abs(diff(frame_idx)) > 1) + 1;
+        case 'triangle'
+            % 扫描边界 = sweep_count 跳变（折返点，每方向一次）
+            swc = find(diff(frame_sw) ~= 0);
+            scan_start_frames = swc + 1;
+    end
+    if isempty(scan_start_frames)
+        error('build_beam_schedule_from_meta:NoScans', ...
+            '未检测到完整扫描（scan_mode=%s）。', scan_mode);
+    end
 
-% ---- 步骤 4: 逐轮验证，剔除异常扫描 ----
-% 对每轮扫描统计各波位帧数，与模板比对
-invalid_scans = [];
-scan_frame_counts_all = zeros(total_scans_raw, num_beams);
-
-for s = 1:total_scans_raw
-    scan_start_frame = b1_frames(scan_starts(s));
-    if s < total_scans_raw
-        scan_end_frame = b1_frames(scan_starts(s+1)) - 1;
+    % ---- 3. 每扫描帧数 / 每波位帧数 ----
+    if numel(scan_start_frames) >= 2
+        frames_per_scan = scan_start_frames(2) - scan_start_frames(1);
     else
-        scan_end_frame = n_frames;
+        frames_per_scan = n_frames - scan_start_frames(1) + 1;
+    end
+    switch scan_mode
+        case 'sawtooth'
+            dwells_per_scan = num_beams;        % 39 波位
+        case 'triangle'
+            dwells_per_scan = num_beams - 1;    % 38 驻留（端点共享）
+    end
+    frames_per_beam = frames_per_scan / dwells_per_scan;
+    if frames_per_beam ~= round(frames_per_beam)
+        error('build_beam_schedule_from_meta:BadFrameCount', ...
+            '每扫描帧数 %d 不能被 %d 个驻留整除。', frames_per_scan, dwells_per_scan);
     end
 
-    % 逐帧统计该扫描中各波位的帧数
-    cur_beam = 1;
-    cnt = 0;
-    scan_ok = true;
-    s_counts = zeros(1, num_beams);
+    % ---- 4. 丢弃首轮截断扫描，确定初始 PRI 偏移 ----
+    initial_scan_frame = scan_start_frames(1);
+    initial_scan_pri   = (initial_scan_frame - 1) * pri_per_frame;
+    total_scans = floor((n_frames - initial_scan_frame + 1) / frames_per_scan);
 
-    for fi = scan_start_frame:scan_end_frame
-        if ~frame_valid(fi)
-            continue;
-        end
+    % ---- 5. 派生值 ----
+    pulses_per_dwell = repmat(frames_per_beam * pri_per_frame, 1, num_beams);
+    total_pulses     = frames_per_scan * pri_per_frame;
 
-        az = frame_az(fi);
-        el = frame_el(fi);
-
-        % 检查是否仍属于当前波位
-        if cur_beam <= num_beams && ...
-           abs(az - uniq_az(cur_beam)) < 0.001 && ...
-           abs(el - uniq_el(cur_beam)) < 0.001
-            cnt = cnt + 1;
-        elseif cur_beam < num_beams && ...
-               abs(az - uniq_az(cur_beam + 1)) < 0.001 && ...
-               abs(el - uniq_el(cur_beam + 1)) < 0.001
-            % 正常过渡到下一波位
-            s_counts(cur_beam) = cnt;
-            cur_beam = cur_beam + 1;
-            cnt = 1;
-        else
-            % 非预期波位 → 异常
-            scan_ok = false;
-            break;
+    % ---- 6. 每轮扫描方向（triangle 用；sawtooth 恒 +1 占位）----
+    scan_direction = ones(1, total_scans);
+    if strcmp(scan_mode, 'triangle')
+        for k = 1:total_scans
+            sf = initial_scan_frame + (k - 1) * frames_per_scan;
+            idx_a = frame_idx(sf);
+            idx_b = frame_idx(min(sf + frames_per_beam, n_frames));
+            scan_direction(k) = sign(idx_b - idx_a);   % +1 升序(0->38), -1 降序(38->0)
         end
     end
 
-    if scan_ok && cnt > 0 && cur_beam <= num_beams
-        s_counts(cur_beam) = cnt;
+    % ---- 7. 每轮扫描代表时间（决策3：中间波位中间帧）----
+    mid_beam_ordinal  = ceil(dwells_per_scan / 2);
+    mid_frame_ordinal = ceil(frames_per_beam / 2);
+    mid_frame_offset  = (mid_beam_ordinal - 1) * frames_per_beam + (mid_frame_ordinal - 1);
+    mid_frames = initial_scan_frame + mid_frame_offset + (0:total_scans-1) * frames_per_scan;
+    scan_times = t0 + (frame_ts(mid_frames) - frame_ts(1)) / fs;
+
+    % ---- 组装输出 ----
+    beam_schedule = struct();
+    beam_schedule.num_beams = num_beams;
+    beam_schedule.beam_positions = [beam_az, beam_el];
+    beam_schedule.pulses_per_dwell = pulses_per_dwell;
+    beam_schedule.total_pulses = total_pulses;
+    beam_schedule.total_scans = total_scans;
+    beam_schedule.invalid_scans = [];                 % 新格式显式波位索引，无需异常扫描剔除
+    beam_schedule.initial_scan_pri = initial_scan_pri;
+    beam_schedule.beam_idx = uniq_idx(:)';            % 各波位对应的 current_beam_idx（规范序）
+    beam_schedule.scan_times = scan_times;            % 每轮扫描代表时间 (s, Unix)
+    beam_schedule.scan_mode = scan_mode;              % 扫描模式（回传供 RD 层使用）
+    beam_schedule.scan_direction = scan_direction;    % 每轮扫描方向 (+1 升序 / -1 降序)
+
+    fprintf('[波位] 模式=%s：%d 波位, %d 帧/驻留, %d 驻留/扫描, %d 帧/扫描, %d 完整扫描\n', ...
+        scan_mode, num_beams, frames_per_beam, dwells_per_scan, frames_per_scan, total_scans);
+    fprintf('[波位] 首完整扫描帧号=%d, 初始 PRI 偏移=%d, 扫描周期=%.4f s\n', ...
+        initial_scan_frame, initial_scan_pri, mean(diff(scan_times)));
+    if strcmp(scan_mode, 'triangle')
+        fprintf('[波位] 扫描方向(前%d): %s\n', min(12, total_scans), ...
+            mat2str(scan_direction(1:min(12, total_scans))));
     end
-
-    scan_frame_counts_all(s, :) = s_counts;
-
-    % 判定：必须覆盖全部波位且每波位帧数与模板一致
-    if ~scan_ok || cur_beam ~= num_beams || any(s_counts ~= scan_frame_counts)
-        invalid_scans(end+1) = s; %#ok<AGROW>
+    for b = 1:num_beams
+        fprintf('[波位 %3d] az=%+7.2f°, el=%+7.2f°, idx=%2d\n', ...
+            b, beam_az(b), beam_el(b), uniq_idx(b));
     end
-end
-
-% ---- 步骤 5: 找到最后一个异常扫描，丢弃它及之前的所有 ----
-invalid_scans = sort(invalid_scans);
-
-% 打印异常扫描诊断
-if ~isempty(invalid_scans)
-    fprintf('[波位] 检测到 %d 个异常扫描: %s\n', ...
-        numel(invalid_scans), mat2str(invalid_scans));
-    for s = invalid_scans(:)'
-        if all(scan_frame_counts_all(s, :) == 0)
-            fprintf('[波位]   扫描 #%d: 无有效元数据\n', s);
-        else
-            fprintf('[波位]   扫描 #%d 帧数/波位: %s (模板=%s)\n', ...
-                s, mat2str(scan_frame_counts_all(s, :)), mat2str(scan_frame_counts));
-        end
-    end
-end
-
-% 排除末轮（由 total_scans 自然丢弃），找最后一个内部异常扫描
-invalid_before_end = invalid_scans(invalid_scans < total_scans_raw);
-if ~isempty(invalid_before_end)
-    first_valid_scan = max(invalid_before_end) + 1;
-else
-    first_valid_scan = 1;
-end
-
-% 有效扫描起始 PRI 偏移（0-based，相对数据流起点）
-initial_scan_pri = (b1_frames(scan_starts(first_valid_scan)) - 1) * pri_per_frame;
-
-% 仅保留 first_valid_scan 到 total_scans_raw-1（末轮丢弃）
-total_scans = total_scans_raw - first_valid_scan;
-
-if total_scans <= 0
-    error('build_beam_schedule_from_meta:NoValidScans', ...
-        '异常扫描占比过大：%d 异常 / %d 总数，无有效扫描可处理。', ...
-        numel(invalid_before_end), total_scans_raw);
-end
-
-fprintf('[波位] 丢弃扫描 #1~#%d（含异常），从 #%d 开始处理，共 %d 有效扫描\n', ...
-    first_valid_scan - 1, first_valid_scan, total_scans);
-fprintf('[波位] 初始 PRI 偏移=%d (帧 #%d 波位1)\n', ...
-    initial_scan_pri, b1_frames(scan_starts(first_valid_scan)));
-
-% ---- 步骤 6: 计算派生值 ----
-frames_per_scan = sum(scan_frame_counts);
-pulses_per_scan = frames_per_scan * pri_per_frame;
-pulses_per_dwell = scan_frame_counts * pri_per_frame;
-
-% ---- 构建输出 ----
-beam_schedule = struct();
-beam_schedule.num_beams = num_beams;
-beam_schedule.beam_positions = [uniq_az(:), uniq_el(:)];
-beam_schedule.pulses_per_dwell = pulses_per_dwell;
-beam_schedule.total_pulses = pulses_per_scan;
-beam_schedule.total_scans = total_scans;
-beam_schedule.invalid_scans = invalid_scans;             % 异常扫描信息（仅供参考，不参与 RD）
-beam_schedule.initial_scan_pri = initial_scan_pri;       % 首个有效扫描的 PRI 偏移（process_rd_beam 用）
-
-fprintf('[波位] 从 beam_meta 提取：%d 波位, %d 帧/扫描, %d/%d 扫描（%d 异常）\n', ...
-    num_beams, frames_per_scan, total_scans, total_scans_raw, numel(invalid_scans));
-for b = 1:beam_schedule.num_beams
-    fprintf('[波位 %3d] az=%+7.2f°, el=%+7.2f°, pulses/scan=%d\n', ...
-        b, beam_schedule.beam_positions(b, 1), ...
-        beam_schedule.beam_positions(b, 2), ...
-        beam_schedule.pulses_per_dwell(b));
-end
 end

@@ -1,8 +1,9 @@
 function parse_bundle = load_frontend_mat(mat_file, tx_dir_spec, lg)
 %LOAD_FRONTEND_MAT 从前端 .mat 构建 parse_bundle。
 %
+% 适配新格式 (E:\0916 采集端带波位信息): 顶层 ch0/ch1/ch2 + /param 标量 + /beam 逐帧数组。
 % 拆分文件已存在 → 轻量路径（h5read 元数据，不碰 matfile）。
-% 拆分文件不存在 → 完整路径（matfile 读元数据 + 拆分为 flat 文件，仅首次）。
+% 拆分文件不存在 → 完整路径（h5read 元数据 + 拆分为 flat 文件，仅首次）。
 
 if nargin < 3 || isempty(lg)
     lg = @(msg) fprintf('%s\n', msg);
@@ -25,6 +26,26 @@ end
 
 pri_per_frame = 4;
 
+% =====================================================================
+%  通用元数据（两条路径共享）：/param 标量 + /beam 逐帧数组
+% =====================================================================
+% /param 标量（新格式）
+sample_rate = double(h5read(mat_file, '/param/fs'));
+prf         = double(h5read(mat_file, '/param/PRF'));
+pri         = double(h5read(mat_file, '/param/PRI'));
+cpi         = double(h5read(mat_file, '/param/CPI'));
+fc          = double(h5read(mat_file, '/param/fc'));
+t0          = double(h5read(mat_file, '/param/t0'));
+
+% /beam 逐帧数组（新格式，路径在顶层 /beam）
+frame_az_code   = double(h5read(mat_file, '/beam/az_code'));
+frame_el_code   = double(h5read(mat_file, '/beam/el_code'));
+frame_sweep     = double(h5read(mat_file, '/beam/sweep_count'));
+frame_beam_idx  = double(h5read(mat_file, '/beam/current_beam_idx'));
+frame_pulse     = double(h5read(mat_file, '/beam/pulse_in_beam'));
+frame_timestamp = double(h5read(mat_file, '/beam/timestamp'));
+n_frames = numel(frame_az_code);
+
 if all_ready
     % ========== 轻量路径：拆分文件已就绪 ==========
     lg('[适配] 拆分文件已就绪，轻量加载...');
@@ -32,13 +53,6 @@ if all_ready
     info = whos('-file', channel_files{1});
     ch0_info = info(strcmp({info.name}, 'ch0'));
     sample_count = ch0_info.size(1);
-
-    sample_rate       = double(h5read(mat_file, '/data/sample_rate'));
-    samples_per_frame = double(h5read(mat_file, '/data/samples_per_frame'));
-
-    frame_az_code = double(h5read(mat_file, '/data/beam/az_code'));
-    frame_el_code = double(h5read(mat_file, '/data/beam/el_code'));
-    frame_sweep   = double(h5read(mat_file, '/data/beam/sweep_count'));
 
 else
     % ========== 完整路径：首次拆分 ==========
@@ -48,17 +62,11 @@ else
         if exist(channel_files{ch}, 'file'), delete(channel_files{ch}); end
     end
 
-    % ---- 用 h5read 读取元数据（只读标量/小数组，不碰大数据）----
-    sample_rate       = double(h5read(mat_file, '/data/sample_rate'));
-    sample_count      = double(h5read(mat_file, '/data/sample_count'));
-    samples_per_frame = double(h5read(mat_file, '/data/samples_per_frame'));
+    % ---- 总采样数从 ch0 dataspace 尺寸读取（新格式无 /data/sample_count）----
+    sample_count = double(h5info(mat_file, '/ch0').Dataspace.Size(1));
 
     lg(sprintf('[适配] 采样率=%.1f MHz, 总采样=%.3f M, 帧数=%d', ...
-        sample_rate/1e6, sample_count/1e6, sample_count/samples_per_frame));
-
-    frame_az_code = double(h5read(mat_file, '/data/beam/az_code'));
-    frame_el_code = double(h5read(mat_file, '/data/beam/el_code'));
-    frame_sweep   = double(h5read(mat_file, '/data/beam/sweep_count'));
+        sample_rate/1e6, sample_count/1e6, n_frames));
 
     % ---- 拆分：直接用 h5read 分段读取 HDF5 数据集，全程不加载全量 ----
     CHUNK_SAMPLES = 1e6;
@@ -67,7 +75,7 @@ else
     for ch = 1:3
         ch_name = channel_names{ch};
         out_file = channel_files{ch};
-        h5_path = ['/data/' ch_name];             % v7.3 mat 内部的 HDF5 路径
+        h5_path = ['/' ch_name];             % 新格式：通道数据在顶层
 
         % 获取实际数据类型，确保写入一致
         h5_info = h5info(mat_file, h5_path);
@@ -104,11 +112,20 @@ else
 end
 
 % =====================================================================
+%  派生值（两条路径共用）
+% =====================================================================
+samples_per_frame = sample_count / n_frames;    % 新格式无独立数据集，用帧数反推 (4096)
+pri_len           = samples_per_frame / pri_per_frame;
+
+% 一致性校验：/param/PRF 应等于 fs / pri_len
+prf_computed = sample_rate / pri_len;
+if abs(prf_computed - prf) / prf > 1e-6
+    lg(sprintf('[适配] 警告: /param/PRF=%.1f 与 fs/pri_len=%.1f 不一致', prf, prf_computed));
+end
+
+% =====================================================================
 %  构建 beam_meta（两条路径共用）
 % =====================================================================
-pri_len  = samples_per_frame / pri_per_frame;
-n_frames = sample_count / samples_per_frame;
-
 frame_az_deg = single(frame_az_code * 0.05 - 50.0);
 frame_el_deg = single(frame_el_code * 0.05 - 50.0);
 frame_valid  = true(n_frames, 1);
@@ -120,6 +137,8 @@ beam_meta.sweep_count = repelem(uint8(frame_sweep), pri_per_frame);
 beam_meta.meta_valid  = repelem(frame_valid, pri_per_frame);
 beam_meta.az_code  = repelem(uint16(frame_az_code), pri_per_frame);
 beam_meta.el_code  = repelem(uint16(frame_el_code), pri_per_frame);
+beam_meta.current_beam_idx = repelem(uint16(frame_beam_idx), pri_per_frame);
+beam_meta.pulse_in_beam    = repelem(uint16(frame_pulse), pri_per_frame);
 
 % =====================================================================
 %  TX 参考
@@ -139,13 +158,18 @@ rx_param.total_pri   = sample_count / pri_len;
 rx_param.total_samples = sample_count;
 rx_param.pri_per_frame = pri_per_frame;
 rx_param.channels    = [0, 1, 2];
-rx_param.prf         = sample_rate / pri_len;
+rx_param.prf         = prf;
+rx_param.fc          = fc;
+rx_param.cpi         = cpi;
+rx_param.pri         = pri;
+rx_param.t0          = t0;
 rx_param.cpi_files   = {mat_file};
 
 parse_bundle = struct();
 parse_bundle.rx_param  = rx_param;
 parse_bundle.tx        = tx;
 parse_bundle.beam_meta = beam_meta;
+parse_bundle.frame_timestamp = frame_timestamp;   % 逐帧采样计数 (uint64→double)
 parse_bundle.data_dir  = src_dir;
 parse_bundle.channel_ids = rx_param.channels;
 parse_bundle.channel_var_names = channel_names;

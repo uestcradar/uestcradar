@@ -33,6 +33,8 @@ F = [1, T, 0, 0, 0, 0;
 
 current_time = NaN;
 if ~isempty(raw_meas), current_time = raw_meas(1, 5); end
+current_time_beijing = datetime(current_time, 'ConvertFrom', 'posixtime', ...
+    'TimeZone', 'Asia/Shanghai');   % 航迹点北京时间（无测量帧为 NaT）
 
 %% 2. 航迹状态预测
 for i = 1:numel(tracks)
@@ -149,6 +151,7 @@ for t = 1:numel(tracks)
     % --- 历史记录 ---
     tracks(t).total_count = tracks(t).total_count + 1;
     tracks(t).timestamps(end + 1) = current_time;   % 与 path 严格同步；无测量帧为 NaN
+    tracks(t).timestamps_beijing(end + 1) = current_time_beijing;   % 北京时间，与 path 同步；无测量帧为 NaT
     tracks(t).path(end + 1, :) = tracks(t).state([1 3 5])';
     tracks(t).meas_path(end + 1, :) = meas_pos;           % 匹配量测位置（预测帧为 NaN）
     tracks(t).velocity_history(end + 1, :) = tracks(t).state([2 4 6])';
@@ -156,6 +159,7 @@ for t = 1:numel(tracks)
 
     if size(tracks(t).path, 1) > tracker_params.max_history_length
         tracks(t).timestamps(1) = [];
+        tracks(t).timestamps_beijing(1) = [];
         tracks(t).path(1, :) = [];
         tracks(t).meas_path(1, :) = [];
         tracks(t).velocity_history(1, :) = [];
@@ -180,6 +184,7 @@ for m = 1:size(unassociated_meas, 1)
         'state',             initial_state, ...
         'covariance',        initial_covariance, ...
         'timestamps',        current_time, ...
+        'timestamps_beijing', current_time_beijing, ...
         'last_update',       current_time, ...
         'consecutive_misses', 0, ...
         'success_count',     1, ...
@@ -378,5 +383,6 @@ for i = 1:numel(tracks)
     tracks(i).velocity_history(last_meas_idx + 1:end, :) = [];
     tracks(i).updated_mask(last_meas_idx + 1:end) = [];
     tracks(i).timestamps(last_meas_idx + 1:end) = [];
+    tracks(i).timestamps_beijing(last_meas_idx + 1:end) = [];
 end
 end

@@ -9,7 +9,8 @@ track_template = struct( ...
     'track_id',          [], ...    % 航迹唯一 ID
     'state',             [], ...    % 状态向量 [x;vx;y;vy;z;vz] (6×1)
     'covariance',        [], ...    % 状态协方差 P (6×6)
-    'timestamps',        [], ...    % 更新时间戳序列
+    'timestamps',        [], ...    % 更新时间戳序列 (UTC Unix 秒)
+    'timestamps_beijing', datetime([], 'ConvertFrom', 'posixtime', 'TimeZone', 'Asia/Shanghai'), ...  % 航迹点北京时间 (datetime)
     'last_update',       -inf, ...  % 最后一次量测更新时间
     'consecutive_misses', 0, ...    % 连续丢失次数
     'success_count',     0, ...     % 成功关联次数 (M/N 逻辑)
