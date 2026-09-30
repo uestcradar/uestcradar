@@ -8,7 +8,10 @@ function xyz = llh2radar_xyz(uav_llh, radar_llh, bearing_deg)
 %
 % 输出:
 %   xyz - [n×3] 雷达相对坐标 [x, y, z] (m)
-%         x = 距离向(阵面法向, 正前方)，y = 横向(正=右侧)，z = 向上
+%         x = 距离向(阵面法向, 正前方)，y = 横向(正=阵面左侧)，z = 向上
+%         面朝阵面法向(方位 bearing_deg)向外看时 y>0 在左手边，与差通道"左减右"约定一致
+%         (偏左 ⇒ az>0 ⇒ Δaz/Σ 落在 φ_az 方向，故 sign_az=+1)。见 run_batch_pipeline 的
+%         cfg.angle.phi_az / sign_az —— 注意侧别要靠 φ_az 投影后才取符号，不能直接取 real()。
 %         与 tracker_3D_EKF 一致: az=atan2(y,x), el=atan2(z,sqrt(x^2+y^2))
 %
 % 原理: LLH → ECEF → ENU(以雷达为原点) → 绕天轴旋转到阵面朝向。
@@ -37,10 +40,10 @@ function xyz = llh2radar_xyz(uav_llh, radar_llh, bearing_deg)
     N = -sin(lat0) .* cos(lon0) .* dx - sin(lat0) .* sin(lon0) .* dy + cos(lat0) .* dz;
     U =  cos(lat0) .* cos(lon0) .* dx + cos(lat0) .* sin(lon0) .* dy + sin(lat0) .* dz;
 
-    % ---- ENU → 雷达帧 (X=距离向, Y=右侧, Z=上) ----
+    % ---- ENU → 雷达帧 (X=距离向, Y=阵面左侧, Z=上) ----
     b = deg2rad(bearing_deg);
     x =  sin(b) .* E + cos(b) .* N;   % 阵面法向(方位 b)
-    y = -cos(b) .* E + sin(b) .* N;   % 右侧(方位 b-90°): 实测左右镜像修正
+    y = -cos(b) .* E + sin(b) .* N;   % 阵面左侧(方位 b-90°): 实测左右镜像修正后落在此方向
     z =  U;
 
     xyz = [x, y, z];

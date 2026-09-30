@@ -1,5 +1,18 @@
 ﻿# 使用说明
 
+> ## ⚠ 本文档已过期，暂以 [README.md](../README.md) 为准
+>
+> 本文写于"解析 bin 批次"的旧架构时期，引用了**已不存在的模块与字段**，包括：
+> `src/batch_parse_bin.m`、`src/parse_beam_schedule.m`、`cfg.run.do_parse`、
+> `cfg.paths.parse_info_pattern`、`cfg.export.keep_parse_mat`，
+> 解析产物 `rx_ch*.mat` / `parse_info_*.mat`，以及"波位文件""批次拼接"等概念。
+>
+> 现状：输入层已换成 `src/load_frontend_mat.m`（新 v7.3 格式，顶层 `ch0/ch1/ch2` + `/param` + `/beam`），
+> 波位排布改由 `src/build_beam_schedule_from_meta.m` 从帧内嵌元数据推导（**不再有波位文件**）。
+> 参数区请直接看 [`../apps/run_batch_pipeline.m`](../apps/run_batch_pipeline.m)。
+>
+> 本文尚未重写；凡涉及输入层、解析阶段、波位文件的部分**都请忽略**。
+
 本文只说明当前正在使用的代码结构、原始数据目录规则、主流程、参数区和输出结果。
 
 ## 1. 当前唯一正式入口

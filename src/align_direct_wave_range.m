@@ -106,7 +106,7 @@ for di = 1:n_dwell
 end
 profile = abs(prof_coh).';
 
-% 在盲区窗口内找直达波峰（1 基索引：bin 190~240 => 列 191~241）
+% 在盲区窗口内找直达波峰（1 基索引：bin 100~250 => 列 101~251，见上方 dw_search_lo/hi）
 seg = profile(dw_search_lo + 1 : dw_search_hi + 1);
 [~, local_idx] = max(seg);
 range_zero_bin = dw_search_lo + local_idx - 1;   % 0 基 bin

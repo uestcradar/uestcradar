@@ -7,7 +7,7 @@ function out_file = process_rd_beam(beam_id, beam_az, beam_el, data_dir, parse_b
 %   beam_el       - 波位俯仰角（度）
 %   data_dir      - 数据目录
 %   parse_bundle  - 解析阶段输出的结构体
-%   rd_ctx        - RD 上下文（已按波位参数调整：n_cpi=256, n_overlap=0）
+%   rd_ctx        - RD 上下文（已按本波位参数调整：n_cpi = 该波位驻留脉冲数，n_overlap = 0）
 %   preproc_state - 预处理初始化状态（跨波位共享的对齐参数）
 %   process_cfg   - RD 处理配置结构体
 %   result_dir    - 结果输出目录（批次级）
@@ -51,9 +51,11 @@ for i = 1:numel(channel_ids)
     output_names{i} = sprintf('RD_Ch%d_All', channel_ids(i));
 end
 if numel(output_names) >= 3
-    output_names{1} = 'RD_Sum_All';
-    output_names{2} = 'RD_Az_All';
-    output_names{3} = 'RD_El_All';
+    % 注意通道次序：硬件实测确认 ch1 是俯仰差口、ch2 是方位差口（与直觉相反）。
+    % 2026-09 拆机核实；此前二者被接反，凡改动此处务必先复核硬件。
+    output_names{1} = 'RD_Sum_All';   % ch0 和口
+    output_names{2} = 'RD_El_All';    % ch1 俯仰差
+    output_names{3} = 'RD_Az_All';    % ch2 方位差
 end
 
 mf = matfile(out_file, 'Writable', true);
@@ -226,8 +228,8 @@ function meta = build_processing_meta(rd_ctx, process_cfg, channel_ids)
 meta = struct();
 meta.channel_roles = struct( ...
     'sum', channel_ids(1), ...
-    'az_diff', sprintf('channel%d_left_minus_right', channel_ids(2)), ...
-    'el_diff', sprintf('channel%d_up_minus_down', channel_ids(3)));
+    'az_diff', sprintf('channel%d_left_minus_right', channel_ids(3)), ...
+    'el_diff', sprintf('channel%d_up_minus_down', channel_ids(2)));
 meta.range_bin_spacing_m = rd_ctx.c / (2 * rd_ctx.fs);
 meta.mti = struct('two_pulse_cancel', process_cfg.process.do_mti_twopulse);
 meta.preprocessing = struct('fast_time_dc_remove', process_cfg.preprocess.do_fast_dc_remove);

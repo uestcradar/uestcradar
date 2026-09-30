@@ -262,7 +262,7 @@ end
 % 径向速度
 vr = (delta_x * vx + delta_y * vy + delta_z * vz) / r;
 
-% 量测向量: [r; az; el; vr]  （az 为正方位角=右侧）
+% 量测向量: [r; az; el; vr]  （az 为正方位角=阵面左侧）
 hx = [r; atan2(delta_y, delta_x); atan2(delta_z, r_g); vr];
 
 % 雅可比矩阵 H (4x6)
@@ -298,7 +298,7 @@ ce = cos(el); se = sin(el);
 ca = cos(az); sa = sin(az);
 
 x_pos = r * ce * ca;
-y_pos = r * ce * sa;    % 正方位角=右侧 → Y正半轴（Y+=右侧）
+y_pos = r * ce * sa;    % 正方位角=阵面左侧 → Y正半轴（Y+=阵面左侧）
 z_pos = r * se + h_radar;
 
 los_vec = [ce * ca; ce * sa; se];

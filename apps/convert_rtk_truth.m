@@ -2,7 +2,7 @@
 % 独立于主数据处理链路：读 SRT → 坐标变换 → 存真值 mat + 画二维航迹图。
 % 依赖: src/llh2radar_xyz.m (项目路径) + parseDjiSrt.m (参考代码, 在 rtkDir 下)。
 % 二维航迹图画法与 src/plot_figures.m 的 plot_track_map_2d 一致：
-%   X=距离向(阵面法向), Y=横向(正=右侧), 虚线射线分隔各波位方位。
+%   X=距离向(阵面法向), Y=横向(正=阵面左侧), 虚线射线分隔各波位方位。
 clear; clc; close all;
 
 % ===================== 配置 =====================
@@ -12,7 +12,7 @@ rtkDir = 'F:\RTK';   % 文件选择对话框的起始目录
 radar_llh = [30.735683428, 103.912003013, 520.837];   % [纬度(°), 经度(°), 椭球高(m)]
 
 % 阵面法向的罗盘朝向 (顺时针自正北, °)
-radar_bearing_deg = 178.5;
+radar_bearing_deg = 178.7;
 
 % 波位方位角 (°)，用于画波位分割线（与当前 39 波位排布一致: 13 方位 × 3 俯仰）
 beam_az_deg = -30:5:30;
@@ -47,7 +47,7 @@ h   = drone.pos(:, 3);       % 椭球高 (abs_alt, m)
 uav_llh = [lat, lon, h];
 xyz = llh2radar_xyz(uav_llh, radar_llh, radar_bearing_deg);
 x = xyz(:, 1);               % 距离向 (阵面法向, 正前方)
-y = xyz(:, 2);               % 横向 (正=右侧, 与 plot_figures 的 Y 一致)
+y = xyz(:, 2);               % 横向 (正=阵面左侧; plot_figures 显示帧取 -y，故与其 Y 轴反号)
 z = xyz(:, 3);               % 向上 (相对雷达椭球高)
 
 % 极坐标 (备查/后续对比)

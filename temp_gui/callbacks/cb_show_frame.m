@@ -35,7 +35,8 @@ switch mode
         colormap(ax, jet);
         cb = colorbar(ax); cb.Label.String = '幅度 (dB, 绝对值)';
         xlabel(ax, '径向速度 (m/s)'); ylabel(ax, '斜距 (m)');
-        ch_names = {'和通道(ch0)', '方位差(ch1)', '俯仰差(ch2)'};
+        % ch1 是俯仰差口、ch2 是方位差口（硬件实测确认，见 process_rd_beam.m）
+        ch_names = {'和通道(ch0)', '俯仰差(ch1)', '方位差(ch2)'};
         title(ax, sprintf('帧 %d/%d  |  %s  |  %g ~ %g dB', ...
             k, ud.n_frames, ch_names{ch_idx}, clim_lo, clim_hi), ...
             'Interpreter','none');

@@ -10,7 +10,7 @@ cfg = struct();
 
 %% 1. 参数区：输入与输出路径
 cfg.paths.data_folders = { ...
-% 'F:\0610数据\LFM_20M_64_1024' ...
+'' ...   % 留空/空白项 = 运行时弹窗选择数据集目录（见下方 13 节初始化）
 }; % 待批处理的数据集目录列表；每个目录应符合“TX/发射配置子目录 + RX/多批次子目录”的原始结构。
 cfg.paths.tx_root_dir = 'TX'; % 发射参考信号根目录名称；其下通常还会再分一层具体发射配置子目录。
 cfg.paths.tx_subdir_pattern = '*'; % 发射配置子目录匹配规则；默认读取 TX 下第一个满足条件的子目录。
@@ -27,7 +27,7 @@ cfg.beam.output_rd_per_beam = true;     % 是否保留逐波位 RD_Proc_beam*.ma
 cfg.beam.test_single_beam = 0;          % 单波位测试模式：0=全部波位；N=仅处理波位 N
 cfg.beam.max_azimuth = inf;              % 方位角上限 (°)；az>此值跳过；inf=不限制
 cfg.beam.min_azimuth = -inf;             % 方位角下限 (°)；az<此值跳过；-inf=不限制
-cfg.beam.max_elevation = 10;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
+cfg.beam.max_elevation = 5;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
 cfg.beam.min_elevation = 5;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制
 
 %% 1c. 参数区：扫描模式开关
@@ -59,7 +59,7 @@ cfg.radar.fc = 9.5e9; % 雷达载频，单位 Hz；用于波长和速度轴计�
 % 其中当前代码直接使用的自动读取参数主要有：sample_rate、PRI；若 metadata.json 中包含 waveform 信息，也会一并写入 parse_info_*.mat。
 
 %% 5. 参数区：RD 处理参数
-cfg.rd.n_cpi = 256; % CPI 脉冲数；多波位模式下由波位文件逐波位覆写。
+cfg.rd.n_cpi = 256; % CPI 脉冲数；多波位模式下由波位排布逐波位覆写（各波位驻留脉冲数可不同）。
 cfg.rd.n_overlap = 0; % 块间重叠脉冲数；多波位模式下固定为 0（无重叠）。
 cfg.rd.max_range_m =800; % 最大处理距离，单位米；只保留该距离以内的距离单元参与后续处理。800 给 CFAR 距离维 20 格边界盲区留余量，使 ~700m 内目标可测。
 cfg.rd.frames_per_chunk = 4096; % 预处理分块大小，用于 freq_offsets 数组长度估算
@@ -76,8 +76,10 @@ cfg.detect.cfar_ref_d = 32; % CFAR 在速度维的参考单元数；用于估计
 cfg.detect.cfar_pfa = 1e-6; % CFAR 虚警概率；1e-6 已足够保守，更严的虚警压制应交给下游（DBSCAN min_pts / 旁瓣剔除 / M/N 航迹确认）。
 cfg.detect.frame_step = 1; % 检测/聚类/测角抽帧步长；默认1（全帧），独立于 cfg.plot.frame_step。
 
-%前:  guard_r=2, guard_d=4, ref_r=8, ref_d=16, pfa=1e-6
-%后: guard_r=4, guard_d=8, ref_r=16, ref_d=32, pfa=1e-9
+%变更记录（上面 5 项当前值 = 最末一行）：
+%前:   guard_r=2, guard_d=4, ref_r=8,  ref_d=16, pfa=1e-6
+%曾用: guard_r=4, guard_d=8, ref_r=16, ref_d=32, pfa=1e-9（pfa 过严致检测点过少，已回落）
+%后:   guard_r=4, guard_d=8, ref_r=16, ref_d=32, pfa=1e-6  ← 当前值
 
 %% 7. 参数区：聚类参数
 cfg.cluster.dbscan_eps = 2; % DBSCAN 邻域半径；单位是“距离 bin / 速度 bin”的索引尺度。
@@ -103,7 +105,32 @@ cfg.angle.lut_step_deg = 0.1;     % LUT 栅格步长（度）
 cfg.angle.use_measured_lut = true;  % 是否用实测远场方向图生成鉴角 LUT；true 时优先于上方理想模型
 cfg.angle.pattern_dir = 'F:\Matlab_Helium\X256B-A24147'; % 实测方向图根目录（含 接收/方位、接收/俯仰 下 和口/差口 的 .ccc）；use_measured_lut=true 时必填
 cfg.angle.pattern_fc_hz = 9.5e9;    % 方向图取用载频(Hz)；自动选最近实测频点
-cfg.angle.measured_lut_sign = 1;    % 鉴角曲线符号；若方位/俯仰结果镜像则置 -1
+
+% --- 符号位：φ 固定常量 + 每批自检（不要改成在线测，原因见下）---
+% 鉴角幅值走 |Δ/Σ|，与 Σ/Δ 相对相位无关；方向由"判别器相位 φ + 整体符号"两个批次级量决定。
+%   φ = δ>0 时 arg(Δ/Σ) 的实测值（度）。极重要：φ 离 0° 超过 90° 时 sign(real(Δ/Σ)) 不再随
+%   侧别换号，方位会恒定偏向一侧（beam26 实测 Re 有 99/114 帧为负、与真值侧别无关，
+%   前半段航迹被整体镜像）—— 即 0916 失效的成因。
+%   若实测量出现"左右/上下恒定偏一侧"或"镜像"，改的是 φ；只有整体反号才改 sign_*。
+%
+% φ 为什么固定而不在线测（2026-09-30 实测，详见 docs/monopulse_sign_failure.md §7.4b/§7.5）：
+%   两次独立、相隔 12 天的真值反查给出 φ_az ≈ -93.5°（0916）与 ≈ -104.6°（0928），相距 11°；
+%   而判符号正确的窗口是 |Δφ| < 90°（宽 180°）。**容差是观测漂移的 8 倍**，所以固定即可。
+%   同期直达波的 arg(R_dw)_az 却从 -138.8° 变到 -42.9°（96°），补偿量 phi_correction 从
+%   +45° 变到约 -51°。即：φ 稳、直达波不稳 —— 用直达波在线测等于把稳定量换成不稳定量，
+%   且一旦补偿量过期会自信地代入错 φ（0928 实测该情形同号率仅 14.5%）。故该路径已从管线移除
+%   （模块 src/estimate_phi_from_dw.m 与 test 保留备查，但不再接线）。
+%
+% 重标触发条件（满足任一才需重测，日常批处理零标定）：
+%   ① 换频点 —— 厂商明确 Σ/Δ 相对相位随频率变，本值只在 9.5 GHz 测过；
+%   ② 换硬件/换批次 —— 本值绑定具体设备；
+%   ③ 自检报 warn/fail（cfg.angle 下方的 sign_selfcheck 输出）。
+% 重测口径见 §7.6：取已知几何的航线，在 ROI 内扫 φ 找同号率平台取中心，**必须分侧别留样本**。
+cfg.angle.phi_az = -113;            % 方位判别器相位(°)；0 = 旧的 sign(real()) 行为
+cfg.angle.phi_el = 0;               % 俯仰判别器相位(°)；本批数据无法标定（δel 不过零），保持 0 未验证
+% 整体正负号：把硬件符号方向（左减右 / 上减下）映射到偏离角正方向
+cfg.angle.sign_az = 1;              % +1: 偏离角正方向 = 硬件"偏左"; -1: 取反
+cfg.angle.sign_el = 1;              % +1: 偏离角正方向 = 硬件"偏上"; -1: 取反
 
 %% 9. 参数区：结果导出参数
 cfg.export.save_analysis_mat = true; % 是否保存检测结果和测角结果 mat 文件；便于后续直接复用分析结果。
@@ -112,7 +139,7 @@ cfg.export.keep_rd_mat = true; % 是否保留 RD_Proc_*.mat；若只关心最终
 
 %% 10. 参数区：跟踪参数（EKF + GNN 多目标跟踪）
 cfg.track.enable = true;              % 是否启用多目标跟踪
-cfg.track.radar_height = 30;          % 雷达架高 (m)
+cfg.track.radar_height = 520.837;     % 雷达椭球高 (m)，radar_llh = [30.735683428, 103.912003013, 520.837]，与 RTK 真值的 h 在同一高程基准
 cfg.track.range_noise_std = 20;       % 距离量测噪声标准差 (m)
 cfg.track.angle_noise_std_deg = 1;    % 角度量测噪声标准差 (°)
 cfg.track.vr_noise_std = 2.0;         % 径向速度量测噪声标准差 (m/s)
@@ -146,6 +173,10 @@ project_root = fileparts(this_dir);
 addpath(project_root);
 addpath(genpath(fullfile(project_root, 'src')));
 
+% 空白项一律视为"未指定"：个别空白项直接剔除；整表为空（含只有一个 '' 的情况）则弹窗选择。
+% 注意不能只用 isempty：{''} 是 1×1 cell，isempty 为 false，会导致 data_dir='' 而静默走相对路径。
+blank = cellfun(@(p) isempty(strtrim(char(p))), cfg.paths.data_folders);
+cfg.paths.data_folders = cfg.paths.data_folders(~blank);
 if isempty(cfg.paths.data_folders)
     selected = uigetdir(project_root, '请选择需要处理的数据集目录');
     if isequal(selected, 0)
@@ -154,6 +185,7 @@ if isempty(cfg.paths.data_folders)
     end
     cfg.paths.data_folders = {selected};
 end
+fprintf('[入口] 数据集目录：%s\n', strjoin(cfg.paths.data_folders, ', '));
 
 fprintf('\n========== Matlab_Helium 批处理开始：共 %d 个数据目录 ==========\n', numel(cfg.paths.data_folders));
 t_total = tic;
@@ -234,7 +266,7 @@ for di = 1:numel(cfg.paths.data_folders)
         end
         monopulse_lut = mono_angle('generate_measured_lut', ...
             cfg.angle.pattern_dir, cfg.angle.pattern_fc_hz, ...
-            cfg.angle.lut_roi_deg, cfg.angle.lut_step_deg, cfg.angle.measured_lut_sign, ...
+            cfg.angle.lut_roi_deg, cfg.angle.lut_step_deg, ...
             beam_schedule);
     elseif cfg.angle.use_lut
         monopulse_lut = mono_angle('generate_lut', ...
@@ -242,6 +274,13 @@ for di = 1:numel(cfg.paths.data_folders)
             beam_schedule);
     else
         monopulse_lut = [];
+    end
+    % 批次级符号位（1bit）+ 判别器相位：签入硬件符号方向，覆盖 LUT 生成时的默认值
+    if ~isempty(monopulse_lut)
+        monopulse_lut.sign_az = cfg.angle.sign_az;
+        monopulse_lut.sign_el = cfg.angle.sign_el;
+        monopulse_lut.phi_az  = cfg.angle.phi_az;
+        monopulse_lut.phi_el  = cfg.angle.phi_el;
     end
 
     % 构建基础 RD 上下文（pri_len, fs, prt 等基础参数）
@@ -262,6 +301,10 @@ for di = 1:numel(cfg.paths.data_folders)
     [~, shared_preproc] = preprocess('init', raw_spec, parse_bundle.tx, rd_ctx, cfg.preprocess, lg);
     lg(sprintf('  [预处理] 直达波 bin=%d，对齐模式=%s', shared_preproc.dw_bin, shared_preproc.dw_mode));
 
+    % 注：此处曾有"用直达波在线测 φ 覆盖静态 φ"的分支，2026-09-30 已移除。
+    % 原因见上方 cfg.angle.phi_az 处的说明：φ 稳定而 arg(R_dw) 不稳定，在线测反而引入风险。
+    % 模块保留在 src/estimate_phi_from_dw.m（含 test_estimate_phi_from_dw.m），需要时可手动调用复核。
+
     process_cfg = struct();
     process_cfg.process = cfg.rd;
     process_cfg.preprocess = cfg.preprocess;
@@ -271,7 +314,9 @@ for di = 1:numel(cfg.paths.data_folders)
     % 单脉冲测角偏移超限统计（跨波位/跨帧累计）
     angle_stat_total = struct('n_clu', 0, 'n_el_oob', 0, 'n_az_oob', 0, ...
         'n_el_nan', 0, 'n_az_nan', 0, 'n_pwr_reject', 0, 'n_kept', 0, ...
-        'max_abs_el_oob', 0, 'max_abs_az_oob', 0);
+        'max_abs_el_oob', 0, 'max_abs_az_oob', 0, ...
+        'proj_az_sum', 0, 'abs_az_sum', 0, ...
+        'proj_el_sum', 0, 'abs_el_sum', 0, 'n_sc_pairs', 0);
     scan_period = mean(diff(beam_schedule.scan_times));   % 含扫描边界死区的真实扫描周期
     num_cpi_files = numel(parse_bundle.rx_param.cpi_files);
 
@@ -395,8 +440,11 @@ for di = 1:numel(cfg.paths.data_folders)
                     rd2 = rd.RD_El_All(:, :, k);   % 俯仰差通道
                     rd1_sub = rd1(r_mask, v_mask);
                     rd2_sub = rd2(r_mask, v_mask);
-                    az_ratio = real(rd1_sub ./ (rd_sub + eps));
-                    el_ratio = real(rd2_sub ./ (rd_sub + eps));
+                    % 复数比值 Δ/Σ：模值 |Δ/Σ| 定角度幅值，sign(Re(Δ/Σ·exp(-1iφ))) 定左右/上下。
+                    % 切勿在此取 real()——那会丢掉 19%~64% 的幅值，且 φ 不接近 0 时符号会判错
+                    % （见 mono_angle.m 头注释与 cfg.angle.phi_az）。
+                    az_ratio = rd1_sub ./ (rd_sub + eps);
+                    el_ratio = rd2_sub ./ (rd_sub + eps);
 
                     if cfg.angle.use_lut && ~isempty(monopulse_lut)
                         [r_m, v_m, az_off, el_off, ~, angle_stats] = mono_angle( ...
@@ -413,6 +461,12 @@ for di = 1:numel(cfg.paths.data_folders)
                         angle_stat_total.n_kept         = angle_stat_total.n_kept         + angle_stats.n_kept;
                         angle_stat_total.max_abs_el_oob = max(angle_stat_total.max_abs_el_oob, angle_stats.max_abs_el_oob);
                         angle_stat_total.max_abs_az_oob = max(angle_stat_total.max_abs_az_oob, angle_stats.max_abs_az_oob);
+                        % 符号自检累加量（见 sign_selfcheck.m）
+                        angle_stat_total.proj_az_sum    = angle_stat_total.proj_az_sum    + angle_stats.proj_az_sum;
+                        angle_stat_total.abs_az_sum     = angle_stat_total.abs_az_sum     + angle_stats.abs_az_sum;
+                        angle_stat_total.proj_el_sum    = angle_stat_total.proj_el_sum    + angle_stats.proj_el_sum;
+                        angle_stat_total.abs_el_sum     = angle_stat_total.abs_el_sum     + angle_stats.abs_el_sum;
+                        angle_stat_total.n_sc_pairs     = angle_stat_total.n_sc_pairs     + angle_stats.n_sc_pairs;
                     else
                         r_m = []; v_m = []; az_off = []; el_off = [];
                     end
@@ -453,7 +507,7 @@ for di = 1:numel(cfg.paths.data_folders)
             delete(out_file);
         end
 
-        % 逐波位清理：119 波位循环中防止 matfile 句柄和中间变量堆积
+        % 逐波位清理：波位循环中防止 matfile 句柄和中间变量堆积（本批 39 波位）
         clear rd rd0 rd1 rd2 rd_sub;
     end
 
@@ -465,6 +519,11 @@ for di = 1:numel(cfg.paths.data_folders)
         cfg.angle.lut_roi_deg, angle_stat_total.n_el_oob, angle_stat_total.max_abs_el_oob, angle_stat_total.n_el_nan, ...
         cfg.angle.lut_roi_deg, angle_stat_total.n_az_oob, angle_stat_total.max_abs_az_oob, angle_stat_total.n_az_nan, ...
         angle_stat_total.n_pwr_reject, angle_stat_total.n_kept));
+
+    % ---- 符号自检：当前 φ 所在的轴是否还携带侧别信息（不需要真值）----
+    % 效率 ≈1 表示 φ 正确；≈0.637 等价于抛硬币；≪0.637 表示符号被固定偏置主导。
+    % 这是 0916 那批"符号恒为 −1"唯一能在运行时自动暴露的指标。
+    lg(sign_selfcheck(angle_stat_total).msg);
 
     if isempty(all_raw_plots)
         lg('[融合] 无任何检测目标（all_raw_plots 为空），跳过融合、跟踪与绘图。');
