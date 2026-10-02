@@ -33,11 +33,36 @@ function beam_schedule = build_beam_schedule_from_meta(parse_bundle, pri_per_fra
     t0         = double(parse_bundle.rx_param.t0);
     fs         = double(parse_bundle.rx_param.sample_rate);
 
-    % ---- 1. 波位顺序 ----
+    % ---- 1. 扫描边界 ----
     switch scan_mode
         case 'sawtooth'
-            % 锯齿波：波位顺序 = 首现时序（即物理扫描顺序）
-            uniq_idx = unique(frame_idx, 'stable');
+            % 扫描边界 = beam_idx 回卷（|跳变|>1）
+            scan_start_frames = find(abs(diff(frame_idx)) > 1) + 1;
+        case 'triangle'
+            % 扫描边界 = sweep_count 跳变（折返点，每方向一次）
+            swc = find(diff(frame_sw) ~= 0);
+            scan_start_frames = swc + 1;
+    end
+    if isempty(scan_start_frames)
+        error('build_beam_schedule_from_meta:NoScans', ...
+            '未检测到完整扫描（scan_mode=%s）。', scan_mode);
+    end
+
+    % ---- 2. 波位顺序 ----
+    switch scan_mode
+        case 'sawtooth'
+            % 锯齿波：波位顺序 = 一轮“完整”扫描内的首现时序（即物理扫描顺序）。
+            % 不能直接用整个记录的 unique(...,'stable')：采集若从扫描中途开始，首轮被截断，
+            % 其出现顺序相对后续完整扫描是轮转过的（例如 7..38,0..6），而 beam_offset 是从
+            % 首轮完整扫描起算的，两者错位会让每个 beam_id 都落到错误的驻留上。
+            if numel(scan_start_frames) >= 2
+                probe_len = scan_start_frames(2) - scan_start_frames(1);
+                probe_end = min(scan_start_frames(1) + probe_len - 1, n_frames);
+                uniq_idx  = unique(frame_idx(scan_start_frames(1):probe_end), 'stable');
+            else
+                % 不足两轮扫描，无法判断完整扫描内的顺序，退回全记录首现序
+                uniq_idx = unique(frame_idx, 'stable');
+            end
         case 'triangle'
             % 三角：波位顺序 = 升序规范序 (0..38 = 波位1..39)，扫描顺序逐轮交替
             uniq_idx = unique(frame_idx);   % 升序
@@ -56,21 +81,6 @@ function beam_schedule = build_beam_schedule_from_meta(parse_bundle, pri_per_fra
         f = find(frame_idx == uniq_idx(b), 1, 'first');
         beam_az(b) = frame_az(f);
         beam_el(b) = frame_el(f);
-    end
-
-    % ---- 2. 扫描边界 ----
-    switch scan_mode
-        case 'sawtooth'
-            % 扫描边界 = beam_idx 回卷（|跳变|>1）
-            scan_start_frames = find(abs(diff(frame_idx)) > 1) + 1;
-        case 'triangle'
-            % 扫描边界 = sweep_count 跳变（折返点，每方向一次）
-            swc = find(diff(frame_sw) ~= 0);
-            scan_start_frames = swc + 1;
-    end
-    if isempty(scan_start_frames)
-        error('build_beam_schedule_from_meta:NoScans', ...
-            '未检测到完整扫描（scan_mode=%s）。', scan_mode);
     end
 
     % ---- 3. 每扫描帧数 / 每波位帧数 ----
