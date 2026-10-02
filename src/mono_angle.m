@@ -586,11 +586,16 @@ fprintf('[实测LUT] fc=%.0f MHz, %d 波位, ROI=±%.1f°, 栅格 %.2f°（模�
 fprintf('[实测LUT]   方位锚点 %s，俯仰锚点 %s\n', mat2str(az_anchors), mat2str(el_anchors));
 bad_az = 0;  bad_el = 0;
 for b = 1:num_beams
-    [rng_az, val_az] = mono_range_local(az_grid, lut_set{b}.raz_map(1, :));
-    [rng_el, val_el] = mono_range_local(el_grid, lut_set{b}.rel_map(:, 1).');
-    fprintf(['[实测LUT]   波位 az=%+6.2f° el=%+6.2f°: 方位单调至 ±%.2f°(|Δ/Σ|最大 %.4f), ' ...
-             '俯仰单调至 ±%.2f°(|Δ/Σ|最大 %.4f)\n'], ...
-        beam_positions(b, 1), beam_positions(b, 2), rng_az, val_az, rng_el, val_el);
+    % 两个半轴都要查：反查按符号位选半轴，只查正半轴会漏报负半轴的短前缀。
+    raz_b = lut_set{b}.raz_map(1, :);
+    rel_b = lut_set{b}.rel_map(:, 1).';
+    rng_az = min(mono_range_local(az_grid, raz_b,  1), ...
+                 mono_range_local(az_grid, raz_b, -1));
+    rng_el = min(mono_range_local(el_grid, rel_b,  1), ...
+                 mono_range_local(el_grid, rel_b, -1));
+    fprintf(['[实测LUT]   波位 az=%+6.2f° el=%+6.2f°: 方位可反查至 ±%.2f°(|Δ/Σ|最大 %.4f), ' ...
+             '俯仰可反查至 ±%.2f°(|Δ/Σ|最大 %.4f)\n'], ...
+        beam_positions(b, 1), beam_positions(b, 2), rng_az, max(raz_b), rng_el, max(rel_b));
     bad_az = bad_az + (rng_az < roi_deg - 1e-9);
     bad_el = bad_el + (rng_el < roi_deg - 1e-9);
 end
@@ -603,20 +608,35 @@ end
 end
 
 % ---------------------------------------------------------------------
-function [half_range, val_at] = mono_range_local(grid, curve)
-%MONO_RANGE_LOCAL 模值曲线在正半轴上首个单调递增段的 |δ| 上界及其对应模值。
-grid = grid(:).';
-curve = curve(:).';
-sel = grid >= 0;
+function half_range = mono_range_local(grid, curve, dir)
+%MONO_RANGE_LOCAL 该半轴上实际可反查的最大 |δ|，用于报告 LUT 的可用角度范围。
+% 必须与 invert_half_local 同口径：反查是从**曲线自身谷底**起取首个单调递增前缀
+% （实测零深常落在 δ=0 的邻格，见 invert_half_local 头注释）。从 δ=0 起会把
+% "零深落在正半轴"的波位误判为不单调（谷底前那一步是下降），而实际反查是好的。
+% dir = +1 正半轴 / -1 负半轴。前缀塌陷（该半轴完全不可反查）返回 0，
+% 这样调用处取 min 后自然计入 "不足 ROI"。
+half_range = 0;
+grid  = grid(:);
+curve = curve(:);
+if dir > 0, sel = grid > 0; else, sel = grid < 0; end
+sel = sel | abs(grid) < eps;          % 与反查一致：δ=0 参与，曲线从谷底起
 g = grid(sel);
 v = curve(sel);
-[g, ord] = sort(g);
+if numel(g) < 2, return; end
+% 按 |δ| 升序 → 模值应随之递增
+[ad, ord] = sort(abs(g));
 v = v(ord);
-k = find(diff(v) <= 0, 1, 'first');
-if isempty(k), k = numel(g); end
-k = max(k, 1);
-half_range = g(k);
-val_at = v(k);
+[adu, ia] = unique(ad);
+vu = v(ia);
+if numel(adu) < 2, return; end
+% 前缀起点 = 曲线自身谷底
+[~, imin] = min(vu);
+adu = adu(imin:end);
+vu  = vu(imin:end);
+if numel(adu) < 2, return; end
+k = find(diff(vu) <= 0, 1, 'first');
+if isempty(k), k = numel(adu); end
+half_range = adu(k);
 end
 
 function curve = interp_anchor_local(anchors, anchor_matrix, pos)

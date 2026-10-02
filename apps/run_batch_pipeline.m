@@ -25,15 +25,15 @@ cfg.paths.result_dir_name = 'Results'; % 结果输出目录名称；最终会在
 %% 1b. 参数区：波位排布（从帧内嵌元数据自动提取）
 cfg.beam.output_rd_per_beam = true;     % 是否保留逐波位 RD_Proc_beam*.mat；调试用，可设为 false 节省磁盘
 cfg.beam.test_single_beam = 0;          % 单波位测试模式：0=全部波位；N=仅处理波位 N
-cfg.beam.max_azimuth = inf;              % 方位角上限 (°)；az>此值跳过；inf=不限制
-cfg.beam.min_azimuth = -inf;             % 方位角下限 (°)；az<此值跳过；-inf=不限制
-cfg.beam.max_elevation = 5;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
-cfg.beam.min_elevation = 5;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制
+cfg.beam.max_azimuth = 0;              % 方位角上限 (°)；az>此值跳过；inf=不限制
+cfg.beam.min_azimuth = 0;             % 方位角下限 (°)；az<此值跳过；-inf=不限制
+cfg.beam.max_elevation = inf;           % 俯仰角上限 (°)；el>此值跳过；inf=不限制
+cfg.beam.min_elevation = -inf;             % 俯仰角下限 (°)；el<此值跳过（负俯仰打地）；-inf=不限制
 
 %% 1c. 参数区：扫描模式开关
 % 'triangle' : 三角往返(蛇形)——一轮扫描=一个方向，波位顺序逐轮交替（当前数据）
 % 'sawtooth' : 锯齿波(单向)——一轮扫描=固定39波位顺序，扫描间跳回（后续实验）
-cfg.scan_mode = 'triangle';
+cfg.scan_mode = 'sawtooth';
 
 %% 2. 参数区：运行开关
 cfg.run.do_process = true; % 是否重新执行 RD 处理；false 表示直接复用已有 RD_Proc_*.mat。
