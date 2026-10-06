@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SignalSink · 抽屉保存控件草稿</title>
+<style>
+:root{font-family:"Noto Sans CJK SC","Microsoft YaHei","PingFang SC",sans-serif;color:#17243b;background:#edf1f6;font-size:12px}
+*{box-sizing:border-box}body{margin:0;padding:24px 12px}main{width:min(640px,100%);margin:auto;background:#fff;border:1px solid #dce3ed;border-radius:10px;overflow:hidden;box-shadow:0 8px 32px #17243b0c}h1,h2,h3,p{margin:0}h1{font-size:15px}h2{font-size:14px;font-weight:500}h3{font-size:12px;font-weight:600}.muted{color:#64748b}.mono{font-family:Consolas,"DejaVu Sans Mono",monospace;font-variant-numeric:tabular-nums}.draft{padding:9px 18px;background:#fff8e9;color:#80561f;border-bottom:1px solid #f2e2bb;font-size:11px}.header{padding:16px 18px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between}.kicker{font-size:10px;letter-spacing:1.3px;color:#64748b;font-weight:700;margin-bottom:3px}.tag{padding:3px 8px;border:1px solid #cdd8e8;border-radius:5px;font-size:10px;color:#536a86}.summary{margin:0;padding:15px 18px;display:grid;grid-template-columns:110px 1fr;gap:10px;border-bottom:1px solid #e2e8f0;font-size:11px}.summary dt{color:#64748b}.summary dd{margin:0;font-weight:600}.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:20px;color:#047857;font-size:10px;white-space:nowrap}.dot{width:6px;height:6px;border-radius:50%;background:currentColor}.previews{padding:16px 18px 4px;border-bottom:1px solid #e2e8f0}.section-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.note{color:#64748b;font-size:10px;line-height:1.7;margin:8px 0 12px}.card{margin-bottom:14px;border:1px solid #dce5ef;border-radius:9px;overflow:hidden}.input{border-top:2px solid #0ea5e9}.recording{border-top:2px solid #8b5cf6}.card-head{background:#f8fafc;padding:9px 12px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}.subtitle{font-size:10px;color:#64748b;margin-top:3px}.wave{width:100%;height:auto;display:block;background:#fbfdff}.stats{padding:8px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;border-top:1px solid #e2e8f0;color:#64748b;font-size:9px}.stats strong{display:block;color:#334155;margin-top:2px}.record-body{padding:14px}.directory{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#64748b;font-size:11px}.directory code{color:#334155;background:#f4f6fa;border:1px solid #e2e8f0;border-radius:4px;padding:5px 9px}.actions{display:flex;gap:8px;margin:12px 0 17px}button{font:inherit;padding:7px 15px;border-radius:6px;border:1px solid #cbd5e1;background:#f1f5f9;color:#94a3b8}button:disabled{cursor:default}.stop{background:#fff1f2;color:#be123c;border-color:#fecdd3}.meter-row{margin-top:15px}.meter-title{display:flex;justify-content:space-between;gap:10px;font-size:11px;margin-bottom:7px}.meter-title strong{font-weight:600}.track{height:9px;background:#eaf0f6;border-radius:8px;overflow:hidden}.fill{height:100%;border-radius:8px}.queue{width:25%;background:#8b5cf6}.disk{width:60%;background:#0ea5e9}.meter-foot{display:flex;justify-content:space-between;color:#64748b;font-size:10px;margin-top:6px}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;margin-top:18px;padding-top:14px;border-top:1px solid #e9eef5}.metric{color:#64748b;font-size:10px}.metric strong{display:block;color:#1e293b;font-size:17px;margin-top:4px;font-weight:600}.metric strong small{font-size:10px;font-weight:400;color:#64748b}.hint{padding:9px 14px;border-top:1px solid #e9eef5;background:#fafbff;color:#65738b;font-size:10px;line-height:1.7}.link-detail{margin:14px 18px 18px;padding:13px;border:1px solid #e2e8f0;border-radius:9px}.link-head{display:flex;justify-content:space-between;font-size:11px;margin-bottom:10px}.link-head span{color:#64748b}table{border-collapse:collapse;width:100%;font-size:10px}th,td{padding:6px 0;border-top:1px solid #f1f5f9}th{text-align:left;color:#64748b;font-weight:400}td{text-align:right;font-family:Consolas,monospace}.legend{width:min(640px,100%);margin:12px auto 0;color:#64748b;font-size:11px;line-height:1.8;text-align:center}
+@media(max-width:440px){body{padding:0}main{border-radius:0}.previews{padding-left:12px;padding-right:12px}.summary{grid-template-columns:90px 1fr}.meter-title{flex-wrap:wrap}.legend{padding:0 12px 12px}}
+@media print{body{background:white;padding:0}main{box-shadow:none}.legend{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<main aria-label="SignalSink 节点详情抽屉草稿">
+<div class="draft">静态草稿 · 所有数值为示例，按钮未连接后端</div>
+<header class="header"><div><div class="kicker">TELEMETRY DETAIL</div><h1>192.162.2.64</h1></div><span class="tag">SignalSink</span></header>
+<dl class="summary"><dt>节点状态</dt><dd><span class="badge"><span class="dot"></span>Normal</span></dd><dt>Goodput</dt><dd>0.492 GB/s</dd><dt>最后心跳</dt><dd>2026/10/06 22:10:02</dd></dl>
+<section class="previews">
+<div class="section-head"><div><div class="kicker">LOSSY LIVE PREVIEW</div><h2>输入 / 输出实时预览</h2></div><span class="badge">预览通道已连接</span></div>
+<p class="note">输入预览为有损抽样，与完整帧录制独立；关闭抽屉不会停止录制。</p>
+<article class="card input">
+<div class="card-head"><div><h3>输入波形</h3><p class="subtitle">Type 1:3</p></div><span class="muted">CH 0</span></div>
+<svg class="wave" viewBox="0 0 600 170" role="img" aria-label="输入 IQ 幅度预览示意，非真实数据">
+<defs><clipPath id="plot"><rect x="60" y="12" width="524" height="117"/></clipPath>
+<pattern id="peaks" width="71" height="117" patternUnits="userSpaceOnUse" x="60" y="12"><path d="M0 83 L2 70 L3 79 L5 68 L6 85 L8 76 L10 10 L11 80 L13 68 L14 78 L16 72 L18 14 L19 76 L21 79 L24 62 L25 83 L27 76 L29 4 L30 74 L32 78 L33 68 L35 85 L37 64 L39 72 L41 11 L42 78 L44 68 L46 83 L48 65 L50 77 L52 17 L53 80 L55 70 L58 81 L60 73 L62 8 L63 77 L65 70 L68 84 L71 83" fill="none" stroke="#2563eb" stroke-width="1.5"/><path d="M0 112 L5 110 L6 116 L9 100 L10 116 L14 110 L17 113 L18 92 L19 115 L25 115 L29 97 L30 116 L38 111 L41 96 L42 116 L48 113 L52 98 L53 116 L60 110 L62 94 L63 115 L71 112" fill="none" stroke="#a4b4ca"/></pattern></defs>
+<g stroke="#e2e8f0" stroke-width="1"><path d="M60 12H584M60 41H584M60 70H584M60 99H584M60 129H584M60 12V129M191 12V129M322 12V129M453 12V129M584 12V129"/></g>
+<rect x="60" y="12" width="524" height="117" fill="url(#peaks)" clip-path="url(#plot)"/>
+<g fill="#64748b" font-size="8" font-family="monospace"><text x="51" y="15" text-anchor="end">2.9e4</text><text x="51" y="44" text-anchor="end">2.2e4</text><text x="51" y="73" text-anchor="end">1.4e4</text><text x="51" y="102" text-anchor="end">7238</text><text x="51" y="132" text-anchor="end">0</text><text x="60" y="142">0</text><text x="191" y="142" text-anchor="middle">187,801</text><text x="322" y="142" text-anchor="middle">375,603</text><text x="453" y="142" text-anchor="middle">563,404</text><text x="584" y="142" text-anchor="end">751,205</text></g><g fill="#475569" font-size="10"><text x="322" y="162" text-anchor="middle">采样点</text><text transform="translate(15 72) rotate(-90)" text-anchor="middle">幅度 |I+jQ|</text></g>
+</svg>
+<div class="stats"><span>实际<strong>13.0 fps</strong></span><span>快照丢弃<strong>0</strong></span><span>编码丢弃<strong>0</strong></span><span>网络丢弃<strong>0</strong></span></div>
+</article>
+<article class="card recording" aria-label="替换原输出波形卡片的数据保存控件">
+<div class="card-head"><div><h3>数据保存</h3><p class="subtitle">完整裸帧 · 独立录制控制</p></div><span class="badge"><span class="dot"></span>录制中</span></div>
+<div class="record-body">
+<div class="directory"><span>保存目录</span><code>/captures/session-001</code></div>
+<div class="actions"><button type="button" disabled>开始录制</button><button type="button" class="stop" disabled title="静态草稿，未连接后端">■ 停止录制</button></div>
+<div class="meter-row"><div class="meter-title"><strong>待写缓冲队列</strong><span class="mono">256 / 1024 MB</span></div><div class="track" role="meter" aria-label="待写缓冲队列占用" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25"><div class="fill queue"></div></div><div class="meter-foot"><span>待写数据占用 / 录制队列总容量</span><span>25%</span></div></div>
+<div class="meter-row"><div class="meter-title"><strong>目标磁盘水位</strong><span class="mono">600 / 1000 GB</span></div><div class="track" role="meter" aria-label="目标磁盘已用容量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="60"><div class="fill disk"></div></div><div class="meter-foot"><span>已用 60%</span><span>可用空间 400 GB</span></div></div>
+<div class="metrics"><div class="metric">接收速率<strong>491.52 <small>MB/s</small></strong></div><div class="metric">写入速率<strong>491.52 <small>MB/s</small></strong></div><div class="metric">本次已写入<strong>29.49 <small>GB</small></strong></div><div class="metric">录制时长<strong class="mono">00:01:00</strong></div></div>
+</div>
+<div class="hint">检测到或无法避免不连续时停止本次录制并报错，不自动续录。</div>
+</article>
+</section>
+<section class="link-detail" aria-label="原有 upstream 链路详情">
+<div class="link-head"><strong>upstream</strong><span>RDMA · connected</span></div>
+<table><tbody><tr><th scope="row">Peer</th><td>node-2</td></tr><tr><th scope="row">Goodput</th><td>0.492 GB/s</td></tr><tr><th scope="row">Capacity</th><td>64</td></tr><tr><th scope="row">Used</th><td>16</td></tr><tr><th scope="row">Write Position</th><td>101165</td></tr><tr><th scope="row">Read Position</th><td>101149</td></tr><tr><th scope="row">Watermark</th><td>25.0%</td></tr></tbody></table>
+</section>
+</main>
+<p class="legend">仅 SignalSink：保存控件替换抽屉中的输出图，输入图与实际链路详情保留。</p>
+</body>
+</html>

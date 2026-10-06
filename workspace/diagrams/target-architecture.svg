@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="840" viewBox="0 0 1280 840" role="img" aria-labelledby="title desc">
+<title id="title">UESTC Radar 目标架构</title>
+<desc id="desc">Source、Operator、Sink 的 Worker 经共享内存连接 Sidecar，Sidecar 之间经 UCX/RDMA 传输。遥测及有界抽样作为独立旁路送至 Web，不回压主数据面。</desc>
+<defs>
+<style>
+text{font-family:'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#203752} .title{font-size:23px;font-weight:700}.head{font-size:16px;font-weight:700}.small{font-size:12px;fill:#5e7591}.body{font-size:13px}.mono{font-family:Consolas,monospace;font-size:11px;fill:#627b96}.section{font-size:13px;font-weight:700;fill:#45617f;letter-spacing:.6px}.green{fill:#00856b}.blue{fill:#0878b6}.purple{fill:#742ee5}.orange{fill:#be5c1b}.frame{fill:#f8fafc;stroke:#9aafc9;stroke-width:1.2}.plain{fill:white;stroke:#bed0e3}.rxbox{fill:#edfaf5;stroke:#52b696}.txbox{fill:#eef7ff;stroke:#65abdc}.controlbox{fill:#f7f3ff;stroke:#b896f2}.rule{stroke:#d8e3ee}.rx{fill:none;stroke:#00856b;stroke-width:1.8;marker-end:url(#g)}.tx{fill:none;stroke:#0878b6;stroke-width:1.8;marker-end:url(#b)}.ctl{fill:none;stroke:#742ee5;stroke-width:1.5;stroke-dasharray:5 4;marker-end:url(#p)}.credit{fill:none;stroke:#0878b6;stroke-width:1.3;stroke-dasharray:3 3;marker-end:url(#b)}
+</style>
+<marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#00856b" d="M0 0 10 5 0 10Z"/></marker>
+<marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#0878b6" d="M0 0 10 5 0 10Z"/></marker>
+<marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#742ee5" d="M0 0 10 5 0 10Z"/></marker>
+</defs>
+<rect width="1280" height="840" fill="white"/>
+<text x="24" y="34" class="title">UESTC Radar 目标架构</text>
+<text x="24" y="56" class="small">载荷无关的流式计算框架 · Worker / SHM / Sidecar / UCX</text>
+<text x="1256" y="32" text-anchor="end" class="small">目标设计 · 不代表全部能力已实现</text>
+<path class="rx" d="M25 79H61"/><text x="70" y="83" class="small">输入 / 接收</text>
+<path class="tx" d="M191 79H227"/><text x="236" y="83" class="small">输出 / 发送</text>
+<path class="ctl" d="M361 79H397"/><text x="406" y="83" class="small">遥测 / 抽样 / 控制</text>
+<path class="credit" d="M587 79H623"/><text x="632" y="83" class="small">反向 credit</text>
+<line x1="24" x2="1256" y1="98" y2="98" class="rule"/>
+<!-- Web 和抽样旁路 -->
+<rect x="375" y="118" width="520" height="106" rx="7" class="controlbox"/>
+<text x="391" y="143" class="head">Web 可视化与集群控制</text>
+<text x="391" y="163" class="mono">telemetry / preview / authenticated control</text>
+<line x1="391" x2="879" y1="173" y2="173" class="rule"/>
+<text x="391" y="193" class="body">真实拓扑 · 链路状态 · 吞吐 / RTT · Ring 水位 · 背压告警</text>
+<text x="391" y="212" class="small">波形 / 频谱 / RD / 点云 · 权限校验 / 审计 / 失败回滚</text>
+<text x="25" y="143" class="section">观测与控制面</text>
+<text x="25" y="165" class="small">可限速、降采样、丢弃预览帧</text>
+<text x="25" y="184" class="small">独立旁路，不阻塞主数据链</text>
+<text x="946" y="143" class="section">业务解码与传输分离</text>
+<text x="946" y="165" class="small">按 type / version / schema 解码</text>
+<text x="946" y="184" class="small">Sidecar 主传输路径不解析业务载荷</text>
+<path class="ctl" d="M208 252V235H455V224"/><path class="ctl" d="M640 252V224"/><path class="ctl" d="M1072 252V235H815V224"/>
+<rect x="88" y="252" width="240" height="47" rx="6" class="controlbox"/><text x="102" y="273" class="body">Telemetry / Sampler</text><text x="102" y="290" class="small">持有 lease 时有界抽样</text>
+<rect x="520" y="252" width="240" height="47" rx="6" class="controlbox"/><text x="534" y="273" class="body">Telemetry / Sampler</text><text x="534" y="290" class="small">独立队列，不作为第二消费者</text>
+<rect x="952" y="252" width="240" height="47" rx="6" class="controlbox"/><text x="966" y="273" class="body">Telemetry / Sampler</text><text x="966" y="290" class="small">Web 离线不影响主数据面</text>
+<!-- 三类节点 -->
+<rect x="24" y="325" width="364" height="411" rx="8" class="frame"/>
+<rect x="456" y="325" width="368" height="411" rx="8" class="frame"/>
+<rect x="892" y="325" width="364" height="411" rx="8" class="frame"/>
+<text x="41" y="350" class="section">SOURCE / 数据源节点</text><text x="41" y="369" class="small">Upstream disabled · Downstream enabled</text>
+<text x="473" y="350" class="section">OPERATOR / 算法节点</text><text x="473" y="369" class="small">独立 Ingress / Egress · 不绕过 Worker</text>
+<text x="909" y="350" class="section">SINK / 接收节点</text><text x="909" y="369" class="small">Upstream enabled · Downstream disabled</text>
+<!-- Source -->
+<rect x="66" y="389" width="280" height="77" rx="6" class="plain"/>
+<text x="80" y="414" class="head">Worker Source</text><text x="80" y="435" class="mono">Output&lt;Frame&gt;</text><text x="80" y="453" class="small">采集 / 文件回放 / 信号生成</text>
+<path class="tx" d="M206 466V514"/><text x="220" y="495" class="small blue">直接构造输出</text>
+<rect x="66" y="514" width="280" height="60" rx="6" class="txbox"/>
+<text x="80" y="538" class="head">Output SHM / Ring</text><text x="80" y="559" class="small">显式端口 · Slot / Payload / lease</text>
+<path class="tx" d="M206 574V622"/><text x="220" y="603" class="small blue">已注册 Slot 地址</text>
+<rect x="66" y="622" width="280" height="89" rx="6" class="txbox"/>
+<text x="80" y="647" class="head">Sidecar Egress</text><text x="80" y="668" class="mono">UCX send / credit</text><text x="80" y="694" class="small">请求完成后释放 lease</text>
+<!-- Operator -->
+<rect x="488" y="389" width="304" height="77" rx="6" class="plain"/>
+<text x="502" y="414" class="head">Worker Algorithm</text><text x="502" y="435" class="mono">Input&lt;Frame&gt; → process → Output&lt;Frame&gt;</text><text x="502" y="453" class="small">SDK 契约校验 · 计算与网络解耦</text>
+<path class="rx" d="M555 514V466"/><text x="547" y="495" text-anchor="end" class="small green">读取</text>
+<path class="tx" d="M725 466V514"/><text x="737" y="495" class="small blue">提交</text>
+<rect x="488" y="514" width="134" height="60" rx="6" class="rxbox"/>
+<text x="500" y="538" class="head">Input SHM</text><text x="500" y="559" class="small">可写 Slot / credit</text>
+<rect x="658" y="514" width="134" height="60" rx="6" class="txbox"/>
+<text x="670" y="538" class="head">Output SHM</text><text x="670" y="559" class="small">已提交 Slot / lease</text>
+<path class="rx" d="M555 622V574"/><text x="548" y="603" text-anchor="end" class="small green">接收</text>
+<path class="tx" d="M725 574V622"/><text x="737" y="603" class="small blue">发送</text>
+<rect x="488" y="622" width="134" height="89" rx="6" class="rxbox"/>
+<text x="500" y="647" class="head">Ingress Leg</text><text x="500" y="668" class="mono">UCX receive</text><text x="500" y="694" class="small">独立状态 / 重连</text>
+<rect x="658" y="622" width="134" height="89" rx="6" class="txbox"/>
+<text x="670" y="647" class="head">Egress Leg</text><text x="670" y="668" class="mono">UCX send</text><text x="670" y="694" class="small">独立状态 / 重连</text>
+<!-- Sink -->
+<rect x="934" y="389" width="280" height="77" rx="6" class="plain"/>
+<text x="948" y="414" class="head">Worker Sink</text><text x="948" y="435" class="mono">Input&lt;Frame&gt;</text><text x="948" y="453" class="small">消费结果 / 校验 / 录制</text>
+<path class="rx" d="M1074 514V466"/><text x="1088" y="495" class="small green">直接读取输入</text>
+<rect x="934" y="514" width="280" height="60" rx="6" class="rxbox"/>
+<text x="948" y="538" class="head">Input SHM / Ring</text><text x="948" y="559" class="small">显式端口 · Slot / Payload / lease</text>
+<path class="rx" d="M1074 622V574"/><text x="1088" y="603" class="small green">直接接收至 Slot</text>
+<rect x="934" y="622" width="280" height="89" rx="6" class="rxbox"/>
+<text x="948" y="647" class="head">Sidecar Ingress</text><text x="948" y="668" class="mono">UCX receive / credit</text><text x="948" y="694" class="small">获得可写 Slot 后发放 credit</text>
+<!-- 网络主链和反向credit -->
+<path class="tx" d="M346 661H488"/><text x="417" y="649" text-anchor="middle" class="small blue">UCX / RDMA</text>
+<path class="credit" d="M488 686H346"/><text x="417" y="705" text-anchor="middle" class="small blue">credit</text>
+<path class="tx" d="M792 661H934"/><text x="863" y="649" text-anchor="middle" class="small blue">UCX / RDMA</text>
+<path class="credit" d="M934 686H792"/><text x="863" y="705" text-anchor="middle" class="small blue">credit</text>
+<!-- 有界旁路，从各侧边引出避免遮挡数据路径 -->
+<path class="ctl" d="M66 633H34V276H88"/>
+<path class="ctl" d="M488 633H466V276H520"/>
+<path class="ctl" d="M934 633H902V276H952"/>
+<rect x="24" y="757" width="1232" height="57" rx="6" fill="#fffaf1" stroke="#e4b571"/>
+<text x="40" y="780" class="body orange">传输约束</text><text x="139" y="780" class="body">Frame 契约先校验；Payload 不经额外中转；credit、Slot 与 lease 严格对应。</text>
+<text x="139" y="802" class="small">functional 用于功能联调；strict-RDMA 必须确认实际零拷贝路径，不满足条件时明确失败。</text>
+</svg>

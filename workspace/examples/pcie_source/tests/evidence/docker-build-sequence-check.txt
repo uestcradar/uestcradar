@@ -1,0 +1,136 @@
+Sending build context to Docker daemon  434.2kB
+Step 1/19 : ARG ALGO_BASE=registry.chengyistudio.com/cxx/algo-base:latest
+Step 2/19 : ARG CPI_DATA_IMAGE=registry.chengyistudio.com/cxx/worker:signalsource-latest@sha256:c6833658a15367f4c4b115fa6391f563af26c7a04853519379f424da72c5feb9
+Step 3/19 : FROM ${CPI_DATA_IMAGE} AS cpi-data
+ ---> 88f4d61bfa31
+Step 4/19 : RUN set -eu; for n in 0 1 2 3 4 5 6 7 8 9; do       mkdir -p /templates/CPI$n;       for file in metadata.json pulse_time.txt pulse_phase.txt pulse_freq.txt wd0.txt; do         cp /data/CPI$n/$file /templates/CPI$n/;       done;     done
+ ---> Using cache
+ ---> 79905794010b
+Step 5/19 : FROM ${ALGO_BASE} AS build
+ ---> 7882db05de5a
+Step 6/19 : WORKDIR /app
+ ---> Using cache
+ ---> e442ae091372
+Step 7/19 : COPY CMakeLists.txt ./
+ ---> 8bd813ec695d
+Step 8/19 : COPY src/ ./src/
+ ---> 634a56760f29
+Step 9/19 : COPY pcie/ ./pcie/
+ ---> 41acf7b2a69e
+Step 10/19 : COPY tests/ ./tests/
+ ---> 26eb5e5eea54
+Step 11/19 : COPY --from=cpi-data /templates/ /data/
+ ---> 960a7671e64f
+Step 12/19 : RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON     && cmake --build build --parallel 4     && ctest --test-dir build --output-on-failure     && ./build/cpi_templates_test /data
+ ---> Running in a8382f8617a8
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Configuring done (0.4s)
+-- Generating done (0.0s)
+-- Build files have been written to: /app/build
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /app/build
+[ 10%] Building C object CMakeFiles/pcie_json.dir/pcie/cJSON.c.o
+[ 10%] Building C object CMakeFiles/pcie_rx.dir/pcie/xdma_rx.c.o
+[ 15%] Building C object CMakeFiles/pcie_rx.dir/pcie/devmem_io.c.o
+[ 20%] Linking C static library libpcie_rx.a
+[ 20%] Built target pcie_rx
+[ 25%] Linking C static library libpcie_json.a
+[ 25%] Built target pcie_json
+[91mgmake[2]: Warning: File '/usr/local/lib/libuestcradar_sdk.so' has modification time 176200180 s in the future
+[0m[91mgmake[2]: Warning: File '/usr/local/lib/libuestcradar_sdk.so' has modification time 176200180 s in the future
+[0m[91mgmake[2]: Warning: File '/usr/local/lib/libuestcradar_sdk.so' has modification time 176200180 s in the future
+[0m[ 30%] Building CXX object CMakeFiles/pcie_source.dir/src/main.cpp.o
+[ 45%] Building CXX object CMakeFiles/cpi_templates_test.dir/tests/cpi_templates_test.cpp.o
+[ 45%] Building CXX object CMakeFiles/cpi_assembler_test.dir/tests/cpi_assembler_test.cpp.o
+[ 45%] Building CXX object CMakeFiles/iq_decode_test.dir/tests/iq_decode_test.cpp.o
+[ 50%] Linking CXX executable iq_decode_test
+[91mgmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+[0m[ 50%] Built target iq_decode_test
+[91mgmake[2]: Warning: File '/usr/local/lib/libuestcradar_sdk.so' has modification time 176200179 s in the future
+[0m[ 55%] Building CXX object CMakeFiles/options_test.dir/tests/options_test.cpp.o
+[ 60%] Linking CXX executable cpi_assembler_test
+[91mgmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+[0m[ 60%] Built target cpi_assembler_test
+[91mgmake[2]: Warning: File '/usr/local/lib/libuestcradar_sdk.so' has modification time 176200179 s in the future
+[0m[ 65%] Building CXX object CMakeFiles/receiver_test.dir/tests/receiver_test.cpp.o
+[ 70%] Linking CXX executable options_test
+[91mgmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+[0m[ 70%] Built target options_test
+[91mgmake[2]: Warning: File '/usr/local/lib/libuestcradar_sdk.so' has modification time 176200178 s in the future
+[0m[ 75%] Building CXX object CMakeFiles/sequence_check_test.dir/tests/sequence_check_test.cpp.o
+[ 80%] Linking CXX executable cpi_templates_test
+[91mgmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+[0m[ 80%] Built target cpi_templates_test
+[91mgmake[2]: Warning: File '/usr/local/lib/libuestcradar_sdk.so' has modification time 176200178 s in the future
+[0m[ 85%] Building CXX object CMakeFiles/pcie_source.dir/src/pcie_receiver.cpp.o
+[ 90%] Linking CXX executable sequence_check_test
+[91mgmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+[0m[ 90%] Built target sequence_check_test
+[ 95%] Linking CXX executable receiver_test
+[91mgmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+[0m[ 95%] Built target receiver_test
+[100%] Linking CXX executable pcie_source
+[91mgmake[2]: warning:  Clock skew detected.  Your build may be incomplete.
+[0m[100%] Built target pcie_source
+Internal ctest changing into directory: /app/build
+Test project /app/build
+    Start 1: pcie-iq_decode
+1/9 Test #1: pcie-iq_decode .....................   Passed    0.00 sec
+    Start 2: pcie-cpi_templates
+2/9 Test #2: pcie-cpi_templates .................   Passed    0.01 sec
+    Start 3: pcie-cpi_assembler
+3/9 Test #3: pcie-cpi_assembler .................   Passed    0.05 sec
+    Start 4: pcie-options
+4/9 Test #4: pcie-options .......................   Passed    0.00 sec
+    Start 5: pcie-receiver
+5/9 Test #5: pcie-receiver ......................   Passed    0.00 sec
+    Start 6: pcie-sequence_check
+6/9 Test #6: pcie-sequence_check ................   Passed    0.00 sec
+    Start 7: pcie-help
+7/9 Test #7: pcie-help ..........................   Passed    0.00 sec
+    Start 8: pcie-reject-channel
+8/9 Test #8: pcie-reject-channel ................   Passed    0.00 sec
+    Start 9: pcie-reject-unimplemented-output
+9/9 Test #9: pcie-reject-unimplemented-output ...   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 9
+
+Total Test time (real) =   0.07 sec
+Removing intermediate container a8382f8617a8
+ ---> 50261377bea9
+Step 13/19 : FROM ${ALGO_BASE}
+ ---> 7882db05de5a
+Step 14/19 : WORKDIR /app
+ ---> Using cache
+ ---> e442ae091372
+Step 15/19 : COPY --from=build /app/build/pcie_source /app/pcie_source
+ ---> 7f229cc27157
+Step 16/19 : COPY --from=cpi-data /templates/ /data/
+ ---> 7826c78ecfa7
+Step 17/19 : COPY pcie_config/config_sync_4.txt pcie_config/config_drp_4g8.txt pcie_config/log.json /app/pcie_config/
+ ---> ea4db79beb99
+Step 18/19 : ENTRYPOINT ["/app/pcie_source"]
+ ---> Running in 11c391cdab16
+Removing intermediate container 11c391cdab16
+ ---> 69aa48a5fb57
+Step 19/19 : LABEL io.uestcradar.contract="worker/v2"       io.uestcradar.roles="source"       io.uestcradar.input="none"       io.uestcradar.output="1:3"
+ ---> Running in b9e81811f139
+Removing intermediate container b9e81811f139
+ ---> ed6b13efa6e6
+Successfully built ed6b13efa6e6
+Successfully tagged pcie-source:sequence-check
