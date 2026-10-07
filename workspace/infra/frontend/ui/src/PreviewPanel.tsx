@@ -65,6 +65,7 @@ export function PreviewPanel({nodeId, instanceId, input, output}: PreviewPanelPr
           if (decoded.kind === 'status') {
             setStatuses(current => ({...current, [decoded.leg]: decoded}));
           } else {
+            setNow(Date.now());
             setFrames(current => ({...current, [decoded.leg]: decoded}));
           }
         } catch {
