@@ -42,7 +42,7 @@ Worker 负责配置校验、接收生命周期、选路、软件分块及 SDK �
 
 ## SDK 输出与假 Metadata
 
-参照 [signalsource](../../signalsource/README.md)，保持 [SDK IQFrame](../../../sdk/README.md) 的 `type_id=1 / type_version=3` 不变。使用 `output.create(metadata)`，填充样本后调用 `output.write(std::move(frame))`。
+参照 [signalsource](../../signalsource/README.md)，保持 [SDK IQFrame](../../../infra/sdk/README.md) 的 `type_id=1 / type_version=3` 不变。使用 `output.create(metadata)`，填充样本后调用 `output.write(std::move(frame))`。
 
 - `channel_count=1`，`samples_per_channel=N`，Payload 为标准小端 `ComplexInt16`（`int16_t I, int16_t Q`）。
 - `pulse_count=64`，其余 Metadata 和四组逐脉冲数组逐字段沿用 [signalsource 参数模板](../pcie_config/README.md#联调默认参数)，不另造 PRT、载频或缩放默认值。
@@ -80,4 +80,4 @@ Worker 负责配置校验、接收生命周期、选路、软件分块及 SDK �
 
 ## 下游接入
 
-复用 [Sidecar](../../../sidecar/README.md)：Source Upstream 为 `disabled`，Downstream 连接下游。Worker 与 Sidecar 共享输出 SHM，双方 IQ 契约版本及最大帧容量一致；单帧样本区为 `751206 × 4 = 3004824` 字节，加上 IQ v3 Metadata 的 `2136` 字节，SDK 载荷为 `3006960` 字节；Ring Slot 还需按现有 SDK/Sidecar 规则容纳帧开销。复用 `signalsource` 的输出配置并校验容量，不仅按样本区大小分配。
+复用 [Sidecar](../../../infra/sidecar/README.md)：Source Upstream 为 `disabled`，Downstream 连接下游。Worker 与 Sidecar 共享输出 SHM，双方 IQ 契约版本及最大帧容量一致；单帧样本区为 `751206 × 4 = 3004824` 字节，加上 IQ v3 Metadata 的 `2136` 字节，SDK 载荷为 `3006960` 字节；Ring Slot 还需按现有 SDK/Sidecar 规则容纳帧开销。复用 `signalsource` 的输出配置并校验容量，不仅按样本区大小分配。

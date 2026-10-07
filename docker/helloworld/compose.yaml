@@ -4,7 +4,7 @@ services:
     container_name: sidecar-alpha
     build:
       context: ../..
-      dockerfile: workspace/sidecar/Dockerfile
+      dockerfile: workspace/infra/sidecar/Dockerfile
       args:
         BASE_IMAGE: ${BASE_IMAGE:-registry.chengyistudio.com/cxx/ubuntu:24.04}
     image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/ring-sidecar:0.1.0}
@@ -46,7 +46,7 @@ services:
     container_name: sidecar-beta
     build:
       context: ../..
-      dockerfile: workspace/sidecar/Dockerfile
+      dockerfile: workspace/infra/sidecar/Dockerfile
       args:
         BASE_IMAGE: ${BASE_IMAGE:-registry.chengyistudio.com/cxx/ubuntu:24.04}
     image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/ring-sidecar:0.1.0}
@@ -91,7 +91,7 @@ services:
     container_name: telemetry-web
     build:
       context: ../..
-      dockerfile: workspace/web/Dockerfile
+      dockerfile: workspace/infra/web/Dockerfile
     image: ${TELEMETRY_IMAGE:-uestcradar-telemetry:0.1.0}
     ports:
       - "8081:8080"

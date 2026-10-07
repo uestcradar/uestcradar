@@ -5,8 +5,8 @@
 
 | 示例 | 输入 | 输出 | 学习内容 |
 | --- | --- | --- | --- |
-| [pulsecompression](./pulsecompression) | `IQFrame` | `PulseCompressionFrame` | 完整 CPI、精确数据自检和标准 `read/create/write` 流程 |
-| [qt5-algorithm](./qt5-algorithm) | `PulseCompressionFrame` | `RDFrame` | QtCore、跨帧 CPI 和 RD 输出 |
+| [KT2](./KT2) | `IQFrame` | `PulseCompressionFrame` | 完整 CPI、精确数据自检和标准 `read/create/write` 流程 |
+| [KT3](./KT3) | `PulseCompressionFrame` | `RDFrame` | QtCore、跨帧 CPI 和 RD 输出 |
 
 ```text
 Input<DataFrame>::read()

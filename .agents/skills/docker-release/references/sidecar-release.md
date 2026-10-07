@@ -1,6 +1,6 @@
 # Sidecar 发布
 
-正式构建入口为 `workspace/sidecar/Dockerfile` 的 `runtime` target。
+正式构建入口为 `workspace/infra/sidecar/Dockerfile` 的 `runtime` target。
 
 ```text
 registry.chengyistudio.com/cxx/sidecar:sha-<gitsha12>-arm64

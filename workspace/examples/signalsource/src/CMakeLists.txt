@@ -32,21 +32,21 @@ if(BUILD_TESTING)
         pkg_check_modules(UCX REQUIRED IMPORTED_TARGET ucx)
         set(UESTCRADAR_RINGBUF_BUILD_BENCHMARK OFF)
         add_subdirectory(
-            ../../../common/ringbuf
+            ../../../infra/common/ringbuf
             "${CMAKE_CURRENT_BINARY_DIR}/ringbuf")
         add_executable(cpi-ring-test cpi_ring_test.cpp)
         target_link_libraries(
             cpi-ring-test PRIVATE cycomm::sdk uestcradar::ringbuf)
         target_include_directories(
-            cpi-ring-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+            cpi-ring-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../infra")
         target_compile_features(cpi-ring-test PRIVATE cxx_std_20)
         target_compile_options(
             cpi-ring-test PRIVATE -Wall -Wextra -Wpedantic)
         add_executable(
             cpi-sidecar-test
             cpi_sidecar_test.cpp
-            ../../../sidecar/forwarder/forwarder.cpp
-            ../../../sidecar/network/ucx_transport.cpp)
+            ../../../infra/sidecar/forwarder/forwarder.cpp
+            ../../../infra/sidecar/network/ucx_transport.cpp)
         target_link_libraries(
             cpi-sidecar-test PRIVATE
             cycomm::sdk
@@ -55,9 +55,9 @@ if(BUILD_TESTING)
             Threads::Threads)
         target_include_directories(
             cpi-sidecar-test PRIVATE
-            "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
-            "${CMAKE_CURRENT_SOURCE_DIR}/../../../sidecar"
-            "${CMAKE_CURRENT_SOURCE_DIR}/../../../common")
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../infra"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../infra/sidecar"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../../infra/common")
         target_compile_features(cpi-sidecar-test PRIVATE cxx_std_20)
         target_compile_options(
             cpi-sidecar-test PRIVATE -Wall -Wextra -Wpedantic)

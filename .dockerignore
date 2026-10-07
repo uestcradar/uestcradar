@@ -2,5 +2,5 @@
 !docker/**
 !workspace/
 !workspace/**
-workspace/web/frontend/node_modules/
-workspace/web/web/dist/
+workspace/infra/web/frontend/node_modules/
+workspace/infra/web/web/dist/

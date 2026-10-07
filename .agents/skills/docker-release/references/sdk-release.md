@@ -7,8 +7,8 @@ registry.chengyistudio.com/cxx/algo-base:sha-<gitsha12>-arm64
 registry.chengyistudio.com/cxx/algo-base:latest
 ```
 
-构建入口为 `workspace/sdk/Dockerfile` 的 `algo-base` target，构建上下文必须是仓库根目录，
-因为 SDK 与 `workspace/common/` 共同定义 RingBuffer ABI。
+构建入口为 `workspace/infra/sdk/Dockerfile` 的 `algo-base` target，构建上下文必须是仓库根目录，
+因为 SDK 与 `workspace/infra/common/` 共同定义 RingBuffer ABI。
 
 必需契约：
 

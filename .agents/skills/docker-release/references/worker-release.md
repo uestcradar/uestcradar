@@ -40,4 +40,4 @@ registry.chengyistudio.com/cxx/worker:<worker-name>-latest
 在交互菜单中选择 `Worker`，再选择具体目录。Dockerfile 至少必须包含 `FROM` 以及
 Worker v2 的四个 Labels；实际 Docker 构建和构建后的镜像契约校验任一失败都会立即退出。
 
-禁止使用 `workspace/sidecar/Dockerfile --target cascade-worker` 发布正式 Worker。
+禁止使用 `workspace/infra/sidecar/Dockerfile --target cascade-worker` 发布正式 Worker。

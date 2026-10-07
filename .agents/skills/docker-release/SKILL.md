@@ -15,7 +15,7 @@ description: 在 ARM64 开发机上验证、构建并双 Tag 发布 SDK Algo Bas
 2. 必须通过 `--remote-dir` 指定远端已有仓库；远端工作树必须干净且 HEAD 与本地一致。
 3. Worker 正式发布入口必须是 `workspace/examples/<worker-name>/Dockerfile`；本地交互菜单
    只列出该目录下包含 Dockerfile 的直接子目录。
-4. `workspace/sidecar/Dockerfile` 的 `cascade-worker` target 只用于本地测试，不得发布。
+4. `workspace/infra/sidecar/Dockerfile` 的 `cascade-worker` target 只用于本地测试，不得发布。
 5. 不可变 Tag 不能覆盖；先推不可变 Tag、拉回验签，再更新滚动 Tag。
 6. `registry.chengyistudio.com/cxx/algo-base:latest` 是默认 Worker 开发基础镜像；SDK
    升级验证必须用 `ALGO_BASE` 固定候选 Tag 或 Digest，禁止混用 SDK ABI。

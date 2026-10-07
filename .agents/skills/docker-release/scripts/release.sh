@@ -172,9 +172,9 @@ run_local() {
 
     local -a scoped_paths=(.agents/skills/docker-release)
     case "$component" in
-        sdk) scoped_paths+=(workspace/sdk workspace/common) ;;
-        sidecar) scoped_paths+=(workspace/sidecar/Dockerfile) ;;
-        web) scoped_paths+=(workspace/web workspace/proto/telemetry.proto) ;;
+        sdk) scoped_paths+=(workspace/infra/sdk workspace/infra/common) ;;
+        sidecar) scoped_paths+=(workspace/infra/sidecar/Dockerfile) ;;
+        web) scoped_paths+=(workspace/infra/web workspace/infra/proto/telemetry.proto) ;;
         worker) scoped_paths+=("workspace/examples/$worker_name") ;;
     esac
     if [[ -n "$(git status --porcelain -- "${scoped_paths[@]}")" ]]; then
@@ -259,12 +259,12 @@ ensure_web_build_base() {
     local destination="$registry/web:build-base"
     log "checking Web build base: $destination"
     pull_remote_tag "$destination" || {
-        echo "Web build-base is unavailable; publish workspace/web/docker/Dockerfile.build-base first" >&2
+        echo "Web build-base is unavailable; publish workspace/infra/web/docker/Dockerfile.build-base first" >&2
         return 1
     }
     docker run --rm --entrypoint /bin/sh "$destination" -c \
         'node --version >/dev/null && npm --version >/dev/null && test -d /opt/web-frontend/node_modules' || {
-        echo "Web build-base lacks Node/npm or cached frontend dependencies; rebuild it from workspace/web/docker" >&2
+        echo "Web build-base lacks Node/npm or cached frontend dependencies; rebuild it from workspace/infra/web/docker" >&2
         return 1
     }
 }
@@ -378,14 +378,14 @@ run_remote() {
         local sdk_base_image=${SDK_BASE_IMAGE:-$registry/ubuntu:24.04}
         log "building SDK Algo Base: $sdk_version"
         docker build --build-arg "BASE_IMAGE=$sdk_base_image" \
-            --target algo-base -f workspace/sdk/Dockerfile \
+            --target algo-base -f workspace/infra/sdk/Dockerfile \
             -t "$sdk_version" .
         log "verifying SDK Algo Base image contract"
         verify_remote_image "$sdk_version" sdk
     fi
     if [[ "$component" == "sidecar" ]]; then
         log "building Sidecar: $sidecar_version"
-        docker build --target runtime -f workspace/sidecar/Dockerfile \
+        docker build --target runtime -f workspace/infra/sidecar/Dockerfile \
             -t "$sidecar_version" .
         log "verifying Sidecar image contract"
         verify_remote_image "$sidecar_version" sidecar
@@ -409,7 +409,7 @@ run_remote() {
         ensure_web_build_base
         log "building Web: $web_version"
         docker build --build-arg GO_BASE="$registry/web:build-base" \
-            -f workspace/web/Dockerfile -t "$web_version" .
+            -f workspace/infra/web/Dockerfile -t "$web_version" .
         log "verifying Web image contract"
         verify_remote_image "$web_version" web
     fi

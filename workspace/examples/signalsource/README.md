@@ -28,7 +28,7 @@ signalsource --data-root /data --frames 0
 
 镜像只包含 `/app/signalsource`，仅支持 `source` 角色并输出 IQ v3（`1:3`）。
 PulseCompression QA Sink 已独立放在
-`examples/pulsecompression/infra/sink`，不再由本工程编译或打包。
+`examples/KT2/infra/sink`，不再由本工程编译或打包。
 Dockerfile从固定摘要的数据镜像阶段复制权威`/data/CPI0`～`CPI9`，不会继承其中
 任何旧程序或角色；可通过`CPI_DATA_IMAGE`构建参数替换数据集镜像。
 

@@ -25,9 +25,10 @@ uestcradar/
 │   └── kalman_tracker/           # 卡尔曼滤波航迹跟踪器
 ├── algorithm_template/           # C++ 新算子开发通用模板脚手架
 │   └── README.md                 # 模板使用与编译自检指南
-├── workspace/                    # 可独立构建的容器迁移示例源码
-│   ├── helloworld/               # 标准 C++ 持续运行示例
-│   └── qt5core/                  # Qt 5.15 + qmake + Qt Core 示例
+├── workspace/                    # Worker 示例与基础设施
+│   ├── examples/                 # 各 Worker 示例，目录位置不变
+│   ├── infra/                    # common、diagrams、proto、sdk、sidecar、web
+│   └── TARGET_ARCHITECTURE.md     # 总体架构文档
 ├── docker/                       # 跨架构镜像构建与部署入口
 │   ├── helloworld/               # 标准 C++ 的 Compose、脚本与指南
 │   ├── qt5core/                  # Qt 5.15 的 Compose 与指南
@@ -111,9 +112,9 @@ graph TD
 
 | 算法开发基座 | 适用场景 | 说明文档 (相对路径) |
 | :--- | :--- | :--- |
-| **`pulsecompression`** | C++ 一维匹配滤波 / 脉冲压缩算法开发 | **[脉冲压缩算法开发指南](workspace/examples/pulsecompression/README.md)** |
-| **`qt5-algorithm`** | Qt5 框架下二维距离-多普勒 (RDMap) 算法开发 | **[Qt5 RD 图算法开发指南](workspace/examples/qt5-algorithm/README.md)** |
+| **`KT2`** | C++ 一维匹配滤波 / 脉冲压缩算法开发 | **[脉冲压缩算法开发指南](workspace/examples/KT2/README.md)** |
+| **`KT3`** | Qt5 框架下二维距离-多普勒 (RDMap) 算法开发 | **[Qt5 RD 图算法开发指南](workspace/examples/KT3/README.md)** |
 
 > [!TIP]
 > 📖 关于各种雷达数据帧（IQ 数据、脉脉冲压缩数据、RD 图）的具体字段含义和读取方法，请参阅：
-> **[SDK 数据读写指南](workspace/sdk/README.md)**
+> **[SDK 数据读写指南](workspace/infra/sdk/README.md)**

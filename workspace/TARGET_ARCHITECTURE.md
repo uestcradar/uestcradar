@@ -4,9 +4,9 @@
 
 ## 1. 总体架构
 
-![总体架构](diagrams/target-architecture.svg)
+![总体架构](infra/diagrams/target-architecture.svg)
 
-[打开完整架构图](diagrams/target-architecture.svg)
+[打开完整架构图](infra/diagrams/target-architecture.svg)
 
 | 层级 | 职责 | 边界 |
 |---|---|---|
@@ -18,9 +18,9 @@ Worker 可跨进程、容器和物理机组成任意长度的有向处理链；�
 
 ### 单机通用 Docker 部署（目标方案）
 
-![单机通用 Docker 架构](diagrams/single-host-docker.svg)
+![单机通用 Docker 架构](infra/diagrams/single-host-docker.svg)
 
-[打开完整单机架构图](diagrams/single-host-docker.svg)
+[打开完整单机架构图](infra/diagrams/single-host-docker.svg)
 
 与上图相比，这里展开同机容器关系，并补充拟新增的节点 Web：每个逻辑节点由 Worker、Sidecar、Node Web 组成。Worker 与对应 Sidecar 共享 IPC；Node Web 通过遥测与预览接口观察节点，不直接消费数据 Ring。可直接访问节点页面，也可通过可选的 Nginx 入口聚合。
 
@@ -48,9 +48,9 @@ for (;;) {
 
 ## 3. Sidecar 数据路径
 
-![Operator 节点数据路径](diagrams/operator-dataflow.svg)
+![Operator 节点数据路径](infra/diagrams/operator-dataflow.svg)
 
-[打开完整数据路径图](diagrams/operator-dataflow.svg)
+[打开完整数据路径图](infra/diagrams/operator-dataflow.svg)
 
 ### 双 Leg 与角色
 
