@@ -74,7 +74,7 @@ done
 
 validate_worker_dockerfile() {
     local name=$1
-    [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+    [[ "$name" =~ ^(KT1/)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
         echo "invalid Worker directory name: $name" >&2
         return 1
     }
@@ -134,9 +134,11 @@ select_release_target() {
 
     local -a worker_names=()
     local dockerfile
-    for dockerfile in "$repo_root"/workspace/examples/*/Dockerfile; do
+    for dockerfile in "$repo_root"/workspace/examples/*/Dockerfile \
+        "$repo_root"/workspace/examples/KT1/*/Dockerfile; do
         [[ -f "$dockerfile" ]] || continue
-        worker_names+=("$(basename "$(dirname "$dockerfile")")")
+        local worker_path=${dockerfile#"$repo_root/workspace/examples/"}
+        worker_names+=("${worker_path%/Dockerfile}")
     done
     (( ${#worker_names[@]} > 0 )) || {
         echo "workspace/examples 中没有可选的 Worker Dockerfile" >&2
@@ -345,7 +347,8 @@ run_remote() {
     local web_version="$registry/web:sha-${sha12}-arm64"
     local web_latest="$registry/web:latest"
 
-    local worker_tag=${worker_name//_/-}
+    local worker_tag=${worker_name##*/}
+    worker_tag=${worker_tag//_/-}
     worker_tag=${worker_tag,,}
     local worker_version="$registry/worker:${worker_tag:+${worker_tag}-}sha-${sha12}-arm64"
     local worker_latest="$registry/worker:${worker_tag:+${worker_tag}-}latest"

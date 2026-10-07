@@ -1,11 +1,11 @@
 # Worker 发布
 
 Worker 开发者可以自由选择构建工具、目录和 Entrypoint。正式发布 Dockerfile 必须位于
-`workspace/examples/<worker-name>/`。发布脚本从含有 Dockerfile 的直接子目录生成
-交互菜单，例如：
+`workspace/examples/<worker-name>/` 或 `workspace/examples/KT1/<worker-name>/`。
+发布脚本从这两处含有 Dockerfile 的子目录生成交互菜单，例如：
 
 ```text
-workspace/examples/cascade_worker/Dockerfile
+workspace/examples/KT1/cascade_worker/Dockerfile
 ```
 
 默认基础镜像为：
@@ -27,7 +27,7 @@ registry.chengyistudio.com/cxx/worker:<worker-name>-sha-<gitsha12>-arm64
 registry.chengyistudio.com/cxx/worker:<worker-name>-latest
 ```
 
-`<worker-name>` 由目录名转为小写并将下划线转换为连字符。例如 `cascade_worker`
+`<worker-name>` 由末级目录名转为小写并将下划线转换为连字符，分组目录 `KT1` 不进入镜像 Tag。例如 `cascade_worker`
 对应 `cascade-worker-latest`。
 
 发布命令：
