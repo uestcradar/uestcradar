@@ -1,0 +1,38 @@
+[
+  {
+    "phase": "browser closed",
+    "seconds": 10.021839586086571,
+    "sink_before": 42,
+    "sink_after": 44
+  },
+  {
+    "phase": "slow consumer does not read",
+    "seconds": 30.04219979303889,
+    "sink_before": 44,
+    "sink_after": 49
+  },
+  {
+    "phase": "Frontend stopped",
+    "seconds": 30.122431671014056,
+    "sink_before": 49,
+    "sink_after": 55
+  },
+  {
+    "phase": "browser preview recovery",
+    "seconds": 2.950853165006265,
+    "frames": [
+      {
+        "leg": "input",
+        "frameId": "58",
+        "instanceId": "local-qt5-rd-algorithm-1791355267345195625",
+        "fresh": "true"
+      },
+      {
+        "leg": "output",
+        "frameId": "57",
+        "instanceId": "local-qt5-rd-algorithm-1791355267345195625",
+        "fresh": "true"
+      }
+    ]
+  }
+]

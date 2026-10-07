@@ -1,6 +1,6 @@
 # Capability Map：节点 Frontend 分离与统一部署
 
-状态：**frontend-runtime 已进入执行；独立应用已实现并通过 ARM 构建/单元测试。正式镜像、真实案例与 Web 集成尚未完成，详情见 tasks。**
+状态：**frontend-runtime 单机阶段已完成，含 Harbor 发布与两个真实案例；web-frontend-integration 规格待审、尚未实现，整体目标未完成。**
 
 架构依据：[TARGET_ARCHITECTURE.md](../TARGET_ARCHITECTURE.md)。
 流程入口：[tasks/README.md](tasks/README.md)。功能实现位于 `workspace/infra/web/`、`workspace/infra/frontend/`；KT2/KT3 各合并为根目录一份 `compose.yaml` 并删除旧 infra/worker 配置。算法源码、测试、数据与契约不动。能力图、规格、tasks 及案例 README 部署说明为文档例外。
@@ -23,7 +23,7 @@
 4. **KT2/KT3 各一份 `compose.yaml`、一个 project，日常只需 `docker compose up -d --no-build`。** 默认镜像 digest、端口与 TCP 参数内置，不要求环境文件、启动包装脚本或先启动另一 project；删除旧 infra/worker 配置并同步 README，不设兼容层。其余功能、测试与发布实现位于 web/frontend；案例算法、测试、数据、Dockerfile、Sidecar、SDK、协议和公共发布脚本不改。
 5. 开发测试之后的单机与服务器部署，尽可能从 Harbor 拉取已发布镜像并固定 manifest digest；启动时禁止隐式构建。缺少镜像则先完成受控构建、测试和发布，不在部署现场临时构建来冒充可复现部署。
 6. 优先复用 Go、React/TypeScript 及现有预览协议，不引入微前端框架，不重写 UCX、SDK、Ring 或帧契约。
-7. Frontend 拟放在 `infra/frontend/`，默认共用镜像、每实例绑定节点身份；现有 `infra/web/frontend/` 保留聚合管理页面，不能整体搬走。
+7. Frontend 已位于 `infra/frontend/`，默认共用镜像、每实例绑定节点身份；现有 `infra/web/frontend/` 保留聚合管理页面，不能整体搬走。
 
 ## 能力划分
 
@@ -53,9 +53,9 @@
 
 - 本机及 Docker 引擎为 x86_64，所有目标镜像仍固定 `linux/arm64`。已依用户授权用一次性宿主架构安装工具注册 qemu-aarch64，ARM64 基座容器实际执行通过，原 `exec format error` 阻塞解除。见 [环境证据](tasks/evidence/arm64-environment.md)；宿主重启后需重新检查注册。
 - 已核对 [Web 构建基座](web/docker/README.md)、[Sidecar 双基座](sidecar/docker/README.md) 和正式发布脚本。Frontend 复用现有 ARM64 基座，用原生 Docker 命令完成测试/发布/拉回，操作记录在 Frontend README；不复制发布与校验工具链，不修改公共脚本，不新设 AMD64 路线。
-- 两个 infra Compose 大多已使用 Harbor digest；两个 worker Compose 仍有 `build:` 和本地 `:dev` 标签，不能误称现有配置全是拉取部署。
+- 两个案例现已各为一份 compose.yaml，固定 Harbor digest，无 build/dev 回退；四份旧配置已删除。原算法、测试与数据未修改。
 - **KT3 编译产物已存在**：`examples/KT3/algorithm/GFKD_V1_ARM` 为 ARM aarch64 ELF，394352 字节，权限 755，四份 subband filter CSV 同在目录中。它被 `.gitignore` 排除，不等于本地缺失；Dockerfile 会复制至 `/app/algorithm/`，无需 GFKD 源码。
-- 本地已有 ARM64 `worker:rd-algorithm-v1.0.0`，缓存记录的 Harbor digest 为 `sha256:0213dfc739c7ca3ca6f689e03ac02a2a2ad29f6ac74a85a5b38f77bf1d89e00a`；后续仍需实际拉取并验证，不把缓存元数据当作本轮发布或部署通过。
+- ARM64 `worker:rd-algorithm-v1.0.0@sha256:0213dfc739c7ca3ca6f689e03ac02a2a2ad29f6ac74a85a5b38f77bf1d89e00a` 已实际运行 GFKD。旧 Sink 的固定 65 列限制通过从未改动的现有源码重新发布 Sink 解决，未改算法输出；见发布与案例证据。
 - Web 已有 SSH 会话、Cookie/CSRF 与主机指纹确认机制。嵌入沿用既有机制，SSH 密码/私钥不传给 Frontend，不新增登录、SSO 或跨机凭据系统作为本期前置需求。
 - Web 继续管理远端 Docker、读取全局状态；Frontend 关闭只影响该页面预览，不应停掉数据链或 Web 的部署管理。具体端口/数据连接在计划中由代码现状确定，不要求用户额外设计一套观测系统。
 - `192.162.2.64` 是多机 Web 的部署与验收入口，Web 通过现有 SSH/Compose 机制部署其他节点。验收记录实际节点、镜像与 transport；不另行新增 RDMA 性能压测作为本期要求。
@@ -64,7 +64,7 @@
 
 按模块逐一执行 Specify → Plan → Tasks → Implement，每阶段均需人工确认：
 
-- [SPEC-frontend-runtime.md](SPEC-frontend-runtime.md)：当前范围基线；对应 [plan.md](tasks/plan.md) 和 [todo.md](tasks/todo.md) 正在执行。
-- `SPEC-web-frontend-integration.md`：后续编写。
+- [SPEC-frontend-runtime.md](SPEC-frontend-runtime.md)：单机模块已验收，见 [验收汇总](tasks/evidence/acceptance.md)。
+- [SPEC-web-frontend-integration.md](SPEC-web-frontend-integration.md)：G01 待审；审定方案与服务器清单后再推进计划、任务和实施。
 
-各规格与本能力图并列保存；当前执行 frontend-runtime，不能把应用单元/进程验证当作整个模块或整体交付完成。后续 Web 集成仍先审定规格、计划和任务，使用稳定模块 ID 标识归属。
+各规格与本能力图并列保存；单机真实验收不代表整体交付完成。Web 集成仍先审定规格、计划和任务，使用稳定模块 ID 标识归属。

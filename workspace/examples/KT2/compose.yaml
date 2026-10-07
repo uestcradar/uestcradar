@@ -1,8 +1,7 @@
-# Black-box test infrastructure. Algorithm developers must not edit this file.
-name: uestcradar-pulsecompression-infra
+name: uestcradar-kt2
 
 x-sidecar-common: &sidecar-common
-  image: ${SIDECAR_IMAGE:-registry.chengyistudio.com/cxx/sidecar:latest@sha256:13d899f9859e20284f03301cbab0989182ef5b5f2d686727b992f187491cf462}
+  image: registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c
   platform: linux/arm64
   network_mode: host
   ipc: shareable
@@ -17,12 +16,20 @@ x-sidecar-ring: &sidecar-ring
   TELEMETRY_HOST: 127.0.0.1
   PREVIEW_HOST: 127.0.0.1
 
+x-frontend-common: &frontend-common
+  image: registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052
+  platform: linux/arm64
+  network_mode: host
+  read_only: true
+
 services:
   sidecar-a:
     <<: *sidecar-common
     environment:
       <<: *sidecar-ring
       NODE_ID: local-source
+      TELEMETRY_PORT: "9902"
+      PREVIEW_PORT: "9903"
       SIDECAR_UPSTREAM_ROLE: disabled
       SIDECAR_DOWNSTREAM_ROLE: connect
       SIDECAR_DOWNSTREAM_PEER_HOST: 127.0.0.1
@@ -50,24 +57,25 @@ services:
         condition: service_healthy
 
   signalsource:
-    image: ${SIGNALSOURCE_IMAGE:-registry.chengyistudio.com/cxx/worker:signalsource-latest@sha256:9a3faffdcbd186c3aa0c024770f58eba4e3a7c25556e2b5847c3e32e9abb319c}
+    image: registry.chengyistudio.com/cxx/worker@sha256:9a3faffdcbd186c3aa0c024770f58eba4e3a7c25556e2b5847c3e32e9abb319c
     platform: linux/arm64
     network_mode: host
     ipc: service:sidecar-a
     environment:
       UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_local_source_down
     entrypoint: ["/app/signalsource"]
-    command: ["--data-root", "/data", "--frames", "${SOURCE_FRAMES:-0}"]
+    command: ["--data-root", "/data", "--frames", "0"]
     depends_on:
       sidecar-a:
         condition: service_healthy
 
   sidecar-b:
     <<: *sidecar-common
-    container_name: uestcradar-pulsecompression-sidecar
     environment:
       <<: *sidecar-ring
       NODE_ID: local-pulsecompression
+      TELEMETRY_PORT: "9904"
+      PREVIEW_PORT: "9905"
       SIDECAR_UPSTREAM_ROLE: listen
       SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
       SIDECAR_UPSTREAM_PORT: "35337"
@@ -101,11 +109,26 @@ services:
       sidecar-c:
         condition: service_healthy
 
+  pulsecompression:
+    image: registry.chengyistudio.com/cxx/worker@sha256:24e4493e3e8e7cce3b5985b0394c943eee8663e1fd3049e422f718fa1aee8421
+    platform: linux/arm64
+    network_mode: host
+    ipc: service:sidecar-b
+    environment:
+      UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_local_pulsecompression_up
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_local_pulsecompression_down
+    command: ["--frames", "0", "--log-every", "10"]
+    depends_on:
+      sidecar-b:
+        condition: service_healthy
+
   sidecar-c:
     <<: *sidecar-common
     environment:
       <<: *sidecar-ring
       NODE_ID: local-sink
+      TELEMETRY_PORT: "9906"
+      PREVIEW_PORT: "9907"
       SIDECAR_UPSTREAM_ROLE: listen
       SIDECAR_UPSTREAM_BIND_HOST: 0.0.0.0
       SIDECAR_UPSTREAM_PORT: "35338"
@@ -130,7 +153,7 @@ services:
       retries: 90
 
   signalsink:
-    image: ${SIGNALSINK_IMAGE:-registry.chengyistudio.com/cxx/worker:pcsink-latest@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233}
+    image: registry.chengyistudio.com/cxx/worker@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233
     platform: linux/arm64
     network_mode: host
     ipc: service:sidecar-c
@@ -138,7 +161,7 @@ services:
       UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_local_sink_up
     command:
       - --frames
-      - "${SINK_FRAMES:-0}"
+      - "0"
       - --log-every
       - "64"
       - --workers
@@ -156,3 +179,27 @@ services:
     depends_on:
       sidecar-c:
         condition: service_healthy
+
+  frontend-source:
+    <<: *frontend-common
+    environment:
+      NODE_ID: local-source
+      TELEMETRY_HTTP_ADDR: 127.0.0.1:8081
+      TELEMETRY_UDP_ADDR: 127.0.0.1:9902
+      PREVIEW_TCP_ADDR: 127.0.0.1:9903
+
+  frontend-operator:
+    <<: *frontend-common
+    environment:
+      NODE_ID: local-pulsecompression
+      TELEMETRY_HTTP_ADDR: 127.0.0.1:8082
+      TELEMETRY_UDP_ADDR: 127.0.0.1:9904
+      PREVIEW_TCP_ADDR: 127.0.0.1:9905
+
+  frontend-sink:
+    <<: *frontend-common
+    environment:
+      NODE_ID: local-sink
+      TELEMETRY_HTTP_ADDR: 127.0.0.1:8083
+      TELEMETRY_UDP_ADDR: 127.0.0.1:9906
+      PREVIEW_TCP_ADDR: 127.0.0.1:9907

@@ -1,0 +1,127 @@
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 8388608
+rd-algorithm-1  | [DEBUG] Parsed CPI # 53  range= 22196  pulse= 64  total_complex= 1420544
+rd-algorithm-1  | [DEBUG] First sample: ( -6.2195e-06 , 3.57755e-06 )
+rd-algorithm-1  | [DEBUG] Emitted full package (no crop)
+rd-algorithm-1  | "06:54:12.142" [ThreadManager] assign seq= 52  to unit 0  range= 22196  pulse= 64
+rd-algorithm-1  | "06:54:14.346" [SubUnit] done, seq= 52  outMat= 64 x 22196
+rd-algorithm-1  | "06:54:15.082" [SendDataManager] wrote seq= 52  matrix= 64 x 22196  bytes= 11364364
+rd-algorithm-1  | [Algorithm] elapsed_ms= 3853 shape= 22196 x 64
+rd-algorithm-1  | [Worker] completed= 53 shape= 22196 x 64
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 294912
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 3571712
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 6848512
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 10125312
+rd-algorithm-1  | [DEBUG] Parsed CPI # 54  range= 22196  pulse= 64  total_complex= 1420544
+rd-algorithm-1  | [DEBUG] First sample: ( 1.00666e-05 , -4.41767e-05 )
+rd-algorithm-1  | [DEBUG] Emitted full package (no crop)
+rd-algorithm-1  | "06:54:17.610" [ThreadManager] assign seq= 53  to unit 0  range= 22196  pulse= 64
+rd-algorithm-1  | "06:54:19.844" [SubUnit] done, seq= 53  outMat= 64 x 22196
+rd-algorithm-1  | "06:54:20.547" [SendDataManager] wrote seq= 53  matrix= 64 x 22196  bytes= 11364364
+rd-algorithm-1  | [Algorithm] elapsed_ms= 3880 shape= 22196 x 64
+rd-algorithm-1  | [Worker] completed= 54 shape= 22196 x 64
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 2031616
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 5308416
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 8585216
+rd-algorithm-1  | [DEBUG] Parsed CPI # 55  range= 22196  pulse= 64  total_complex= 1420544
+rd-algorithm-1  | [DEBUG] First sample: ( 2.34613e-05 , 1.18098e-05 )
+rd-algorithm-1  | [DEBUG] Emitted full package (no crop)
+rd-algorithm-1  | "06:54:23.072" [ThreadManager] assign seq= 54  to unit 0  range= 22196  pulse= 64
+rd-algorithm-1  | "06:54:25.279" [SubUnit] done, seq= 54  outMat= 64 x 22196
+rd-algorithm-1  | "06:54:25.982" [SendDataManager] wrote seq= 54  matrix= 64 x 22196  bytes= 11364364
+rd-algorithm-1  | [Algorithm] elapsed_ms= 3829 shape= 22196 x 64
+rd-algorithm-1  | [Worker] completed= 55 shape= 22196 x 64
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 491520
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 3768320
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 7045120
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 10321920
+rd-algorithm-1  | [DEBUG] Parsed CPI # 56  range= 22196  pulse= 64  total_complex= 1420544
+rd-algorithm-1  | [DEBUG] First sample: ( 5.75177e-05 , -1.42462e-05 )
+rd-algorithm-1  | [DEBUG] Emitted full package (no crop)
+rd-algorithm-1  | "06:54:28.485" [ThreadManager] assign seq= 55  to unit 0  range= 22196  pulse= 64
+rd-algorithm-1  | "06:54:30.688" [SubUnit] done, seq= 55  outMat= 64 x 22196
+rd-algorithm-1  | "06:54:31.405" [SendDataManager] wrote seq= 55  matrix= 64 x 22196  bytes= 11364364
+rd-algorithm-1  | [Algorithm] elapsed_ms= 3842 shape= 22196 x 64
+rd-algorithm-1  | [Worker] completed= 56 shape= 22196 x 64
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 2228224
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 5505024
+rd-algorithm-1  | [DEBUG] Read 32768 bytes from radar_date
+rd-algorithm-1  | [DEBUG] Inserted 32768 bytes, buffer size: 8781824
+rd-algorithm-1  | [DEBUG] Parsed CPI # 57  range= 22196  pulse= 64  total_complex= 1420544
+rd-algorithm-1  | [DEBUG] First sample: ( 3.66096e-05 , 2.8163e-05 )
+rd-algorithm-1  | [DEBUG] Emitted full package (no crop)
+rd-algorithm-1  | "06:54:33.913" [ThreadManager] assign seq= 56  to unit 0  range= 22196  pulse= 64
+rd-algorithm-1  | "06:54:36.148" [SubUnit] done, seq= 56  outMat= 64 x 22196
+rd-algorithm-1  | "06:54:36.880" [SendDataManager] wrote seq= 56  matrix= 64 x 22196  bytes= 11364364
+rd-algorithm-1  | [Algorithm] elapsed_ms= 3912 shape= 22196 x 64
+rd-algorithm-1  | [Worker] completed= 57 shape= 22196 x 64
+rd-sink-1       | [rd-sink] waiting for RDFrame v2
+rd-sink-1       | [PASSED] RDFrame received=1 shape=22196x64 peak_range=20484 peak_doppler=45 magnitude=2.60917e+06 sha256=e61c5de5080cd2249bf2e462faf4e9afefb2418771766950c8ffe6c5a47e7f92
+rd-sink-1       | [PASSED] RDFrame received=2 shape=22196x64 peak_range=20485 peak_doppler=29 magnitude=2.06893e+06 sha256=0e0bfc3d88fc7c7d6b4b1b9c146b0d1407e3bdd80d91967e02d03f4fae5cfd38
+rd-sink-1       | [PASSED] RDFrame received=3 shape=22196x64 peak_range=9729 peak_doppler=32 magnitude=7.0196e+07 sha256=6707315df9507adce4cb1a935649a299015a8472b1464fafdacd9f40017bf5f0
+rd-sink-1       | [PASSED] RDFrame received=4 shape=22196x64 peak_range=14379 peak_doppler=32 magnitude=4.23731e+07 sha256=9e88e8a59eae5075b72c6c807ac835d43fd52c9cd62c20e5d78d9579fe8ec487
+rd-sink-1       | [PASSED] RDFrame received=5 shape=22196x64 peak_range=20484 peak_doppler=28 magnitude=2.02208e+06 sha256=f434dfb288500cd22637d76e8759d07eb538e9346c1a6f2dd84b2304e8a17046
+rd-sink-1       | [PASSED] RDFrame received=6 shape=22196x64 peak_range=20484 peak_doppler=22 magnitude=2.03637e+06 sha256=413412342fe4140a28a8301812b7fbaf718472ee1cbf1036f61b9780477068de
+rd-sink-1       | [PASSED] RDFrame received=7 shape=22196x64 peak_range=20481 peak_doppler=2 magnitude=1.9134e+06 sha256=c1639668b992432c7d301e8229b2824e497b516060dee630ee1d1975256a52f2
+rd-sink-1       | [PASSED] RDFrame received=8 shape=22196x64 peak_range=20486 peak_doppler=60 magnitude=2.91683e+06 sha256=32381bf020d9128fcd269cce0984ba199a8bbf8b1260f8550b4e3f74a42910c9
+rd-sink-1       | [PASSED] RDFrame received=9 shape=22196x64 peak_range=20482 peak_doppler=28 magnitude=1.78129e+06 sha256=38000b949cd1e9c696214b138e1727afa8a5c6b53095a1cc84b421f87976fe5b
+rd-sink-1       | [PASSED] RDFrame received=10 shape=22196x64 peak_range=10206 peak_doppler=62 magnitude=1.81174e+06 sha256=c7d7465435c2e34d100c8732d3093c2654dc2fdaea44c3a5959c647e92273290
+rd-sink-1       | [PASSED] RDFrame received=11 shape=22196x64 peak_range=20484 peak_doppler=45 magnitude=2.60917e+06 sha256=e61c5de5080cd2249bf2e462faf4e9afefb2418771766950c8ffe6c5a47e7f92
+rd-sink-1       | [PASSED] RDFrame received=12 shape=22196x64 peak_range=20485 peak_doppler=29 magnitude=2.06893e+06 sha256=0e0bfc3d88fc7c7d6b4b1b9c146b0d1407e3bdd80d91967e02d03f4fae5cfd38
+rd-sink-1       | [PASSED] RDFrame received=13 shape=22196x64 peak_range=9729 peak_doppler=32 magnitude=7.0196e+07 sha256=6707315df9507adce4cb1a935649a299015a8472b1464fafdacd9f40017bf5f0
+rd-sink-1       | [PASSED] RDFrame received=14 shape=22196x64 peak_range=14379 peak_doppler=32 magnitude=4.23731e+07 sha256=9e88e8a59eae5075b72c6c807ac835d43fd52c9cd62c20e5d78d9579fe8ec487
+rd-sink-1       | [PASSED] RDFrame received=15 shape=22196x64 peak_range=20484 peak_doppler=28 magnitude=2.02208e+06 sha256=f434dfb288500cd22637d76e8759d07eb538e9346c1a6f2dd84b2304e8a17046
+rd-sink-1       | [PASSED] RDFrame received=16 shape=22196x64 peak_range=20484 peak_doppler=22 magnitude=2.03637e+06 sha256=413412342fe4140a28a8301812b7fbaf718472ee1cbf1036f61b9780477068de
+rd-sink-1       | [PASSED] RDFrame received=17 shape=22196x64 peak_range=20481 peak_doppler=2 magnitude=1.9134e+06 sha256=c1639668b992432c7d301e8229b2824e497b516060dee630ee1d1975256a52f2
+rd-sink-1       | [PASSED] RDFrame received=18 shape=22196x64 peak_range=20486 peak_doppler=60 magnitude=2.91683e+06 sha256=32381bf020d9128fcd269cce0984ba199a8bbf8b1260f8550b4e3f74a42910c9
+rd-sink-1       | [PASSED] RDFrame received=19 shape=22196x64 peak_range=20482 peak_doppler=28 magnitude=1.78129e+06 sha256=38000b949cd1e9c696214b138e1727afa8a5c6b53095a1cc84b421f87976fe5b
+rd-sink-1       | [PASSED] RDFrame received=20 shape=22196x64 peak_range=10206 peak_doppler=62 magnitude=1.81174e+06 sha256=c7d7465435c2e34d100c8732d3093c2654dc2fdaea44c3a5959c647e92273290
+rd-sink-1       | [PASSED] RDFrame received=21 shape=22196x64 peak_range=20484 peak_doppler=45 magnitude=2.60917e+06 sha256=e61c5de5080cd2249bf2e462faf4e9afefb2418771766950c8ffe6c5a47e7f92
+rd-sink-1       | [PASSED] RDFrame received=22 shape=22196x64 peak_range=20485 peak_doppler=29 magnitude=2.06893e+06 sha256=0e0bfc3d88fc7c7d6b4b1b9c146b0d1407e3bdd80d91967e02d03f4fae5cfd38
+rd-sink-1       | [PASSED] RDFrame received=23 shape=22196x64 peak_range=9729 peak_doppler=32 magnitude=7.0196e+07 sha256=6707315df9507adce4cb1a935649a299015a8472b1464fafdacd9f40017bf5f0
+rd-sink-1       | [PASSED] RDFrame received=24 shape=22196x64 peak_range=14379 peak_doppler=32 magnitude=4.23731e+07 sha256=9e88e8a59eae5075b72c6c807ac835d43fd52c9cd62c20e5d78d9579fe8ec487
+rd-sink-1       | [PASSED] RDFrame received=25 shape=22196x64 peak_range=20484 peak_doppler=28 magnitude=2.02208e+06 sha256=f434dfb288500cd22637d76e8759d07eb538e9346c1a6f2dd84b2304e8a17046
+rd-sink-1       | [PASSED] RDFrame received=26 shape=22196x64 peak_range=20484 peak_doppler=22 magnitude=2.03637e+06 sha256=413412342fe4140a28a8301812b7fbaf718472ee1cbf1036f61b9780477068de
+rd-sink-1       | [PASSED] RDFrame received=27 shape=22196x64 peak_range=20481 peak_doppler=2 magnitude=1.9134e+06 sha256=c1639668b992432c7d301e8229b2824e497b516060dee630ee1d1975256a52f2
+rd-sink-1       | [PASSED] RDFrame received=28 shape=22196x64 peak_range=20486 peak_doppler=60 magnitude=2.91683e+06 sha256=32381bf020d9128fcd269cce0984ba199a8bbf8b1260f8550b4e3f74a42910c9
+rd-sink-1       | [PASSED] RDFrame received=29 shape=22196x64 peak_range=20482 peak_doppler=28 magnitude=1.78129e+06 sha256=38000b949cd1e9c696214b138e1727afa8a5c6b53095a1cc84b421f87976fe5b
+rd-sink-1       | [PASSED] RDFrame received=30 shape=22196x64 peak_range=10206 peak_doppler=62 magnitude=1.81174e+06 sha256=c7d7465435c2e34d100c8732d3093c2654dc2fdaea44c3a5959c647e92273290
+rd-sink-1       | [PASSED] RDFrame received=31 shape=22196x64 peak_range=20484 peak_doppler=45 magnitude=2.60917e+06 sha256=e61c5de5080cd2249bf2e462faf4e9afefb2418771766950c8ffe6c5a47e7f92
+rd-sink-1       | [PASSED] RDFrame received=32 shape=22196x64 peak_range=20485 peak_doppler=29 magnitude=2.06893e+06 sha256=0e0bfc3d88fc7c7d6b4b1b9c146b0d1407e3bdd80d91967e02d03f4fae5cfd38
+rd-sink-1       | [PASSED] RDFrame received=33 shape=22196x64 peak_range=9729 peak_doppler=32 magnitude=7.0196e+07 sha256=6707315df9507adce4cb1a935649a299015a8472b1464fafdacd9f40017bf5f0
+rd-sink-1       | [PASSED] RDFrame received=34 shape=22196x64 peak_range=14379 peak_doppler=32 magnitude=4.23731e+07 sha256=9e88e8a59eae5075b72c6c807ac835d43fd52c9cd62c20e5d78d9579fe8ec487
+rd-sink-1       | [PASSED] RDFrame received=35 shape=22196x64 peak_range=20484 peak_doppler=28 magnitude=2.02208e+06 sha256=f434dfb288500cd22637d76e8759d07eb538e9346c1a6f2dd84b2304e8a17046
+rd-sink-1       | [PASSED] RDFrame received=36 shape=22196x64 peak_range=20484 peak_doppler=22 magnitude=2.03637e+06 sha256=413412342fe4140a28a8301812b7fbaf718472ee1cbf1036f61b9780477068de
+rd-sink-1       | [PASSED] RDFrame received=37 shape=22196x64 peak_range=20481 peak_doppler=2 magnitude=1.9134e+06 sha256=c1639668b992432c7d301e8229b2824e497b516060dee630ee1d1975256a52f2
+rd-sink-1       | [PASSED] RDFrame received=38 shape=22196x64 peak_range=20486 peak_doppler=60 magnitude=2.91683e+06 sha256=32381bf020d9128fcd269cce0984ba199a8bbf8b1260f8550b4e3f74a42910c9
+rd-sink-1       | [PASSED] RDFrame received=39 shape=22196x64 peak_range=20482 peak_doppler=28 magnitude=1.78129e+06 sha256=38000b949cd1e9c696214b138e1727afa8a5c6b53095a1cc84b421f87976fe5b
+rd-sink-1       | [PASSED] RDFrame received=40 shape=22196x64 peak_range=10206 peak_doppler=62 magnitude=1.81174e+06 sha256=c7d7465435c2e34d100c8732d3093c2654dc2fdaea44c3a5959c647e92273290
+rd-sink-1       | [PASSED] RDFrame received=41 shape=22196x64 peak_range=20484 peak_doppler=45 magnitude=2.60917e+06 sha256=e61c5de5080cd2249bf2e462faf4e9afefb2418771766950c8ffe6c5a47e7f92
+rd-sink-1       | [PASSED] RDFrame received=42 shape=22196x64 peak_range=20485 peak_doppler=29 magnitude=2.06893e+06 sha256=0e0bfc3d88fc7c7d6b4b1b9c146b0d1407e3bdd80d91967e02d03f4fae5cfd38
+rd-sink-1       | [PASSED] RDFrame received=43 shape=22196x64 peak_range=9729 peak_doppler=32 magnitude=7.0196e+07 sha256=6707315df9507adce4cb1a935649a299015a8472b1464fafdacd9f40017bf5f0
+rd-sink-1       | [PASSED] RDFrame received=44 shape=22196x64 peak_range=14379 peak_doppler=32 magnitude=4.23731e+07 sha256=9e88e8a59eae5075b72c6c807ac835d43fd52c9cd62c20e5d78d9579fe8ec487
+rd-sink-1       | [PASSED] RDFrame received=45 shape=22196x64 peak_range=20484 peak_doppler=28 magnitude=2.02208e+06 sha256=f434dfb288500cd22637d76e8759d07eb538e9346c1a6f2dd84b2304e8a17046
+rd-sink-1       | [PASSED] RDFrame received=46 shape=22196x64 peak_range=20484 peak_doppler=22 magnitude=2.03637e+06 sha256=413412342fe4140a28a8301812b7fbaf718472ee1cbf1036f61b9780477068de
+rd-sink-1       | [PASSED] RDFrame received=47 shape=22196x64 peak_range=20481 peak_doppler=2 magnitude=1.9134e+06 sha256=c1639668b992432c7d301e8229b2824e497b516060dee630ee1d1975256a52f2
+rd-sink-1       | [PASSED] RDFrame received=48 shape=22196x64 peak_range=20486 peak_doppler=60 magnitude=2.91683e+06 sha256=32381bf020d9128fcd269cce0984ba199a8bbf8b1260f8550b4e3f74a42910c9
+rd-sink-1       | [PASSED] RDFrame received=49 shape=22196x64 peak_range=20482 peak_doppler=28 magnitude=1.78129e+06 sha256=38000b949cd1e9c696214b138e1727afa8a5c6b53095a1cc84b421f87976fe5b
+rd-sink-1       | [PASSED] RDFrame received=50 shape=22196x64 peak_range=10206 peak_doppler=62 magnitude=1.81174e+06 sha256=c7d7465435c2e34d100c8732d3093c2654dc2fdaea44c3a5959c647e92273290
+rd-sink-1       | [PASSED] RDFrame received=51 shape=22196x64 peak_range=20484 peak_doppler=45 magnitude=2.60917e+06 sha256=e61c5de5080cd2249bf2e462faf4e9afefb2418771766950c8ffe6c5a47e7f92
+rd-sink-1       | [PASSED] RDFrame received=52 shape=22196x64 peak_range=20485 peak_doppler=29 magnitude=2.06893e+06 sha256=0e0bfc3d88fc7c7d6b4b1b9c146b0d1407e3bdd80d91967e02d03f4fae5cfd38
+rd-sink-1       | [PASSED] RDFrame received=53 shape=22196x64 peak_range=9729 peak_doppler=32 magnitude=7.0196e+07 sha256=6707315df9507adce4cb1a935649a299015a8472b1464fafdacd9f40017bf5f0
+rd-sink-1       | [PASSED] RDFrame received=54 shape=22196x64 peak_range=14379 peak_doppler=32 magnitude=4.23731e+07 sha256=9e88e8a59eae5075b72c6c807ac835d43fd52c9cd62c20e5d78d9579fe8ec487
+rd-sink-1       | [PASSED] RDFrame received=55 shape=22196x64 peak_range=20484 peak_doppler=28 magnitude=2.02208e+06 sha256=f434dfb288500cd22637d76e8759d07eb538e9346c1a6f2dd84b2304e8a17046
+rd-sink-1       | [PASSED] RDFrame received=56 shape=22196x64 peak_range=20484 peak_doppler=22 magnitude=2.03637e+06 sha256=413412342fe4140a28a8301812b7fbaf718472ee1cbf1036f61b9780477068de

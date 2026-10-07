@@ -1,6 +1,6 @@
 # TODO：抽出 Frontend，单机与服务器共用
 
-状态：**F00–F12 已完成；F14 及之后未完成。** 实际构建、测试与冒烟证据见 [frontend-runtime.md](evidence/frontend-runtime.md)。尚无硬件阻塞；用户已明确允许提交、推送与 Harbor 发布，现进入 F14。
+状态：**frontend-runtime 所有有效任务已完成；G01 尚未完成。** 见 [单机验收](evidence/acceptance.md)。尚无明确硬件阻塞；Web 集成规格已形成待审，按原定审定门槛等待确认方案与服务器清单，不宣称整体完成。
 
 依据：[规格 F01–F08](../SPEC-frontend-runtime.md)、[计划](plan.md)。以下细化 `frontend-runtime`；G01 的 Web 集成是整体目标必做项，不是可选扩展。
 
@@ -92,7 +92,7 @@
   - Verify：C-CHECK；用 docker image inspect 和健康探测检查运行镜像。只有实际发现基座问题才安排必要修正。
   - Files：`frontend/Dockerfile`、`frontend/.gitignore`、`frontend/README.md`。
 
-- [ ] **F14 — ARM 构建测试、发布 Harbor、本机拉回**
+- [x] **F14 — ARM 构建测试、发布 Harbor、本机拉回**
   - Depends on：F12、用户发布许可。
   - Authorization：用户已明确允许提交并推送 upstream/feat/signalsink、发布对应 Frontend 镜像；先固定源码版本，再推送镜像，不覆盖已有版本。
   - Acceptance：明确源码版本、确认标签未占用；ARM64 测试通过后用原生 Docker 命令推送不可变版本，本机拉取同一 digest 并运行；不新增发布器或滚动标签自动化。
@@ -101,31 +101,31 @@
 
 ## E. 一次跑完每个单机案例
 
-- [ ] **F15 — KT2 单一 Compose**
+- [x] **F15 — KT2 单一 Compose**
   - Depends on：F14。
   - Acceptance：根目录一份 compose.yaml、一个 project 包含完整链路和三个 Frontend；内置 ARM64 Harbor digest、端口与 TCP 默认值，无 build/Web/额外环境文件。Worker 使用 ipc: service:sidecar-b 与健康依赖，数据链不依赖 Frontend；删除两份旧配置。
   - Verify：无额外业务变量时 config --quiet 通过；检查默认镜像、IPC/依赖与端口，运行验证留给 F16。
   - Files：`../examples/KT2/compose.yaml`（新增）、`../examples/KT2/docker-compose-infra.yaml`（删除）、`../examples/KT2/docker-compose-worker.yaml`（删除）、`../examples/KT2/README.md`（部署说明）。
 
-- [ ] **F16 — KT2 真实结果、拉取部署与隔离验收**
+- [x] **F16 — KT2 真实结果、拉取部署与隔离验收**
   - Depends on：F15。
   - Acceptance：默认一条 up -d --no-build 可启动；原校验通过，页面显示真实 1:3 → 2:2；满足 plan 第 7 节的 60 秒/有效帧与 30 秒停止恢复要求。
   - Verify：一次 C-DEPLOY 同时完成 Harbor 复验、实际浏览器绘图与旁路隔离；访问 127.0.0.1:8082，其余节点页面也可用。
   - Files：`tasks/evidence/kt2-local.md` 与必要截图/日志，不改案例算法或测试。
 
-- [ ] **F17 — KT3 单一 Compose**
+- [x] **F17 — KT3 单一 Compose**
   - Depends on：F16。
   - Acceptance：根目录一份 compose.yaml、一个 project 包含真实 GFKD 链路和四个 Frontend，默认无需额外配置；RD Worker 用 ipc: service:sidecar-rd-bridge，其他 Worker 共享各自 Sidecar IPC；删除旧配置，数据链不依赖 Frontend。
   - Verify：KT2 本次测试已停止；检查 ARM64 digest、TCP 默认值、IPC/健康依赖、端口与无 build/Web；运行验证留给 F18。
   - Files：`../examples/KT3/compose.yaml`（新增）、`../examples/KT3/docker/docker-compose-infra.yaml`（删除）、`../examples/KT3/docker/docker-compose-worker.yaml`（删除）、`../examples/KT3/README.md`（部署说明）。
 
-- [ ] **F18 — KT3 真实结果、拉取部署与隔离验收**
+- [x] **F18 — KT3 真实结果、拉取部署与隔离验收**
   - Depends on：F17。
   - Acceptance：默认一条启动命令可用；原校验通过，页面显示真实 2:2 → 3:2 RD；满足同一套有效帧与旁路隔离门槛。
   - Verify：一次 C-DEPLOY；访问 127.0.0.1:8083，核对实际热力图更新、数值/轴语义及 Worker/Sink 结果，不用 mock 或 HTTP 200 替代。
   - Files：`tasks/evidence/kt3-local.md` 与必要截图/日志。
 
-- [ ] **F21 — 单机阶段收尾**
+- [x] **F21 — 单机阶段收尾**
   - Depends on：F16、F18。
   - Acceptance：用已有测试和案例证据核对规格 F01–F08；部署说明只要求单一 Compose 入口，开发验收另列；确认保护范围未越界，明确整体还需 G01。
   - Verify：C-SCOPE 检查部分、文档链接与 git diff --check；不重复部署或新建“交付审计”工具，失败/未执行项不得勾选通过。
@@ -135,6 +135,7 @@
 
 - [ ] **G01 — 审定 Web 集成规格，再实现服务器同页验收**
   - Depends on：F21；集成规格审定后细化实现任务，不提前改服务器。
+  - Review gate：[Web 集成规格](../SPEC-web-frontend-integration.md) 待审；需确认同源 SSH 代理方案及目标服务器，不是硬件阻塞。
   - Acceptance：Web 内嵌同一 Frontend 镜像，保留拓扑、部署、SSH 与会话；全局遥测仍由 Sidecar 直达 Web 9900/UDP，删除旧预览 9901/TCP 监听和旧渲染实现。Web 部署到 192.162.2.64 并管理选定节点；多机默认 strict-RDMA，显式 TCP 可选，禁止静默降级。
   - Verify：真实服务器链路与本机案例使用同一页面/结果契约，检查图像、数值/轴及原算法校验；预览故障不影响主链和 Web 全局管理。不是只给跳转链接，也不新增 RDMA 性能压测。
   - Files：`SPEC-web-frontend-integration.md`，审批后只追加必要的 web/frontend 改动与验收任务。

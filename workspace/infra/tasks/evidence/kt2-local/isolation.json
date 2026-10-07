@@ -1,0 +1,25 @@
+[
+  {
+    "phase": "browser closed",
+    "seconds": 10.034569607814774,
+    "sink_before": 199616,
+    "sink_after": 201472
+  },
+  {
+    "phase": "slow consumer does not read",
+    "seconds": 30.047162469942123,
+    "sink_before": 201472,
+    "sink_after": 210688
+  },
+  {
+    "phase": "Frontend stopped",
+    "seconds": 30.17215258302167,
+    "sink_before": 210688,
+    "sink_after": 218048
+  },
+  {
+    "phase": "preview recovery",
+    "seconds": 0.49441605200991035,
+    "message_bytes": 37648
+  }
+]

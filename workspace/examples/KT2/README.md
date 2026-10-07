@@ -1,181 +1,64 @@
-# PulseCompression 算法开发基座
+# KT2：IQ → 脉压 → 校验
 
-本目录可以整体复制到任意开发目录后独立使用。`docker-compose-infra.yaml`
-提供黑盒数据源、Sidecar和独立 SignalSink；`docker-compose-worker.yaml` 只负责构建
-和启动开发者自己的 PulseCompression Worker。两者必须分开启动。
+## 单机部署
 
-示例算法仅将完整 CPI 的 CS16 按 `dequantization_scale` 转成 ComplexFloat32，用来证明
-SignalSource 输入正确。它不是脉冲压缩算法。
-
-## 修改边界
-
-### 禁止修改
-
-以下文件是测试基础设施契约，复制目录后也不要修改：
-
-```text
-docker-compose-infra.yaml
-```
-
-无论怎样重写算法，还必须遵守以下接口约束：
-
-- Worker 只能使用 SDK 的 `Input<IQFrame>` 和 `Output<PulseCompressionFrame>`。具体的帧契约结构的详细说明，请参考 [SDK 接口指南](../../infra/sdk/README.md)。
-- 每个输出帧的 `payload_length` 不得超过 **32 MiB（33,554,432 字节）**，该长度包含Metadata 和矩阵数据。
-- `Dockerfile` 构建必须使用官方基座镜像 `registry.chengyistudio.com/cxx/algo-base`，否则无法包含链接并编译 SDK 库。
-- `Dockerfile` 底部四个镜像契约 Label 不得删除或修改类型（用于控制台自动识别拓扑与遥测）。
-- `docker-compose-worker.yaml` 里面有关共享内存/基座镜像还有 platform 等配置禁止修改。
-
-### 可以自由修改或删除
-
-除上面的基础设施文件和接口约束外，本目录中的其余开发内容都可以自由调整。
-
-## 五步开发流程
-
-### 第一步：复制目录并启动黑盒基础设施
+在本目录执行唯一启动命令：
 
 ```bash
-cp -a /path/to/uestcradar/workspace/examples/KT2 \
-  ~/my-pulsecompression
-cd ~/my-pulsecompression
+docker compose up -d --no-build
 ```
 
-基础镜像是 ARM64。ARM64 主机可直接运行；x86_64 主机先确认已注册 QEMU：
+`compose.yaml` 在一个 project 中启动 Source、三个 Sidecar、脉压 Worker、Sink 与三个独立 Frontend。默认使用固定 ARM64 Harbor digest、`functional / tcp,self`，不启动 Web/Nginx，不需要 `.env`、覆盖文件或现场构建。缺失镜像由 Compose 拉取，拉取失败即停止。
+
+前提：Docker Compose 可用、Harbor 可访问；x86_64 主机已有可工作的 ARM64 binfmt/QEMU。主机环境准备不是日常部署步骤，不在启动命令里自动提权或安装模拟器。
+
+| 页面 | 地址 |
+|---|---|
+| Source 输出 IQ | http://127.0.0.1:8081 |
+| 脉压输入/输出 | http://127.0.0.1:8082 |
+| Sink 输入 | http://127.0.0.1:8083 |
+
+预览与主链独立；关闭页面或停止 Frontend 不应停止算法。Worker 通过 `ipc: service:对应Sidecar` 共享 IPC；保留 Sidecar SHM 配额、健康检查和启动依赖。
 
 ```bash
-test -r /proc/sys/fs/binfmt_misc/qemu-aarch64
+docker compose ps
+docker compose logs -f signalsource pulsecompression signalsink
+docker compose down
 ```
 
-如未注册，只需在主机执行一次：
+KT2 与 KT3 复用本机端口，不同时启动。已有同名 project 或端口占用时先确认，勿直接覆盖其他工作负载。QEMU 只用于功能验证，不作为原生 ARM 性能基准。
 
-```bash
-docker run --privileged --rm tonistiigi/binfmt --install arm64
-```
+## 结果判定
 
-启动测试基座：
+页面应显示真实 IQ `1:3` → 脉压 `2:2`，输入横轴为采样点，输出横轴为距离 Bin。服务健康不等于已有有效帧；断开或过期状态必须区分。
 
-```bash
-docker compose -f docker-compose-infra.yaml up -d
-```
-
-不要在这个 Compose 命令中加入 Worker 文件。
-
-### 第二步：编写算法
-
-关于 SDK 输入输出管道（`Input<IQFrame>`、`Output<PulseCompressionFrame>`）及各类帧契约结构的详细说明，请参考 [SDK 接口指南](../../infra/sdk/README.md)。
-
-示例入口展示了 Worker 必需的三个动作：
-
-```cpp
-auto iq = input.read();
-//初始化本次脉压输出的一些基本参数
-    PulseCompressionMetadata metadata{
-        .channel_count = 1,          // 1. 接收天线/数据通道数量 (本次测试数据源通道数为1,但实机将会接入多通道雷达)
-        .range_bin_count = 1024,     // 2. 一维距离门/采样单元数量 (对应脉压矩阵的列数 N_obs)
-        .pulse_index = 0,            // 3. 当前脉冲在 CPI 积累周期内的索引序号 (0 ~ pulses_per_cpi - 1)
-        .pulses_per_cpi = 8,         // 4. 一个 CPI 积累周期包含的总脉冲数 (对应脉压矩阵的行数 N_pulse)
-        .range_resolution_m = 1.5,   // 5. 距离维分辨率 (物理单位：米 m)
-    };
-
-auto pulse = output.create(metadata, iq);
-process(iq, pulse);  // 替换为真实脉压处理。
-
-output.write(std::move(pulse));
-```
-
-`IQFrame` 包含一个完整连续 CPI。真实算法应根据`pulse_time_offset_s` 和采样率确定每个脉冲窗口。
-
-当前示例输出为 6,009,672 字节。输出矩阵尺寸变化时，开发者必须自行保证每个输出帧仍不超过 32 MiB。
-
-### 第三步：构建算法开发的ARM系统镜像
-
-```bash
-docker compose -f docker-compose-worker.yaml build
-```
-
-生成的开发镜像为：
-
-```text
-uestcradar/pulsecompression:dev
-```
-
-该命令不会重建或重启黑盒基础设施。
-
-### 第四步：在ARM系统镜像中启动/调试自己的算法
-
-前台启动 Worker，直接查看算法系统镜像的输出日志：
-
-```bash
-docker compose -f docker-compose-worker.yaml up
-```
-
-另一个终端可以查看基座中的数据源和数据校验器的日志，验证数据流是否正常：
-
-```bash
-docker compose -f docker-compose-infra.yaml logs -f signalsource signalsink
-```
-
-示例Worker会校验CPI0–CPI9的 IQ Metadata、64元素脉冲参数、CS16数据和循环
-顺序，并打印：
-
-```text
-[pulsecompression] PASS processed=<n> ...
-```
-
-它只是反量化占位实现，输出Metadata中的`pulses_per_cpi=1`，因此独立SignalSink
-会明确跳过目标门控：
-
-```text
-[sink] target_validation=SKIPPED ... pulses_per_cpi=1
-```
-
-真实脉压算法应为每个CPI输出`pulse_index=0..63`的64个脉压帧。SignalSink会在
-20480±8门内进行10 dB门控SNR校验，每个完整CPI应持续输出：
+默认发布镜像 `pulsecompression-v1.0.0` 产生每 CPI 64 个脉压帧；原 Sink 保留目标门控，正常结果包括：
 
 ```text
 [sink] target_summary ... pulses=64 detected=64 missed=0 status=PASS
 ```
 
-门控Sink源码和镜像工程位于`infra/sink`，与SignalSource完全独立。
-
-修改代码后只需重新执行：
+需要原有 640 脉冲严格校验时，先停止常驻 Sink，避免两个消费者读同一 Ring：
 
 ```bash
-docker compose -f docker-compose-worker.yaml up --build
-```
-
-停止算法：
-
-```bash
-docker compose -f docker-compose-worker.yaml down
-```
-
-全部调试结束后再停止基础设施：
-
-```bash
-docker compose -f docker-compose-infra.yaml down
-```
-
-QEMU 环境只用于功能和正确性验证，不作为吞吐性能基准。
-
-需要执行“任意目标漏检立即失败”的640脉冲严格验收时，先停止常驻Sink以避免
-两个消费者读取同一Ring，再运行一次性Sink：
-
-```bash
-docker compose -f docker-compose-infra.yaml stop signalsink
-docker compose -f docker-compose-infra.yaml run --rm --no-deps signalsink \
+docker compose stop signalsink
+docker compose run --rm --no-deps signalsink \
   --frames 640 --log-every 64 \
   --target-range 20480 --target-half-width 8 \
   --target-min-snr-db 10 --pulses-per-cpi 64 \
   --fail-on-target-miss
-docker compose -f docker-compose-infra.yaml up -d signalsink
+docker compose up -d --no-build signalsink
 ```
 
-### 第五步：发布正式镜像
+## 算法开发模板（不是日常部署步骤）
 
-开发完成后，给自己开发完成的镜像打上tag，推送到镜像源即可
+本目录 `src/` 仍是原反量化开发模板，不是上述已发布脉压镜像的源码证明。模板将完整 CPI 的 CS16 按 `dequantization_scale` 转成 ComplexFloat32，并检查 CPI0–CPI9 的元数据、64 元素脉冲参数、CS16 和循环顺序；它不执行脉冲压缩，输出 `pulses_per_cpi=1`，Sink 会标记 `target_validation=SKIPPED`，不能冒充默认镜像的 64 脉冲门控通过。
 
-```bash
-docker tag my-pulsecompression:dev registry.chengyistudio.com/cxx/worker:pulsecompression-v1.0.0
+开发接口与边界保持不变：
 
-docker push registry.chengyistudio.com/cxx/worker:pulsecompression-v1.0.0
-```
+- 使用 SDK `Input<IQFrame>` / `Output<PulseCompressionFrame>`，见 [SDK 接口指南](../../infra/sdk/README.md)。真实算法按 `pulse_time_offset_s` 与采样率确定脉冲窗口。
+- 输出帧（含 Metadata 与矩阵）不得超过 32 MiB；当前模板输出 6,009,672 字节。
+- 保留 Dockerfile 的官方 algo-base、Worker 契约 Label、ARM64 平台以及 Compose 的 IPC/SHM/健康依赖。
+- 算法、测试、数据与 Dockerfile 未因 Frontend 拆分修改。
+
+修改算法后，在 ARM 构建机通过原测试并按 [既有发布流程](../../../.agents/skills/docker-release/SKILL.md) 发布新的不可变 Worker 版本，再更新 Compose 中对应 digest；不使用本地 `:dev` 回退，不在部署端构建，也不覆盖已发布版本。

@@ -1,0 +1,100 @@
+Sending build context to Docker daemon  109.1kB
+
+Step 1/17 : ARG ALGO_BASE=registry.chengyistudio.com/cxx/algo-base:latest
+Step 2/17 : ARG BUILD_BASE=registry.chengyistudio.com/cxx/algo-base:GFKD
+Step 3/17 : FROM ${BUILD_BASE} AS builder
+ ---> d7c9ab2b8c4e
+Step 4/17 : RUN rm -rf /src /build
+ ---> Using cache
+ ---> ca1c699a2708
+Step 5/17 : WORKDIR /src
+ ---> Using cache
+ ---> e6e4404e0ea4
+Step 6/17 : COPY CMakeLists.txt ./
+ ---> 33f6bf9f0309
+Step 7/17 : COPY src/ ./src/
+ ---> ddeb9b453320
+Step 8/17 : COPY support/ ./support/
+ ---> ccf9322e0f5b
+Step 9/17 : COPY tests/ ./tests/
+ ---> f8a0c6df99e8
+Step 10/17 : COPY infra/ ./infra/
+ ---> 5439d2f728dd
+Step 11/17 : RUN cmake -S /src -B /build         -DCMAKE_BUILD_TYPE=Release         -DBUILD_TESTING=ON     && cmake --build /build --parallel         --target rd-sink infra-test rd-algorithm-test     && ctest --test-dir /build --output-on-failure
+ ---> Running in 53fd0e2c9402
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (0.3s)
+-- Generating done (0.0s)
+-- Build files have been written to: /build
+[ 50%] Building CXX object CMakeFiles/rd-sink.dir/infra/rd_sink.cpp.o
+[100%] Linking CXX executable rd-sink
+[100%] Built target rd-sink
+[ 50%] Building CXX object CMakeFiles/infra-test.dir/infra/infra_test.cpp.o
+[100%] Linking CXX executable infra-test
+[100%] Built target infra-test
+[ 11%] Building CXX object CMakeFiles/worker-support.dir/support/algorithm_process.cpp.o
+[ 33%] Building CXX object CMakeFiles/worker-support.dir/support/worker_support.cpp.o
+[ 33%] Building CXX object CMakeFiles/worker-support.dir/support/vendor/matrixreader.cpp.o
+[ 44%] Building CXX object CMakeFiles/worker-support.dir/support/vendor/matrixringbuffer.cpp.o
+[ 55%] Linking CXX static library libworker-support.a
+[ 55%] Built target worker-support
+[ 66%] Building CXX object CMakeFiles/mock-algorithm.dir/tests/mock_algorithm.cpp.o
+[ 77%] Linking CXX executable mock-algorithm
+[ 77%] Built target mock-algorithm
+[ 88%] Building CXX object CMakeFiles/rd-algorithm-test.dir/tests/rd_algorithm_test.cpp.o
+[100%] Linking CXX executable rd-algorithm-test
+[100%] Built target rd-algorithm-test
+Internal ctest changing into directory: /build
+Test project /build
+    Start 1: rd-algorithm-test
+1/2 Test #1: rd-algorithm-test ................   Passed    0.13 sec
+    Start 2: infra-test
+2/2 Test #2: infra-test .......................   Passed    0.07 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.20 sec
+Removing intermediate container 53fd0e2c9402
+ ---> 570de5274d1e
+Step 12/17 : FROM ${ALGO_BASE}
+ ---> 7882db05de5a
+Step 13/17 : WORKDIR /app
+ ---> Using cache
+ ---> e442ae091372
+Step 14/17 : COPY --from=builder /build/rd-sink /app/rd-sink
+ ---> 2524db16e518
+Step 15/17 : ENTRYPOINT ["/app/rd-sink"]
+ ---> Running in 73858248474a
+Removing intermediate container 73858248474a
+ ---> d58f90e54fa6
+Step 16/17 : LABEL io.uestcradar.contract="worker/v2"       io.uestcradar.roles="sink"       io.uestcradar.input="3:2"       io.uestcradar.output="3:2"
+ ---> Running in 9e96b23de278
+Removing intermediate container 9e96b23de278
+ ---> 65f08fa96b34
+Step 17/17 : LABEL org.opencontainers.image.revision=d06d1d28f318784f270856f920da59b4cdf94d85
+ ---> Running in 0c33ab8b8867
+Removing intermediate container 0c33ab8b8867
+ ---> 0eb018a7e166
+Successfully built 0eb018a7e166
+Successfully tagged registry.chengyistudio.com/cxx/worker:rd-sink-sha-d06d1d28f318-arm64
+The push refers to repository [registry.chengyistudio.com/cxx/worker]
+62932ea404ba: Preparing
+ee25c4de7bd9: Preparing
+cd2ce9996cfb: Preparing
+5306353fd478: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+2d8834226313: Waiting
+5306353fd478: Layer already exists
+d47ac722b9a4: Layer already exists
+ee25c4de7bd9: Layer already exists
+cd2ce9996cfb: Layer already exists
+2d8834226313: Layer already exists
+62932ea404ba: Pushed
+rd-sink-sha-d06d1d28f318-arm64: digest: sha256:9549a84a6853398de409237ac3b15f704d79364d1b11b35eab96fb3456b52948 size: 1574
+sha256:0eb018a7e166ce666287463b6083d95722c9aedc93ac2664b5a144f82dd2f5ee arm64 ["registry.chengyistudio.com/cxx/worker@sha256:9549a84a6853398de409237ac3b15f704d79364d1b11b35eab96fb3456b52948"]

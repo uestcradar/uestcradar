@@ -2,7 +2,7 @@
 
 目标：从 Web 抽出已有节点预览，使本机直接访问和服务器经 Web 访问使用**同一 Frontend 镜像、页面、解码与绘图实现**。不改算法，不另做单机版 UI。
 
-已开始执行：独立 Frontend 已实现并在 ARM 构建机验证；正式发布与两个本机案例仍待完成。详细任务覆盖 `frontend-runtime`；随后完成 `web-frontend-integration` 才算整体目标交付。依据：[规格](../SPEC-frontend-runtime.md)、[能力图](../CAPABILITY_MAP.md)；执行：[todo.md](todo.md)。
+单机阶段已完成：独立 Frontend 经 ARM 构建测试、Harbor 发布与两个真实案例验收；Web 集成规格待审。详细任务覆盖 `frontend-runtime`；随后完成 `web-frontend-integration` 才算整体目标交付。依据：[规格](../SPEC-frontend-runtime.md)、[能力图](../CAPABILITY_MAP.md)；执行：[todo.md](todo.md)。
 
 ## 1. 修改边界
 
@@ -59,7 +59,7 @@ Web 通过 Frontend 的 HTTP/WebSocket 端口代理页面，不用 9900/9901 连
 
 ## 5. 单机唯一部署入口
 
-目标文件为 `workspace/examples/KT2/compose.yaml` 和 `workspace/examples/KT3/compose.yaml`，**尚未实现**。每案例一份配置、一个 project，包含完整数据链和各节点 Frontend，容器仍各自独立。
+已交付 `workspace/examples/KT2/compose.yaml` 和 `workspace/examples/KT3/compose.yaml`。每案例一份配置、一个 project，包含完整数据链和各节点 Frontend，容器仍各自独立。
 
 - 默认配置写好已验证的 ARM64 Harbor digest、节点、端口与 UCX `functional / tcp,self`；不启动 Web/Nginx。
 - 不含 build、源码挂载或本地 dev 回退；不需要额外 `.env`、override、启动脚本或手动设置业务变量。缺镜像由 Compose 拉取，失败明确报错。
@@ -86,7 +86,7 @@ KT2 算法页：`http://127.0.0.1:8082`；KT3 RD 页：`http://127.0.0.1:8083`�
 
 ## 7. 开发与验收入口（不是部署步骤）
 
-以下命令用于实现与验收，不能要求部署用户先执行。应用测试见 evidence；案例命令需等正式镜像与 Compose 交付，不将计划命令当作通过证据。
+以下命令用于实现与验收，不能要求部署用户先执行。应用与案例实际结果见 evidence；不得仅凭文档中列有命令就判定通过。
 
 ### C-CHECK：应用测试
 

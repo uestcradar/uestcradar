@@ -2,7 +2,7 @@
 
 **目标：单机直接访问和服务器经 Web 内嵌，使用同一 Frontend，看到同一套节点结果。** 抽出已有预览，不重写算法、绘图或部署管理。
 
-F00–F12 已完成：独立应用已实现并通过 ARM64 构建、单元测试、race 检查和进程冒烟。Compose、Harbor 正式发布、真实案例与 Web 集成尚未完成。当前没有硬件阻塞；F14 等待干净源码版本与发布确认，未自动提交。
+Frontend 单机阶段全部有效任务已完成：ARM64 构建/测试、Harbor 发布、两个单一 Compose、真实图像与旁路隔离均通过。G01 尚未完成；Web 集成规格待审，服务器部署未改。当前没有明确硬件阻塞。
 
 ## 文档
 
@@ -10,7 +10,9 @@ F00–F12 已完成：独立应用已实现并通过 ARM64 构建、单元测试
 - [todo.md](todo.md)：可执行任务；先单机，再完成必需的 Web 集成。
 - [规格](../SPEC-frontend-runtime.md) / [能力图](../CAPABILITY_MAP.md)：功能与验收基线。
 - [ARM64 环境证据](evidence/arm64-environment.md)：已完成操作；宿主重启后须重新检查。
-- [应用执行证据](evidence/frontend-runtime.md)：实际源码、镜像、测试及未做事项。
+- [应用执行证据](evidence/frontend-runtime.md)：第一阶段实现检查点（历史状态）。
+- [发布记录](evidence/frontend-release.md)、[单机验收汇总](evidence/acceptance.md)：最终镜像、两个案例及范围检查。
+- [Web 集成规格](../SPEC-web-frontend-integration.md)：G01 待审，不能跳过审定或当作已实现。
 
 ## 保留的部署边界
 
