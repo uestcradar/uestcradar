@@ -1,39 +1,36 @@
-# Frontend 分离任务入口
+# Frontend / Web 分离任务
 
-当前阶段：**Tasks 清单已生成待审，尚未开始实现或部署。** 本轮按用户“推进到 todo”的要求整理计划与任务，不代表特权环境准备、发布或服务器变更已经获准或执行。
+**目标：单机直接访问和服务器经 Web 内嵌，使用同一 Frontend，看到同一套节点结果。** 抽出已有预览，不重写算法、绘图或部署管理。
 
-## 文件入口
+F00–F12 已完成：独立应用已实现并通过 ARM64 构建、单元测试、race 检查和进程冒烟。Compose、Harbor 正式发布、真实案例与 Web 集成尚未完成。当前没有硬件阻塞；F14 等待干净源码版本与发布确认，未自动提交。
 
-| 文件 | 内容与状态 |
-|---|---|
-| [CAPABILITY_MAP.md](../CAPABILITY_MAP.md) | 模块职责与先本机、后 Web 多机集成的顺序 |
-| [SPEC-frontend-runtime.md](../SPEC-frontend-runtime.md) | 当前模块的范围和 F01–F08 验收基线 |
-| [plan.md](plan.md) | 技术方案、依赖、端口、override、ARM64/Harbor 流程、验证入口与风险 |
-| [todo.md](todo.md) | 22 项任务 F00–F21：F01 已完成，其余待执行；另有 G01/G02 |
+## 文档
 
-当前清单细化 `frontend-runtime`。Web 内嵌与 `.64` 多机部署在本机案例验收后进入自身规格/计划，不提前执行。
+- [plan.md](plan.md)：范围、数据去向、部署入口及必要验证。
+- [todo.md](todo.md)：可执行任务；先单机，再完成必需的 Web 集成。
+- [规格](../SPEC-frontend-runtime.md) / [能力图](../CAPABILITY_MAP.md)：功能与验收基线。
+- [ARM64 环境证据](evidence/arm64-environment.md)：已完成操作；宿主重启后须重新检查。
+- [应用执行证据](evidence/frontend-runtime.md)：实际源码、镜像、测试及未做事项。
 
-## 最新边界
+## 保留的部署边界
 
-- 功能源码、测试和部署配置仅允许修改 `workspace/infra/web/`、`workspace/infra/frontend/`。
-- **KT2/KT3 原 YAML、Dockerfile、算法、源码、测试、数据全部不改**。在 Frontend 自己目录内提供外置 Compose override，与原配置叠加运行。
-- Sidecar、SDK、协议、公共发布脚本不改；复用现有观测端口配置。Frontend 发布入口放 `frontend/docker/`，沿用既有发布校验规则。
-- 能力图、规格、本任务目录是文档例外。之前的仓库整理修改不属于本任务，不回滚，也不能用它们掩盖新越界修改。
+KT2、KT3 各在案例根目录只保留一份 `compose.yaml`、一个 project。镜像发布、Docker ARM64 与 Harbor 访问准备好后：
 
-## 交付要求
+```bash
+cd workspace/examples/KT2  # 或 workspace/examples/KT3
+docker compose up -d --no-build
+```
 
-1. 本机分别跑通 KT2 和 KT3：TCP、无 Web，独立 Frontend 展示真实输入/输出和 RD 结果，保留原结果校验。
-2. 全程使用 ARM64 Docker；x86 本机使用模拟运行，不建立 AMD64 替代应用镜像。
-3. 部署优先 Harbor 拉取固定 digest，`up --no-build`；发布构建与部署验收分开，不临时现场构建替代复验。
-4. 后续把同一 Frontend 嵌入 `192.162.2.64` 上的 Web，由它部署受管服务器的 Docker 链路并验收多机结果。
-5. 不新增录制，不新增账号系统；Frontend 不接收 SSH 密码/私钥，停止预览不影响算法链或 Web 部署管理。
-6. 页面默认 Frontend 8081、Web 8080；同机多 Frontend 递增分配页面端口，遥测/预览接收端口另配，详见计划。
+默认 ARM64 Harbor digest、TCP、无 Web；不要求额外环境文件、override、启动包装脚本或手动 infra/worker 顺序。KT2 算法页为 `http://127.0.0.1:8082`，KT3 RD 页为 `http://127.0.0.1:8083`；两案例顺序运行。以上是目标入口，尚未实现。
 
-## 已有证据与当前阻塞
+**plan 第 5 节是日常部署，第 7 节仅供开发/验收。** 构建测试在 ARM 服务器进行，发布 Harbor 后本机拉取运行；不把测试工具变成部署依赖。
 
-- 已核对四份原 Compose、现有 Web/Sidecar 发布文档和本地 ARM64 镜像缓存。
-- GFKD ARM64 编译产物与四份 CSV 已在本机；Git 忽略不等于缺失。
-- 已依用户授权注册 qemu-aarch64，ARM64 容器实际执行通过，F01 完成；见 [环境证据](evidence/arm64-environment.md)。注册未设开机持久化，宿主重启后重新检查。
-- 未实现 Frontend，未运行两个案例验收，未发布新镜像，未实施 `.64` 更新。
+## 交付顺序与完成标准
 
-开始执行前确认清单；环境特权操作、发布版本/推送、影响已有容器的操作仍分别确认。任务必须附真实验证结果后才能勾选，不自动提交或推送。
+1. 抽出节点页面及必要后端，复用已有预览协议、解码、绘图和测试。
+2. 每个本机案例一次完成真实结果、Harbor 拉取与故障隔离验收；算法、数据及原结果校验不变。
+3. Web 内嵌同一 Frontend，保留部署/管理/会话与直接 Sidecar 遥测，删除旧预览实现和 9901 监听。通过 `192.162.2.64` 的 Web 部署受管节点并验证同一套结果；多机默认 strict-RDMA，不静默降级。
+
+单机通过只是第一阶段，服务器同页验收通过才算整体完成。不另建发布/校验框架或第三个部署配置模块。F13、F19/F20、G02 的删并去向见 todo，未把取消任务标成完成。
+
+修改范围仍限 web/frontend、案例 Compose 合并及必要部署文档；Sidecar、SDK、协议、案例算法/测试/数据和公共发布脚本不改。不新增账号或录制；不自动提交、发布、停止已有工作负载。详见 plan 第 1 节。

@@ -1,7 +1,7 @@
 # Spec: 独立节点 Frontend 与 KT2/KT3 本机验收
 
 - Module id：`frontend-runtime`
-- 状态：**按用户要求作为 Plan/Tasks 的范围基线；计划与 todo 已生成待审，尚未开始实现。**
+- 状态：**已获准执行；独立应用已实现并完成 ARM 构建/单元测试，Harbor 发布与案例/服务器验收尚未完成。**
 - 上游依据：[能力图](CAPABILITY_MAP.md)、[目标架构](../TARGET_ARCHITECTURE.md)
 - 后续模块：`web-frontend-integration`，本规格不提前实现 Web 嵌入或远端部署。
 
@@ -9,12 +9,12 @@
 
 从现有 `infra/web` 中分离节点预览应用，在不运行聚合 Web 的本机，独立部署 Frontend 并展示 KT2 脉冲压缩、KT3 距离-多普勒链路的真实结果。
 
-面向算法开发者：启动既有 Worker 和基础设施后，用浏览器直接访问节点页面，看到输入/输出预览、节点状态和预览丢弃统计，不需要启动全局编排控制台。
+面向算法开发者：一条 Compose 命令启动案例后，浏览器直接看到输入/输出预览、节点状态和丢弃统计，不需要全局控制台。服务器部署由 Web 内嵌同一 Frontend 镜像和页面，不另做一套解码或绘图实现；本模块完成只是第一阶段。
 
 ### 必须保留的约束
 
-- 功能源码、测试和部署配置的修改范围**仅限 `infra/web/`、`infra/frontend/`**；能力图、规格和 `infra/tasks/` 为文档例外。
-- KT2/KT3 **所有原文件只读，包括原 Compose 与 Dockerfile**。通过 `infra/frontend/docker/` 下的 Compose override 接入预览、覆盖镜像引用和观测端口。
+- 功能源码与测试实现位于 `infra/web/`、`infra/frontend/`；KT2/KT3 各合并为根目录一份 `compose.yaml` 并删除旧 infra/worker 配置。能力图、规格、`infra/tasks/` 及案例 README 部署说明为文档例外。
+- 不增加叠加配置文件，不维护旧部署兼容层。KT2/KT3 的算法源码、测试、数据、CMake、Dockerfile 和结果契约保持不变。
 - Sidecar、SDK、Ring、协议文件及公共发布脚本只读。复用现有遥测/预览接口；发现必须越界时先暂停说明，不自动扩大范围。
 - 以本任务开始时的工作树快照为基线检查改动；仓库此前的迁移、重命名等未提交修改不归本任务，也不得覆盖。
 - 本期只迁移已有能力，不新增录制、算法或 SDK 输出，不把 mock、静态图片或历史文件回放冒充真实在线预览。
@@ -25,7 +25,7 @@
 
 1. 本模块：本机 TCP、无 Web，KT2 和 KT3 分别跑通独立 Frontend。
 2. 下一模块：同一 Frontend 嵌入 `192.162.2.64` 上的 Web，由该 Web 通过 SSH/Compose 部署选定服务器上的 Docker 链路并验证内嵌结果，这是本期多机验收。Web 是多机部署控制台，不是所有节点的唯一运行位置；只跳转到外部页面不满足嵌入要求。
-3. 最后整理统一部署配置与发布清单；Harbor 拉取要求贯穿前两阶段，不等到最后才验证。
+部署说明、镜像记录与 Harbor 拉取验证随两阶段交付，不另设第三个部署配置模块。
 
 ## 2. Tech Stack
 
@@ -48,11 +48,11 @@
 - [Web build-base](web/docker/README.md)：x86 构建机用 `docker buildx build --platform linux/arm64` 发布 ARM64 基座，缓存 Go/Protobuf/Node 与对应 lockfile 的依赖；应用镜像在 ARM64 发布环境构建并验证。
 - [Sidecar 双基座](sidecar/docker/README.md)：`build-base`、`runtime-base` 的 Dockerfile 均固定 `linux/arm64`，业务镜像复用基座，不在验收部署时现场安装编译依赖。
 - 正式应用发布使用 `.agents/skills/docker-release/scripts/release.sh`，在 ARM64 发布环境验证镜像契约后推送 Harbor；`verify-image-contract.sh` 强制校验 ARM64。
-- Frontend 复用这套基座、构建与发布方式，但不修改公共发布脚本；独立发布入口与契约检查放 `infra/frontend/docker/`，遵守同等 ARM64、源码版本、不可变标签、推送拉回验证要求。
+- 公共发布脚本目前不支持 Frontend，保持不改。Frontend 复用现有 ARM64 基座，用 Dockerfile 测试阶段与原生 Docker 命令发布，操作记录在 `infra/frontend/README.md`；保留源码版本、不可变标签、架构/入口/digest 检查和推送拉回要求，不再复制发布器与契约校验工具链。
 
 ## 3. Project Structure
 
-以下为拟定布局，目录尚未实现：
+独立应用布局：
 
 ```text
 workspace/infra/
@@ -62,10 +62,8 @@ workspace/infra/
 │   ├── ui/                   # 节点页面、波形与 RD 图；测试与源码相邻
 │   ├── web/                  # 构建后的静态资源与 Go embed
 │   ├── go.mod
-│   ├── Dockerfile
-│   ├── docker/               # 发布入口、ARM64 检查与 KT2/KT3 外置 override
-│   ├── tests/                # 修改范围检查与应用验证代码
-│   └── README.md
+│   ├── Dockerfile            # ARM64 构建、测试阶段与运行镜像
+│   └── README.md             # 部署说明与受控发布操作
 ├── web/                      # 保留现有聚合管理应用及其前端
 ├── proto/                    # 复用现有协议，不新增平行协议
 └── tasks/
@@ -75,7 +73,7 @@ workspace/infra/
 
 复用现有 `PreviewPanel.tsx`、波形/RD 解码与渲染、Go preview 接收实现及测试。共享或迁移的具体源码位置在 Plan 阶段确定，不为了共用少量代码预先建立通用插件框架。
 
-KT2/KT3 不做任何直接修改；功能验证脚本放 `infra/frontend/`，验收证据放 `infra/tasks/evidence/`，不改两个案例的测试程序或原 YAML。
+案例部署入口为 `workspace/examples/KT2/compose.yaml`、`workspace/examples/KT3/compose.yaml`，替代原四份 infra/worker Compose，并同步案例 README。功能验证代码放 `infra/frontend/`，验收证据放 `infra/tasks/evidence/`；范围检查使用 Git 与 sha256sum，不增加自定义检查工具。
 
 ## 4. Interface Requirements
 
@@ -91,12 +89,12 @@ KT2/KT3 不做任何直接修改；功能验证脚本放 `infra/frontend/`，验
 ### 页面与后端
 
 - Web 页面端口保留 `8080/TCP`；Frontend 页面与浏览器 WebSocket 共用 `8081/TCP`。同机多个 Frontend 依次使用 8082、8083、8084；不同服务器可各自使用 8081。端口均可配置，启动前检查占用。
-- 遥测 UDP 和 Sidecar 预览 TCP 不使用页面端口，按实例单独配置；具体端口表见 `tasks/plan.md`，保留旧 Web 的 9900/9901 端口。
+- 遥测 UDP 和 Sidecar 预览 TCP 不使用页面端口，按实例单独配置，端口表见 `tasks/plan.md`。多机 Web 的 `9900/UDP` 仍直接接收 Sidecar 全局遥测；Web 通过 Frontend 的 HTTP/WebSocket 端口（默认 8081）代理节点页面，不通过 9900/9901 连接 Frontend。旧 Web `9901/TCP` 预览监听在 G01 切换时删除，不保留兼容入口；单机无 Web 时遥测与预览均直送对应 Frontend。
 - 展示既有输入/输出波形、RD 热力图、实际 FPS、snapshot/encode/network drops，以及链路/Ring 状态；不存在的 Leg 不展示为故障。
 - 明确区分连接中、断开、暂无数据、类型不支持等状态；重连或节点实例变更后不得继续把旧图标为实时结果。
 - HTTP 根路径提供节点页面；状态接口和 `/ws/frames` 保持可复用语义。提供健康检查，并区分“进程就绪”与“收到真实数据”。
 - 为后续嵌入保留子路径部署能力：静态资源、HTTP 请求和 WebSocket URL 不硬编码到聚合 Web 的根路径；独立根路径访问和代理子路径访问使用同一应用。
-- 本模块不移除现有 Web 正常管理能力；重复的 Web 节点预览渲染路径在后续集成模块统一替换，避免提前破坏旧入口。
+- Web 的部署与全局管理能力必须保留；节点预览迁入 Frontend，切换内嵌入口时删除旧预览渲染和转发路径，不新增旧入口兼容、双版本适配或回退机制。
 
 ### 隔离与安全
 
@@ -109,88 +107,59 @@ KT2/KT3 不做任何直接修改；功能验证脚本放 `infra/frontend/`，验
 
 ### 配置限制
 
-- 保留 KT2/KT3 的 Worker/infra 分离部署模式和原有健康检查、IPC、帧契约、结果校验；原文件不改。
-- 在 `infra/frontend/docker/` 下建立四份外置 override，每次先加载原 Compose、再加载对应 override。通过覆盖层新增 Frontend、设置身份与观测端口，不合并原有两个 project。
-- 不使用要求升级现有 Compose 才支持的特殊 YAML reset 标签；即使原 worker 配置保留 build 字段，也必须以 `--no-build` 启动。
+- KT2、KT3 各在根目录提供一份 `compose.yaml`、一个 project，包含完整数据链与各节点 Frontend；删除旧 infra/worker Compose，不维护平行入口或启动包装脚本。
+- 默认镜像为已验证的 ARM64 Harbor digest，节点身份、端口、UCX `functional / tcp,self` 直接配置；不要求必填环境变量或额外 `.env`，必要参数仍可显式调整。
+- Worker 使用 `ipc: service:对应Sidecar`，Sidecar 保持 shareable IPC 与原 SHM 参数；由 `depends_on: condition: service_healthy` 表达依赖，不靠固定外部容器名或人工启动顺序。保留健康检查、帧契约和结果校验，Frontend 不作为数据链依赖。
+- 日常启动只有 `docker compose up -d --no-build`，缺镜像自动从 Harbor 拉取，失败报错；Compose 不含 build 或本地 dev 回退，需要构建时走已有 Dockerfile 和受控发布流程。
 - 默认不运行 Web 或 Nginx；KT2、KT3 可依次验收，本期不要求两套案例同时占用同一组端口。
 - 接入时不能仅把所有 Sidecar 留在同一个默认预览端口，而声称实现了每节点独立 Frontend。
 
 ### 构建与部署分离
 
-- 本地构建可用于开发检查；**正式复验优先走构建测试 → 发布 Harbor → 拉取固定 digest → 无构建启动**。
-- 两个 infra Compose 已大量使用 Harbor digest；两个 worker Compose 仍配置 `build:` 与本地 `:dev` 标签，必须区分开发构建入口和拉取部署入口。
-- 拟通过 `FRONTEND_IMAGE`、`KT2_WORKER_IMAGE`、`KT3_WORKER_IMAGE` 引用已发布镜像，并保留现有 Sidecar/Source/Sink 镜像参数；正式配置都固定 digest，不仅依赖 `latest` 或本地镜像 ID。
+- **ARM 服务器构建/测试 → 发布 Harbor → 本机拉取固定 digest → 无构建启动**。所有应用测试与运行容器均为 ARM64。
+- 当前两个 infra Compose 已大量使用 Harbor digest；原 worker Compose 的 `build:` 与本地 `:dev` 路径随合并移除，不维持旧启动方式。
+- 新 Compose 直接内置经验证的镜像 digest；若保留 `FRONTEND_IMAGE` 等调整参数，也必须提供可直接运行的默认值，不要求部署者另填镜像清单。正式引用不只依赖 latest 或本地镜像 ID。
 - 没有已发布镜像时，记录缺失项并走受控发布；仓库或认证不可用时报告阻塞。不得偷偷改为部署机现场 `docker build`、源码挂载、`docker save/load` 来获得通过结论。
 - KT3 所需的真实 `algorithm/GFKD_V1_ARM` **已在本地**，为 394352 字节的 ARM aarch64 可执行文件，权限 755，四份 CSV 也在。Dockerfile 已通过 `COPY algorithm/ /app/algorithm/` 包含编译产物，不需要 GFKD 源码；被 Git 忽略不表示未提供。
 - 本地已有 ARM64 `registry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0`，缓存中的仓库 digest 为 `sha256:0213dfc739c7ca3ca6f689e03ac02a2a2ad29f6ac74a85a5b38f77bf1d89e00a`，作为后续拉取复验候选，不宣称本轮已经拉取或验收。
-- 对镜像记录仓库引用、manifest digest、实际架构、源码版本与拉取结果。新 Frontend 使用自己目录内的发布与契约检查入口，不修改公共 release 脚本，也不绕过既有发布约束。
+- 对镜像记录仓库引用、manifest digest、实际架构、源码版本与拉取结果。使用原生 Docker 命令与受控发布记录，不修改公共 release 脚本，也不绕过既有发布约束；只有测试通过、源码明确且标签确认为未占用时才允许推送。
 
 ## 6. Commands
 
-以下均从仓库根目录执行。现有配置检查现在可用；Frontend 构建命令与拉取部署命令是待实现后的验收入口，**本阶段未执行，不表示当前已可运行**。
+除明确进入案例目录的命令外，均从仓库根目录执行。环境检查与构建测试供开发/验收使用，不是日常部署步骤；Frontend 已实现，正式镜像与 Compose 未交付，**下列目标部署命令不表示当前已可运行**。
 
-### 环境与当前 Compose 检查
+### 环境检查（开发/验收）
 
 ```bash
 uname -m
 docker info --format 'Docker architecture={{.Architecture}}'
 docker compose version
-docker compose -f workspace/examples/KT2/docker-compose-infra.yaml config --quiet
-docker compose -f workspace/examples/KT2/docker-compose-worker.yaml config --quiet
-docker compose -f workspace/examples/KT3/docker/docker-compose-infra.yaml config --quiet
-docker compose -f workspace/examples/KT3/docker/docker-compose-worker.yaml config --quiet
 ```
 
-### Frontend ARM64 容器构建与检查（拟定）
+### Frontend ARM64 构建与检查
 
-`FRONTEND_BUILD_BASE` 指向已发布的 ARM64 构建基座 digest，复用 Web 的依赖缓存方式。x86 本机需先具备 ARM64 模拟运行能力；不在宿主机直接运行 Go/Node 测试来替代 ARM64 容器验收。
+在 ARM 构建机执行；Dockerfile test 阶段复用已有 Go/Vitest 测试与 UI 构建，不另建测试包装脚本：
 
 ```bash
-: "${FRONTEND_BUILD_BASE:?请设置已发布的 ARM64 构建基座 digest}"
-docker pull --platform linux/arm64 "$FRONTEND_BUILD_BASE"
-docker image inspect --format '{{.Os}}/{{.Architecture}}' "$FRONTEND_BUILD_BASE"
-docker run --rm --platform linux/arm64 \
-  --user "$(id -u):$(id -g)" \
-  --mount type=bind,src="$PWD",dst=/src \
-  -w /src/workspace/infra/frontend \
-  -e HOME=/tmp -e GOCACHE=/tmp/go-build -e GOPATH=/tmp/go \
-  "$FRONTEND_BUILD_BASE" sh -ec '
-    cmp ui/package-lock.json /opt/web-frontend/package-lock.json
-    test ! -e ui/node_modules || { echo "use a clean build workspace" >&2; exit 1; }
-    cp -a /opt/web-frontend/node_modules ui/node_modules
-    npm --prefix ui test -- --run
-    npm --prefix ui run build
-    go test ./...
-    go vet ./...
-    go build -trimpath -o /tmp/uestcradar-frontend ./cmd/frontend
-  '
-git diff --check
+test "$(uname -m)" = aarch64
+docker build --target test \
+  -f workspace/infra/frontend/Dockerfile -t uestcradar/frontend:test .
 ```
 
-在干净构建工作区执行。lockfile 与缓存不匹配时先更新 ARM64 基座，不在部署时补装依赖。现有包没有独立 lint script，不虚构 `npm run lint`；TypeScript 检查包含在 build 中，Go 使用 gofmt。最终镜像仍需通过受控发布流程推送 Harbor，再由验收端拉取。
+复用现有 Web build-base 和 lockfile 缓存，不预先更新依赖或基座；确有缺失再说明并修正。最终镜像需用户批准后发布 Harbor，本机拉取同一 digest 验证，不把测试镜像当成部署发布。
 
-### 本机拉取部署（目标 Compose 完成后）
+### 日常单机部署（目标 Compose 与镜像发布完成后）
 
-`DEPLOY_ENV` 指向经过审阅的本地 Docker 环境文件，所有镜像均为 linux/arm64 并固定 digest，包含节点端口配置，不含提交到 Git 的密钥。镜像发布完成前不要执行。保留分开的 Compose project，以匹配现有 Worker 的 IPC 连接方式。
+一次性前提为 Docker 可运行 ARM64、Harbor 可访问并已按需登录。默认镜像 digest、端口与节点配置随 Compose 提供，无需额外环境文件，也不需要运行测试或检查脚本：
 
 ```bash
-: "${DEPLOY_ENV:?请设置已审阅的 Docker 环境文件绝对路径}"
-CASE=kt2
-BASE=workspace/examples/KT2
-OVER=workspace/infra/frontend/docker
-for PART in infra worker; do
-  docker compose --env-file "$DEPLOY_ENV" \
-    -f "$BASE/docker-compose-$PART.yaml" -f "$OVER/$CASE-$PART.override.yaml" config --quiet
-  docker compose --env-file "$DEPLOY_ENV" \
-    -f "$BASE/docker-compose-$PART.yaml" -f "$OVER/$CASE-$PART.override.yaml" pull
-  docker compose --env-file "$DEPLOY_ENV" \
-    -f "$BASE/docker-compose-$PART.yaml" -f "$OVER/$CASE-$PART.override.yaml" up -d --no-build
-done
+cd workspace/examples/KT2  # 或 workspace/examples/KT3
+docker compose up -d --no-build
 ```
 
-KT2 验收并停止其测试容器后，切换对应环境文件，设置 `CASE=kt3`、`BASE=workspace/examples/KT3/docker`，执行同一段。两个案例的原 YAML 都只作为只读输入。
+浏览器直接访问 KT2 算法页 `http://127.0.0.1:8082` 或 KT3 RD 页 `http://127.0.0.1:8083`。在同一案例目录用 `docker compose ps` 查看状态，`docker compose down` 停止本次案例。两案例默认顺序运行，已有同名 project 或占用端口时先确认，不自动替换其他工作负载。
 
-Frontend 服务名和端口表见 `tasks/plan.md`；按原 Compose + 对应 override 操作具体服务，停止命令不得省略覆盖配置。只清理本次创建的容器，不清理宿主机其他工作负载。
+配置解析、显式 Harbor pull、镜像/IPC 检查与结果取证归 [plan 第 7 节](tasks/plan.md)，不作为日常部署步骤。服务名和端口表也在该计划中；只停止本次创建的 project 或指定 Frontend 服务。
 
 ## 7. Code Style
 
@@ -217,23 +186,23 @@ func writeFull(writer io.Writer, data []byte) error {
 ## 8. Testing Strategy
 
 - **单元与接口**：迁移/复用 Go testing、Vitest 覆盖节点过滤、stream descriptors、类型版本、波形/RD 解码、消息上限、无效订阅、有界队列、断线重连与子路径 URL。既有测试不能因迁移而直接删除。
-- **Compose 静态验证**：四份 Compose 均可解析；检查所有镜像、IPC、节点 ID、观测目标地址与监听端口，不泄露环境文件中的凭据。
+- **Compose 静态验证**：两份新 compose.yaml 在无 .env/额外业务变量时可解析，默认镜像固定 digest，案例各只有一个 project；检查 service IPC、启动依赖、节点 ID、观测目标与端口，旧四份配置已删除，不泄露凭据。
 - **真实链路验证**：本机实际运行 KT2、KT3，保留既有 Worker/Sink 的校验结果，同时确认浏览器真实渲染并持续更新。容器 healthy、HTTP 200、WebSocket 连接成功或单张截图均不足以证明通过。
 - **隔离验证**：关闭页面、停止并重启目标 Frontend、模拟慢预览消费者，比较 Worker/Sink 数据计数；主链不能因旁路故障停止。
 - **部署验证**：构建、测试和运行均使用 ARM64 Docker。正式复验执行 Harbor pull 和 `up --no-build`，记录镜像 digest、ARM64 架构、传输模式、页面证据和时间。不能以 AMD64 开发镜像代替，或把本地开发镜像测试冒充发布镜像测试。
-- **改动范围验证**：相对任务起点快照确认 KT2/KT3 全部原文件（含 Docker 配置）、Sidecar、SDK、协议和公共发布脚本未改；功能变更仅在 web/frontend 两个允许目录内，文档按例外处理。
+- **改动范围验证**：相对任务起点快照确认案例仅合并 Compose、删除四份旧配置并同步 README 部署说明；算法/数据、Sidecar、SDK、协议和公共发布脚本未改，功能实现位于 web/frontend。
 
 ## 9. Boundaries
 
 - **Always**：先确认规格与计划；保留现有接口校验与有界预览；审查 Docker 配置、运行相关测试并保存真实证据；遵守 Harbor 发布与部署隔离；缺少镜像、依赖或硬件时报告阻塞。
-- **Ask first**：改变 SDK/Frame/预览协议、修改两个允许功能目录以外的代码或配置、新增依赖或 CI、注册特权 ARM64 模拟、改变宿主机网络/内核/RDMA 配置、跳过 Harbor 使用临时镜像、影响目标机现有容器。
+- **Ask first**：改变 SDK/Frame/预览协议、修改 web/frontend 与本次案例 Compose 合并范围之外的代码或配置、新增依赖或 CI、注册特权 ARM64 模拟、改变宿主机网络/内核/RDMA 配置、跳过 Harbor 使用临时镜像、影响目标机现有容器。
 - **Never**：新增录制功能；在 Frontend 中嵌入编排权限或 SSH 密钥；让 Frontend 成为第二个 Ring 消费者；通过弱化算法测试、mock 结果或静默 TCP 降级通过验收；擅自提交或推送工作区修改。
 
 ## 10. Success Criteria
 
 | 编号 | 可验证完成条件 |
 |---|---|
-| F01 | 在本机无 Web/Nginx 容器运行时，KT2 与 KT3 各自通过原 Compose + Frontend 目录内 override 启动独立 Frontend，案例所有原文件保持不变 |
+| F01 | KT2/KT3 各在案例根目录凭一份 compose.yaml、一个 project，以单次 up -d --no-build 启动完整链路和 Frontend；默认无 Web/Nginx，无额外环境文件或人工 infra/worker 顺序，旧配置已删除；仅同步部署说明，不改案例算法、测试和数据 |
 | F02 | KT2 算法节点显示 IQ 输入 `1:3` 与脉压输出 `2:2`；KT3 算法节点显示脉压输入 `2:2` 与 RD 输出 `3:2`，来自该次真实运行且既有结果校验通过 |
 | F03 | 每个案例至少连续观察 60 秒，输入/输出各取得不少于两个不同 frame_id 的有效预览，页面实际绘制；不要求模拟环境达到 30 fps |
 | F04 | 节点身份、Leg 与类型正确；一个实例不显示另一节点数据；错误版本和畸形消息被拒绝，断线状态不冒充实时画面 |
@@ -252,4 +221,4 @@ func writeFull(writer io.Writer, data []byte) error {
 4. **隔离要求的具体含义**：关闭/重启 Frontend 时，算法链继续传输，Web 仍能查看节点并执行既有部署管理；最多是该节点预览暂不可用。实现时需要正确连接现有遥测接口，不要求用户再设计一套观测系统。
 5. **多机验收入口已确定**：把更新后的 Web 部署到 `192.162.2.64`，通过它部署选定服务器的 Docker 链路，验证内嵌 Frontend 展示。记录 Web 地址、受管节点、镜像及实际 transport；本期不额外增加 RDMA 性能压测。该验收在本机 KT2/KT3 验收之后进行。
 
-**当前交付为用户要求的任务阶段产物：[plan.md](tasks/plan.md)、[todo.md](tasks/todo.md)。本轮未实施、未部署、未取得测试通过结论；开始执行前须确认任务清单及其中的特权环境准备、发布等操作门槛。**
+**执行状态以 [todo.md](tasks/todo.md) 与 evidence 为准。应用构建/单元测试通过不等于真实案例通过；发布、源码提交与已有工作负载变更仍遵守已定操作门槛。**

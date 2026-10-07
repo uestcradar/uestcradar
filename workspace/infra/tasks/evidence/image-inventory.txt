@@ -1,0 +1,21 @@
+
+IMAGE=registry.chengyistudio.com/cxx/sidecar:latest
+linux/arm64 ["registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c"] ["/app/sidecar"]
+
+IMAGE=registry.chengyistudio.com/cxx/worker:signalsource-latest@sha256:9a3faffdcbd186c3aa0c024770f58eba4e3a7c25556e2b5847c3e32e9abb319c
+linux/arm64 ["registry.chengyistudio.com/cxx/worker@sha256:9a3faffdcbd186c3aa0c024770f58eba4e3a7c25556e2b5847c3e32e9abb319c"] ["/app/signalsource"]
+
+IMAGE=registry.chengyistudio.com/cxx/worker:pulsecompression-v1.0.0@sha256:24e4493e3e8e7cce3b5985b0394c943eee8663e1fd3049e422f718fa1aee8421
+linux/arm64 ["registry.chengyistudio.com/cxx/worker@sha256:24e4493e3e8e7cce3b5985b0394c943eee8663e1fd3049e422f718fa1aee8421"] ["/app/pulsecompression"]
+
+IMAGE=registry.chengyistudio.com/cxx/worker:pcsink-latest@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233
+linux/arm64 ["registry.chengyistudio.com/cxx/worker@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233"] ["/app/signalsink"]
+
+IMAGE=registry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0@sha256:0213dfc739c7ca3ca6f689e03ac02a2a2ad29f6ac74a85a5b38f77bf1d89e00a
+linux/arm64 ["registry.chengyistudio.com/cxx/worker@sha256:0213dfc739c7ca3ca6f689e03ac02a2a2ad29f6ac74a85a5b38f77bf1d89e00a"] ["/app/qt5-algorithm"]
+
+IMAGE=registry.chengyistudio.com/cxx/worker:rd-sink-latest@sha256:f17f04d22a09cd8f591cc7b26f84ca72964c9e90395acb9c1474571917b64ef0
+linux/arm64 ["registry.chengyistudio.com/cxx/worker@sha256:f17f04d22a09cd8f591cc7b26f84ca72964c9e90395acb9c1474571917b64ef0"] ["/app/rd-sink"]
+
+IMAGE=registry.chengyistudio.com/cxx/web:build-base
+linux/arm64 ["registry.chengyistudio.com/cxx/web@sha256:52c3755b78f07a64e28b95efccf3d4c70ac97808b65b51bc1e8f8a7829c2835b"] null
