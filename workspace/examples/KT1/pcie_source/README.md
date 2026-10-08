@@ -3,7 +3,7 @@
 PCIe 接收 Worker：从既有八路映射中选择**一路**，输出 `RawIQFrame 4:1`，由 SignalSink 原样保存裸帧。不新增硬件发射功能，不加载软件 CPI 或雷达模板。
 
 > [!NOTE]
-> 单通道组帧、SDK 输出和有界背压已实现；原生 ARM 离线测试、服务器上的仿真 Source→Sidecar→SignalSink 文件验证已通过。**新 PCIe 路径尚未完成 Harbor 发布和真实硬件 10/60 秒录制验收**，不能将仿真或旧版本采集结果当成当前硬件通过记录。见 [当前证据](tests/raw-iq-results.md)。
+> 单通道组帧、SDK 输出和有界背压已实现；原生 ARM 离线测试、服务器上的仿真 Source→Sidecar→SignalSink 文件验证已通过。**Harbor 发布及固定 digest 仿真已完成；真实 10 秒接收首检只有 BIT 包、没有 IQ/控制包，硬件录制验收未通过**。不能将仿真或旧版本采集结果当成当前硬件通过记录。见 [发布与首检](tests/release-results.md)及 [离线证据](tests/raw-iq-results.md)。
 
 ## 数据流与协议
 

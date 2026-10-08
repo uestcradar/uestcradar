@@ -1,0 +1,91 @@
+{
+  "scope": "explicit TCP synthetic closure; runtime mounts are test overrides, not published-image acceptance; not hardware or sustained throughput",
+  "capture_filesystem": "ext2/ext3",
+  "capture_root_on_docker_host": "/root/workspace/captures/raw-iq-published-fdb78cc",
+  "image_architectures": {
+    "sha256:0bf09c1b9517a48e669e92c00ae93f5bf1919b9af48ac904fcc38ba57e7302a4": "arm64",
+    "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240": "arm64",
+    "sha256:8290e0bb3fecf9160afa9a27ba6ac9b0320a9341ea31f73dee58490806b7e144": "arm64"
+  },
+  "runtime": {
+    "source": {
+      "entrypoint": [
+        "/app/signalsource-raw-iq"
+      ],
+      "bind_mounts": []
+    },
+    "sink": {
+      "entrypoint": [
+        "/app/signalsink"
+      ],
+      "bind_mounts": [
+        {
+          "source": "/root/workspace/captures/raw-iq-published-fdb78cc",
+          "destination": "/captures",
+          "read_only": false
+        }
+      ]
+    }
+  },
+  "docker_host": "ssh://root@192.162.2.64",
+  "capture": "/tmp/rawiq-published-proof/verified.sink",
+  "file": {
+    "complete": true,
+    "frames": 64,
+    "samples": 524288,
+    "raw_bytes": 2102784,
+    "business_fnv1a64": "1645031447842536997",
+    "sample_continuity": "unverified"
+  },
+  "recorder": {
+    "ok": true,
+    "process_id": "1",
+    "state": "idle",
+    "recording_id": "3d1f6553cc162c77f7f9495fe1f28417",
+    "directory": "smoke",
+    "error": "",
+    "accepted_frames": "64",
+    "written_frames": "64",
+    "written_bytes": "2102784",
+    "queue_used_bytes": "0",
+    "queue_capacity_bytes": "67108864",
+    "elapsed_ms": "4772",
+    "sample_continuity": "unverified",
+    "disk_total_bytes": "54715047936",
+    "disk_used_bytes": "23789494272",
+    "disk_available_bytes": "28112961536"
+  },
+  "rejected_corruptions": [
+    {
+      "case": "iq",
+      "error": "raw-iq-check: fixture IQ bytes differ"
+    },
+    {
+      "case": "timestamp",
+      "error": "raw-iq-check: fixture timestamps differ"
+    },
+    {
+      "case": "truncated",
+      "error": "raw-iq-check: truncated capture"
+    }
+  ],
+  "existing_pipeline_containers_unchanged": true,
+  "containers": {
+    "/rawiq-test-2843580-1791455743358165903-sink-1": {
+      "id": "18282d2a1f32e2288fc8614616b16ff00cc147708c44f3497a25b5d4116fb596",
+      "image": "sha256:8290e0bb3fecf9160afa9a27ba6ac9b0320a9341ea31f73dee58490806b7e144",
+      "started": "2026-10-08T10:35:46.182407173Z"
+    },
+    "/rawiq-test-2843580-1791455743358165903-sink-sidecar-1": {
+      "id": "b2e1060195797f6cc8c7a78faaf0317e060f1d8ba96b1b8f77e510ae277cd7e6",
+      "image": "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240",
+      "started": "2026-10-08T10:35:44.212078656Z"
+    },
+    "/rawiq-test-2843580-1791455743358165903-source-sidecar-1": {
+      "id": "d2996056b6c714863c45fe64189a9dfca9fa2f58ffdd7c12260c7f98b395adf4",
+      "image": "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240",
+      "started": "2026-10-08T10:35:45.778812125Z"
+    }
+  },
+  "source_image": "sha256:0bf09c1b9517a48e669e92c00ae93f5bf1919b9af48ac904fcc38ba57e7302a4"
+}

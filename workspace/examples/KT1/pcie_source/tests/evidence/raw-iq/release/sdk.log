@@ -1,0 +1,103 @@
+请选择要发布的镜像：
+  1) Sidecar
+  2) Web
+  3) Worker
+  4) SDK / Algo Base
+  0) 退出
+dispatching sdk release to root@192.162.2.64:/root/workspace/uestcradar
+[release] remote host=node4-1 arch=aarch64 component=sdk
+[release] validating release checkout
+[release] checking Docker engine
+Docker server=19.03.15 storage=overlay2
+[release] checking Registry read access with registry.chengyistudio.com/cxx/ubuntu:24.04
+24.04: Pulling from cxx/ubuntu
+Digest: sha256:022e550f77cc1971f56e90cf12c5b5a78ab0e97b9ed8957c521d394bcdc9e8fc
+Status: Image is up to date for registry.chengyistudio.com/cxx/ubuntu:24.04
+registry.chengyistudio.com/cxx/ubuntu:24.04
+[release] checking immutable Tag is unused: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+[release] immutable Tag is available: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+[release] building SDK Algo Base: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+Sending build context to Docker daemon  9.757MB
+Step 1/15 : ARG BASE_IMAGE=registry.chengyistudio.com/cxx/ubuntu:24.04
+Step 2/15 : FROM ${BASE_IMAGE} AS builder
+ ---> 1f701c2d4555
+Step 3/15 : ENV DEBIAN_FRONTEND=noninteractive
+ ---> Using cache
+ ---> 021913657613
+Step 4/15 : RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy     && apt-get update     && apt-get install -y --no-install-recommends cmake g++ make     && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 1bca8ba9ad7c
+Step 5/15 : WORKDIR /src
+ ---> Using cache
+ ---> 626f955987ef
+Step 6/15 : COPY workspace/infra/common/ ./common/
+ ---> Using cache
+ ---> 8e0143b7413b
+Step 7/15 : COPY workspace/infra/sdk/ ./sdk/
+ ---> Using cache
+ ---> 2c6a301fe077
+Step 8/15 : RUN cmake -S sdk -B sdk-build        -DCMAKE_BUILD_TYPE=Release        -DCMAKE_INSTALL_PREFIX=/out/sdk     && cmake --build sdk-build --parallel     && cmake --install sdk-build
+ ---> Using cache
+ ---> c7b17809b919
+Step 9/15 : FROM ${BASE_IMAGE} AS algo-base
+ ---> 1f701c2d4555
+Step 10/15 : LABEL io.uestcradar.contract="algo-base/v2"
+ ---> Using cache
+ ---> 85e0da737175
+Step 11/15 : ENV DEBIAN_FRONTEND=noninteractive
+ ---> Using cache
+ ---> afc2f85b974b
+Step 12/15 : RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy     && apt-get update     && apt-get install -y --no-install-recommends g++ make cmake     && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 1f8bb2f9de40
+Step 13/15 : COPY --from=builder /out/sdk/ /usr/local/
+ ---> Using cache
+ ---> 031679ed9d46
+Step 14/15 : RUN ldconfig
+ ---> Using cache
+ ---> 05f4b35e0d7b
+Step 15/15 : WORKDIR /app
+ ---> Using cache
+ ---> e683273fe978
+Successfully built e683273fe978
+Successfully tagged registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+[release] verifying SDK Algo Base image contract
+contract verified: image=registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64 kind=sdk architecture=arm64
+[release] pushing immutable image: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+The push refers to repository [registry.chengyistudio.com/cxx/algo-base]
+6adb9badfca7: Preparing
+9c626f9f6e46: Preparing
+a721e92e0608: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+2d8834226313: Layer already exists
+d47ac722b9a4: Layer already exists
+a721e92e0608: Pushed
+6adb9badfca7: Pushed
+9c626f9f6e46: Pushed
+sha-fdb78ccbef00-arm64: digest: sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42 size: 1366
+[release] pulling immutable image for contract verification: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+sha-fdb78ccbef00-arm64: Pulling from cxx/algo-base
+Digest: sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+Status: Image is up to date for registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+contract verified: image=registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64 kind=sdk architecture=arm64
+[release] updating moving Tag: registry.chengyistudio.com/cxx/algo-base:latest
+The push refers to repository [registry.chengyistudio.com/cxx/algo-base]
+6adb9badfca7: Preparing
+9c626f9f6e46: Preparing
+a721e92e0608: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+9c626f9f6e46: Layer already exists
+2d8834226313: Layer already exists
+6adb9badfca7: Layer already exists
+a721e92e0608: Layer already exists
+d47ac722b9a4: Layer already exists
+latest: digest: sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42 size: 1366
+latest: Pulling from cxx/algo-base
+Digest: sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+Status: Image is up to date for registry.chengyistudio.com/cxx/algo-base:latest
+registry.chengyistudio.com/cxx/algo-base:latest
+contract verified: image=registry.chengyistudio.com/cxx/algo-base:latest kind=sdk architecture=arm64
+registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42

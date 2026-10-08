@@ -1,0 +1,7 @@
+sink-sidecar-1  | sidecar: fixed-slot rings ready, upstream=64x32792 downstream=8x1048576
+sink-sidecar-1  | sidecar: telemetry started; dual-leg gateway ready
+sink-sidecar-1  | sidecar: leg=upstream event=connected
+source-1        | [raw-iq] synthetic=true channel_count=1 frames=64 samples_per_channel=8192
+source-sidecar-1  | sidecar: fixed-slot rings ready, upstream=8x1048576 downstream=64x32792
+source-sidecar-1  | sidecar: telemetry started; dual-leg gateway ready
+source-sidecar-1  | sidecar: leg=downstream event=connected
