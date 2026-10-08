@@ -16,6 +16,7 @@ struct ReceivedBlock {
     std::vector<uestcradar::ComplexInt16> samples;
     bool gap{};
     std::optional<TimestampError> timestamp_error{};
+    std::optional<ControlTimestamps> control{};
 };
 
 class PcieReceiver {

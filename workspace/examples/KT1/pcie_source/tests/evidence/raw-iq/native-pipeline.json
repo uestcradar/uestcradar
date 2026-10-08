@@ -1,0 +1,106 @@
+{
+  "scope": "explicit TCP synthetic closure; runtime mounts are test overrides, not published-image acceptance; not hardware or sustained throughput",
+  "capture_filesystem": "ext2/ext3",
+  "capture_root_on_docker_host": "/root/workspace/captures/raw-iq-native-proof-4",
+  "image_architectures": {
+    "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240": "arm64",
+    "sha256:eb27544d0afc510d4048d992f7828b8eae3de743510b05e9e026e23fbb83ce6e": "arm64"
+  },
+  "runtime": {
+    "source": {
+      "entrypoint": [
+        "/work/build-source/signalsource-raw-iq"
+      ],
+      "bind_mounts": [
+        {
+          "source": "/tmp/rawiq-native.4YyApG",
+          "destination": "/work",
+          "read_only": true
+        }
+      ]
+    },
+    "sink": {
+      "entrypoint": [
+        "/app/signalsink"
+      ],
+      "bind_mounts": [
+        {
+          "source": "/tmp/rawiq-native.4YyApG",
+          "destination": "/work",
+          "read_only": true
+        },
+        {
+          "source": "/tmp/rawiq-native.4YyApG/build-sink/signalsink",
+          "destination": "/app/signalsink",
+          "read_only": true
+        },
+        {
+          "source": "/root/workspace/captures/raw-iq-native-proof-4",
+          "destination": "/captures",
+          "read_only": false
+        }
+      ]
+    }
+  },
+  "docker_host": "ssh://root@192.162.2.64",
+  "capture": "/tmp/rawiq-native-proof-4/verified.sink",
+  "file": {
+    "complete": true,
+    "frames": 64,
+    "samples": 524288,
+    "raw_bytes": 2102784,
+    "business_fnv1a64": "1645031447842536997",
+    "sample_continuity": "unverified"
+  },
+  "recorder": {
+    "ok": true,
+    "process_id": "1",
+    "state": "idle",
+    "recording_id": "2db22851695adc11d61a183980d06b47",
+    "directory": "smoke",
+    "error": "",
+    "accepted_frames": "64",
+    "written_frames": "64",
+    "written_bytes": "2102784",
+    "queue_used_bytes": "0",
+    "queue_capacity_bytes": "67108864",
+    "elapsed_ms": "4835",
+    "sample_continuity": "unverified",
+    "disk_total_bytes": "54715047936",
+    "disk_used_bytes": "23755964416",
+    "disk_available_bytes": "28146491392"
+  },
+  "rejected_corruptions": [
+    {
+      "case": "iq",
+      "error": "raw-iq-check: fixture IQ bytes differ"
+    },
+    {
+      "case": "timestamp",
+      "error": "raw-iq-check: fixture timestamps differ"
+    },
+    {
+      "case": "truncated",
+      "error": "raw-iq-check: truncated capture"
+    }
+  ],
+  "existing_pipeline_containers_unchanged": true,
+  "containers": {
+    "/rawiq-test-2508738-1791449004326258763-sink-1": {
+      "id": "677e85b7d647286377d3a345331a879d922111293586ddaebe2cb35f4aeb1d1a",
+      "image": "sha256:eb27544d0afc510d4048d992f7828b8eae3de743510b05e9e026e23fbb83ce6e",
+      "started": "2026-10-08T08:43:27.191782288Z"
+    },
+    "/rawiq-test-2508738-1791449004326258763-sink-sidecar-1": {
+      "id": "58f808dc7d22ce627d13d83edecc4a086e6ed683c6abf836ce56b9651429b996",
+      "image": "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240",
+      "started": "2026-10-08T08:43:25.189694797Z"
+    },
+    "/rawiq-test-2508738-1791449004326258763-source-sidecar-1": {
+      "id": "d45765d7becab87b82762b0fcb56b95a1f40c7a3b73de8bbe900621ed3ebb07d",
+      "image": "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240",
+      "started": "2026-10-08T08:43:26.758393528Z"
+    }
+  },
+  "source_image": "sha256:eb27544d0afc510d4048d992f7828b8eae3de743510b05e9e026e23fbb83ce6e"
+}

@@ -22,6 +22,13 @@
 完成上述修改后，直接执行[验证](#验证)。只有需要设计或排查物理布局时，才需要继续
 阅读下面的映射细节。
 
+## 当前独立采集契约
+
+[`raw_iq.json`](raw_iq.json) 注册 `RawIQFrame / RawIQMetadata`，类型 `4:1`。
+Metadata 只有两个原始 uint64 时间戳和两个 uint32 矩阵维度，共 24 字节；
+矩阵为沿用现有排列的小端 CS16，行=`channel_count`，列=`samples_per_channel`。
+时间戳不换算单位，TX 全 F 原样保留。它不包含雷达/CPI 参数，也不替换 IQ 1:3。
+
 ## 构建期生成物
 
 正常构建 SDK 时，契约生成器会自动读取注册表和 JSON，并生成：

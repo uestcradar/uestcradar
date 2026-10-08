@@ -1,0 +1,24 @@
+[ 10%] Built target contract-codegen
+[ 21%] Built target uestcradar_ringbuf
+[ 26%] Built target generate-contracts
+[ 36%] Built target ringbuf-test
+[ 68%] Built target uestcradar_sdk
+[ 84%] Built target sdk-benchmark
+[ 84%] Building CXX object CMakeFiles/sdk-test.dir/src/sdk_test.cpp.o
+[ 94%] Built target sdk-interface-test
+[100%] Linking CXX executable sdk-test
+[100%] Built target sdk-test
+Internal ctest changing into directory: /work/build-sdk
+Test project /work/build-sdk
+    Start 1: sdk-test
+1/4 Test #1: sdk-test .........................   Passed    0.01 sec
+    Start 2: sdk-interface-test
+2/4 Test #2: sdk-interface-test ...............   Passed    0.00 sec
+    Start 3: contract-codegen-test
+3/4 Test #3: contract-codegen-test ............   Passed    0.16 sec
+    Start 4: ringbuf-test
+4/4 Test #4: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   0.17 sec

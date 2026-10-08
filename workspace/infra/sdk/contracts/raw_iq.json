@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "name": "raw_iq",
+  "cpp_frame": "RawIQFrame",
+  "cpp_metadata": "RawIQMetadata",
+  "type_id": 4,
+  "type_version": 1,
+  "byte_order": "little_endian",
+  "metadata_size": 24,
+  "fields": [
+    {"name": "tx_timestamp", "type": "uint64", "offset": 0},
+    {"name": "rx_timestamp", "type": "uint64", "offset": 8},
+    {"name": "channel_count", "type": "uint32", "offset": 16},
+    {"name": "samples_per_channel", "type": "uint32", "offset": 20}
+  ],
+  "payload": {
+    "kind": "matrix",
+    "element_type": "complex_int16",
+    "cpp_element": "ComplexInt16",
+    "rows": "channel_count",
+    "columns": "samples_per_channel",
+    "offset": 24
+  },
+  "visualization": {"kind": "waveform"}
+}

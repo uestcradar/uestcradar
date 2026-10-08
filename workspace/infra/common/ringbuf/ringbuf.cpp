@@ -239,13 +239,24 @@ RingBuffer* ringbuf_create(
 }
 
 RingBuffer* ringbuf_open(const char* name) {
+    return ringbuf_open(name, std::chrono::milliseconds::max());
+}
+
+RingBuffer* ringbuf_open(const char* name, std::chrono::milliseconds timeout) {
     if (name == nullptr || name[0] == '\0') {
         throw std::invalid_argument("ring name must not be empty");
     }
+    if (timeout.count() < 0) throw std::invalid_argument("ring open timeout must not be negative");
+    const auto start = std::chrono::steady_clock::now();
+    const auto expired = [&] {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start) >= timeout;
+    };
     for (;;) {
         const int fd = ::shm_open(name, O_RDWR, 0);
         if (fd == -1) {
             if (errno == ENOENT) {
+                if (expired()) throw std::runtime_error("ring open timed out");
                 std::this_thread::sleep_for(std::chrono::milliseconds{10});
                 continue;
             }
@@ -276,6 +287,10 @@ RingBuffer* ringbuf_open(const char* name) {
         auto* header = static_cast<RingBufferHeader*>(address);
         while (header->magic.load(std::memory_order_acquire) !=
                kRingMagic) {
+            if (expired()) {
+                ::munmap(address, mapping_size);
+                throw std::runtime_error("ring initialization timed out");
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds{1});
         }
         bool valid =

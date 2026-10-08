@@ -58,9 +58,12 @@ std::shared_ptr<PortState> open_port(
     const char* environment_name,
     const char* default_name,
     std::uint64_t type_id,
-    std::uint32_t type_version) {
-    auto state = std::make_shared<PortState>(ringbuf_open(
-        environment_or(environment_name, default_name)));
+    std::uint32_t type_version,
+    std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+    std::unique_ptr<RingBuffer, decltype(&ringbuf_close)> ring(
+        ringbuf_open(environment_or(environment_name, default_name), timeout), &ringbuf_close);
+    auto state = std::make_shared<PortState>(ring.get());
+    ring.release();
     if (state->ring->header->type_id != type_id ||
         state->ring->header->type_version != type_version) {
         throw std::invalid_argument(
@@ -148,24 +151,35 @@ void validate_envelope(
     }
 }
 
-void begin_output(
+bool begin_output(
     PortState& state,
     const Envelope& envelope,
     std::uint64_t type_id,
     std::uint32_t type_version,
-    std::size_t expected_payload) {
+    std::size_t expected_payload,
+    bool wait = true) {
     if (state.kind != LeaseKind::none) {
         throw std::runtime_error("the previous output frame is still alive");
     }
     validate_envelope(
         envelope, *state.ring, type_id, type_version, expected_payload);
-    wait_for_write(state);
+    if (wait) {
+        wait_for_write(state);
+    } else {
+        const auto result = ringbuf_reserve(state.ring, state.write_lease);
+        if (result == RingResult::would_block) return false;
+        if (result == RingResult::shutdown)
+            throw std::runtime_error("output has been shut down");
+        if (result != RingResult::ok)
+            throw std::runtime_error("output RingBuffer is corrupt");
+    }
     state.write_lease.envelope() = envelope;
     std::fill(
         std::begin(state.write_lease.envelope().reserved),
         std::end(state.write_lease.envelope().reserved),
         std::byte{});
     state.kind = LeaseKind::write;
+    return true;
 }
 
 }  // namespace sdk_internal
@@ -349,14 +363,17 @@ std::optional<RawFrame> Input<RawFrame>::try_read() {
 
 #define UESTCRADAR_CONTRACT(Name, FrameType, MetadataType)                         \
     struct Output<FrameType>::Impl {                                               \
-        Impl() : state(open_port(                                                  \
+        explicit Impl(std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) \
+            : state(open_port(                                                   \
             "UESTCRADAR_DOWNSTREAM_SHM_NAME", kDownstreamBufName,                \
             ContractTraits<FrameType>::type_id(),                                 \
-            ContractTraits<FrameType>::type_version())) {}                        \
+            ContractTraits<FrameType>::type_version(), timeout)) {}               \
         std::shared_ptr<PortState> state;                                          \
         std::uint64_t sequence{0};                                                 \
     };                                                                            \
     Output<FrameType>::Output() : impl_(std::make_unique<Impl>()) {}              \
+    Output<FrameType>::Output(std::chrono::milliseconds timeout)                  \
+        : impl_(std::make_unique<Impl>(timeout)) {}                               \
     Output<FrameType>::Output(Output&& other) noexcept = default;                 \
     Output<FrameType>& Output<FrameType>::operator=(Output&& other) noexcept = default; \
     Output<FrameType>::~Output() = default;                                        \
@@ -377,6 +394,30 @@ std::optional<RawFrame> Input<RawFrame>::try_read() {
             ringbuf_cancel(impl_->state->write_lease);                            \
             impl_->state->kind = LeaseKind::none;                                 \
             throw;                                                               \
+        }                                                                         \
+    }                                                                             \
+    std::optional<FrameType> Output<FrameType>::try_create(const MetadataType& metadata) { \
+        if (!impl_) throw std::runtime_error("output port is not open");         \
+        if (impl_->sequence == std::numeric_limits<std::uint64_t>::max())          \
+            throw std::overflow_error("output frame sequence exhausted");       \
+        const auto length = ContractTraits<FrameType>::payload_bytes(metadata);   \
+        const auto envelope = make_envelope(                                      \
+            ContractTraits<FrameType>::type_id(),                                 \
+            ContractTraits<FrameType>::type_version(), length,                    \
+            impl_->sequence + 1, unix_time_ns());                                 \
+        if (!begin_output(*impl_->state, envelope,                                \
+            ContractTraits<FrameType>::type_id(),                                 \
+            ContractTraits<FrameType>::type_version(), length, false))            \
+            return std::nullopt;                                                  \
+        try {                                                                     \
+            ContractTraits<FrameType>::store(impl_->state->write_lease.payload(), metadata); \
+            FrameType frame{std::make_unique<FrameType::Impl>(impl_->state)};      \
+            ++impl_->sequence;                                                    \
+            return frame;                                                         \
+        } catch (...) {                                                           \
+            ringbuf_cancel(impl_->state->write_lease);                             \
+            impl_->state->kind = LeaseKind::none;                                  \
+            throw;                                                                \
         }                                                                         \
     }                                                                             \
     FrameType Output<FrameType>::create_linked(                                   \

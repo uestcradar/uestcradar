@@ -2,7 +2,7 @@
 
 SDK 6 面向算法开发者只提供两个头文件：
 
-- `data.h`：`IQFrame`、`PulseCompressionFrame`、`RDFrame` 及其业务 Metadata。
+- `data.h`：`IQFrame`、`PulseCompressionFrame`、`RDFrame`、`RawIQFrame` 及其业务 Metadata。
 - `sdk.h`：类型化 `Input`、`Output` 的底层声明，以及用于完整帧录制的只读 `RawFrame` / `Input<RawFrame>`；算法处理通常只需包含 `data.h`。
 
 ## 非阻塞完整裸帧读取
@@ -31,6 +31,26 @@ if (auto frame = input.try_read()) {
 > 不得在算法项目中私自声明、复制或修改数据帧格式。现有数据帧不能满足算法需求时，
 > 请联系 SDK 维护者，由维护者统一修改 `data.h`、版本化 JSON 契约、类型注册和契约
 > 测试，以保证生产者、消费者及跨语言解码端的数据布局始终一致。
+
+## 有界输出等待
+
+新接口需使用包含本次变更的 SDK；旧镜像不自动获得这些符号：
+
+```cpp
+#include <data.h>
+
+uestcradar::Output<uestcradar::RawIQFrame> output(std::chrono::seconds(3));
+uestcradar::RawIQMetadata metadata{0, 0, 1, 2}; // 仅示例值，不是硬件时间戳
+if (auto frame = output.try_create(metadata)) {
+    frame->data()[0][0] = {1, -1};
+    frame->data()[0][1] = {2, -2};
+    output.write(std::move(*frame));
+}
+```
+
+带超时构造函数同时限制等待 SHM 名称和已初始化头部的时间，负值拒绝，0 表示立即尝试。`try_create()` 仅在 Ring 满时返回空；关闭、损坏、非法维度和仍持有前一帧均抛错。调用者检查退出条件后再重试；空结果不推进帧序号，放弃已创建帧会取消槽租约，但不会回退其序号。帧必须全部填好后才提交。
+
+默认构造函数和原有 `create()/write()` 的阻塞语义不变。底层只新增打开超时重载，不改变 Envelope 或 Ring ABI。`RawIQFrame` 是强类型业务帧，不能与表示完整只读线字节的 `RawFrame` 混淆。
 
 ## 拉取镜像后进入算法开发环境
 
@@ -91,7 +111,7 @@ cmake --build build --parallel
 
 ## 标准数据类型定义
 
-SDK 6 定义了三种标准雷达数据帧，各自的业务 Metadata 字段与 Payload 内存布局说明如下：
+当前源码定义四种标准数据帧，前三种旧契约保持不变：
 
 ### 1. `IQFrame`（原始 IQ 信号数据帧 · `type_id=1` / `type_version=3`）
 
@@ -151,6 +171,12 @@ SDK 6 定义了三种标准雷达数据帧，各自的业务 Metadata 字段与 
 
 ---
 
+### 4. `RawIQFrame`（采集 IQ · `type_id=4` / `type_version=1`）
+
+`RawIQMetadata` 仅含 `tx_timestamp:uint64`、`rx_timestamp:uint64`、`channel_count:uint32`、`samples_per_channel:uint32`。时间戳原值保留，不在 SDK 中换算单位。Wire Metadata 共 24 字节；Payload 为小端 CS16 通道行/采样点列矩阵，尺寸动态，两个维度必须非零。
+
+帧不含 CPI、PRT 或波形参数，不隐式转换成 `IQFrame 1:3`。当前 PCIe Source 仅输出单通道；完整字段布局以 [raw_iq.json](contracts/raw_iq.json) 为准。
+
 ## 读取数据
 
 ```cpp
@@ -166,7 +192,7 @@ auto samples = iq.data(); // 返回 Array2D<ComplexInt16>
 
 ### 二维数据矩阵索引与访问方式
 
-三种数据帧统一通过 `frame.data()` 返回 `Array2D<T>` 二维视图对象，索引语法如下：
+强类型数据帧统一通过 `frame.data()` 返回 `Array2D<T>` 二维视图对象，索引语法如下：
 
 #### 1. `IQFrame`（数据类型：`ComplexInt16` CS16 复数）
 * **索引语法**：`iq.data()[channel][sample_index]`

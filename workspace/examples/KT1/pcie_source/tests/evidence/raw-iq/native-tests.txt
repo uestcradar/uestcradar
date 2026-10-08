@@ -1,0 +1,241 @@
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (0.4s)
+-- Generating done (0.0s)
+-- Build files have been written to: /work/build-sdk
+[ 10%] Building CXX object ringbuf/CMakeFiles/uestcradar_ringbuf.dir/ringbuf.cpp.o
+[ 10%] Building CXX object CMakeFiles/contract-codegen.dir/tools/contract_codegen.cpp.o
+[ 15%] Linking CXX static library libuestcradar_ringbuf.a
+[ 15%] Built target uestcradar_ringbuf
+[ 21%] Building CXX object ringbuf/CMakeFiles/ringbuf-test.dir/ringbuf_test.cpp.o
+[ 26%] Linking CXX executable ringbuf-test
+[ 26%] Built target ringbuf-test
+[ 31%] Linking CXX executable contract-codegen
+[ 31%] Built target contract-codegen
+[ 36%] Generating generated/contracts.generated.stamp
+[ 36%] Built target generate-contracts
+[ 52%] Building CXX object CMakeFiles/uestcradar_sdk.dir/generated/contract_pulse_compression.generated.cpp.o
+[ 52%] Building CXX object CMakeFiles/uestcradar_sdk.dir/generated/contract_iq.generated.cpp.o
+[ 52%] Building CXX object CMakeFiles/uestcradar_sdk.dir/src/sdk.cpp.o
+[ 57%] Building CXX object CMakeFiles/uestcradar_sdk.dir/generated/contract_rd.generated.cpp.o
+[ 63%] Building CXX object CMakeFiles/uestcradar_sdk.dir/generated/contract_raw_iq.generated.cpp.o
+[ 68%] Linking CXX shared library libuestcradar_sdk.so
+[ 68%] Built target uestcradar_sdk
+[ 73%] Building CXX object CMakeFiles/sdk-interface-test.dir/src/sdk_interface_test.cpp.o
+[ 84%] Building CXX object CMakeFiles/sdk-benchmark.dir/src/sdk_benchmark.cpp.o
+[ 84%] Building CXX object CMakeFiles/sdk-test.dir/src/sdk_test.cpp.o
+[ 89%] Linking CXX executable sdk-interface-test
+[ 89%] Built target sdk-interface-test
+[ 94%] Linking CXX executable sdk-benchmark
+[ 94%] Built target sdk-benchmark
+[100%] Linking CXX executable sdk-test
+[100%] Built target sdk-test
+Internal ctest changing into directory: /work/build-sdk
+Test project /work/build-sdk
+    Start 1: sdk-test
+1/4 Test #1: sdk-test .........................   Passed    0.01 sec
+    Start 2: sdk-interface-test
+2/4 Test #2: sdk-interface-test ...............   Passed    0.00 sec
+    Start 3: contract-codegen-test
+3/4 Test #3: contract-codegen-test ............   Passed    0.15 sec
+    Start 4: ringbuf-test
+4/4 Test #4: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   0.17 sec
+-- Install configuration: "Release"
+-- Installing: /work/install/lib/libuestcradar_sdk.so
+-- Installing: /work/install/include/sdk.h
+-- Installing: /work/install/include/data.h
+-- Installing: /work/install/include/contract_catalog.def
+-- Installing: /work/install/share/cycomm_sdk/contracts/contracts.manifest.json
+-- Installing: /work/install/share/cycomm_sdk/contracts/preview_contracts.generated.hpp
+-- Installing: /work/install/share/cycomm_sdk/contracts/contracts.generated.go
+-- Installing: /work/install/share/cycomm_sdk/contracts/contracts.generated.ts
+-- Installing: /work/install/lib/cmake/cycomm_sdk/cycomm_sdkTargets.cmake
+-- Installing: /work/install/lib/cmake/cycomm_sdk/cycomm_sdkTargets-release.cmake
+-- Installing: /work/install/lib/cmake/cycomm_sdk/cycomm_sdkConfig.cmake
+-- Installing: /work/install/lib/cmake/cycomm_sdk/cycomm_sdkConfigVersion.cmake
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (0.2s)
+-- Generating done (0.0s)
+-- Build files have been written to: /work/build-source
+[ 50%] Building CXX object CMakeFiles/signalsource-raw-iq.dir/src/main.cpp.o
+[100%] Linking CXX executable signalsource-raw-iq
+[100%] Built target signalsource-raw-iq
+Internal ctest changing into directory: /work/build-source
+Test project /work/build-source
+    Start 1: raw-iq-source-help
+1/3 Test #1: raw-iq-source-help ...............   Passed    0.00 sec
+    Start 2: raw-iq-source-reject-negative
+2/3 Test #2: raw-iq-source-reject-negative ....   Passed    0.00 sec
+    Start 3: raw-iq-source-reject-empty
+3/3 Test #3: raw-iq-source-reject-empty .......   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   0.01 sec
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter
+-- Configuring done (0.6s)
+-- Generating done (0.0s)
+-- Build files have been written to: /work/build-pcie
+[  2%] Building C object CMakeFiles/pcie_json.dir/pcie/cJSON.c.o
+[ 11%] Building C object CMakeFiles/pcie_rx.dir/pcie/xdma_rx.c.o
+[ 11%] Building CXX object ringbuf/CMakeFiles/uestcradar_ringbuf.dir/ringbuf.cpp.o
+[ 11%] Building C object CMakeFiles/pcie_rx.dir/pcie/devmem_io.c.o
+[ 14%] Linking C static library libpcie_rx.a
+[ 14%] Built target pcie_rx
+[ 17%] Linking C static library libpcie_json.a
+[ 17%] Built target pcie_json
+[ 20%] Building CXX object CMakeFiles/cpi_templates_test.dir/tests/cpi_templates_test.cpp.o
+[ 25%] Building CXX object CMakeFiles/pcie_source.dir/src/main.cpp.o
+[ 25%] Building CXX object CMakeFiles/iq_decode_test.dir/tests/iq_decode_test.cpp.o
+[ 28%] Linking CXX static library libuestcradar_ringbuf.a
+[ 28%] Built target uestcradar_ringbuf
+[ 31%] Building CXX object CMakeFiles/cpi_assembler_test.dir/tests/cpi_assembler_test.cpp.o
+[ 34%] Linking CXX executable iq_decode_test
+[ 34%] Built target iq_decode_test
+[ 37%] Building CXX object CMakeFiles/options_test.dir/tests/options_test.cpp.o
+[ 40%] Linking CXX executable cpi_assembler_test
+[ 42%] Linking CXX executable cpi_templates_test
+[ 42%] Built target cpi_assembler_test
+[ 45%] Building CXX object CMakeFiles/receiver_test.dir/tests/receiver_test.cpp.o
+[ 45%] Built target cpi_templates_test
+[ 48%] Linking CXX executable options_test
+[ 51%] Building CXX object CMakeFiles/timestamp_check_test.dir/tests/timestamp_check_test.cpp.o
+[ 51%] Built target options_test
+[ 54%] Building CXX object CMakeFiles/receiver_control_test.dir/tests/receiver_control_test.cpp.o
+[ 57%] Building CXX object CMakeFiles/pcie_source.dir/src/pcie_receiver.cpp.o
+[ 60%] Linking CXX executable receiver_test
+[ 62%] Linking CXX executable timestamp_check_test
+[ 62%] Built target receiver_test
+[ 65%] Building CXX object CMakeFiles/dma_snapshot_test.dir/tests/dma_snapshot_test.cpp.o
+[ 65%] Built target timestamp_check_test
+[ 68%] Building CXX object CMakeFiles/raw_assembler_test.dir/tests/raw_assembler_test.cpp.o
+[ 71%] Linking CXX executable dma_snapshot_test
+[ 71%] Built target dma_snapshot_test
+[ 74%] Building CXX object CMakeFiles/raw_output_test.dir/tests/raw_output_test.cpp.o
+[ 77%] Building CXX object CMakeFiles/receiver_control_test.dir/src/pcie_receiver.cpp.o
+[ 80%] Linking CXX executable pcie_source
+[ 80%] Built target pcie_source
+[ 82%] Building CXX object CMakeFiles/raw-iq-check.dir/tests/raw_iq_check.cpp.o
+[ 85%] Linking CXX executable raw_assembler_test
+[ 85%] Built target raw_assembler_test
+[ 88%] Building CXX object ringbuf/CMakeFiles/ringbuf-test.dir/ringbuf_test.cpp.o
+[ 91%] Linking CXX executable raw_output_test
+[ 94%] Linking CXX executable ringbuf-test
+[ 94%] Built target raw_output_test
+[ 94%] Built target ringbuf-test
+[ 97%] Linking CXX executable raw-iq-check
+[ 97%] Built target raw-iq-check
+[100%] Linking CXX executable receiver_control_test
+[100%] Built target receiver_control_test
+Internal ctest changing into directory: /work/build-pcie
+Test project /work/build-pcie
+      Start  1: pcie-iq_decode
+ 1/15 Test  #1: pcie-iq_decode ...................   Passed    0.00 sec
+      Start  2: pcie-cpi_templates
+ 2/15 Test  #2: pcie-cpi_templates ...............   Passed    0.01 sec
+      Start  3: pcie-cpi_assembler
+ 3/15 Test  #3: pcie-cpi_assembler ...............   Passed    0.05 sec
+      Start  4: pcie-options
+ 4/15 Test  #4: pcie-options .....................   Passed    0.00 sec
+      Start  5: pcie-receiver
+ 5/15 Test  #5: pcie-receiver ....................   Passed    0.00 sec
+      Start  6: pcie-timestamp_check
+ 6/15 Test  #6: pcie-timestamp_check .............   Passed    0.00 sec
+      Start  7: pcie-receiver_control
+ 7/15 Test  #7: pcie-receiver_control ............   Passed    0.00 sec
+      Start  8: pcie-dma_snapshot
+ 8/15 Test  #8: pcie-dma_snapshot ................   Passed    0.04 sec
+      Start  9: pcie-raw_assembler
+ 9/15 Test  #9: pcie-raw_assembler ...............   Passed    0.00 sec
+      Start 10: pcie-help
+10/15 Test #10: pcie-help ........................   Passed    0.00 sec
+      Start 11: pcie-reject-channel
+11/15 Test #11: pcie-reject-channel ..............   Passed    0.00 sec
+      Start 12: pcie-reject-missing-port
+12/15 Test #12: pcie-reject-missing-port .........   Passed    3.01 sec
+      Start 13: pcie-raw-output
+13/15 Test #13: pcie-raw-output ..................   Passed    5.01 sec
+      Start 14: raw-iq-source-stop
+14/15 Test #14: raw-iq-source-stop ...............   Passed    3.06 sec
+      Start 15: ringbuf-test
+15/15 Test #15: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 15
+
+Total Test time (real) =  11.19 sec
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter
+-- Configuring done (0.4s)
+-- Generating done (0.0s)
+-- Build files have been written to: /work/build-sink
+[ 30%] Building CXX object CMakeFiles/signalsink.dir/src/control.cpp.o
+[ 30%] Building CXX object ringbuf/CMakeFiles/uestcradar_ringbuf.dir/ringbuf.cpp.o
+[ 30%] Building CXX object CMakeFiles/signalsink-test.dir/tests/signalsink_test.cpp.o
+[ 30%] Building CXX object CMakeFiles/signalsink.dir/src/main.cpp.o
+[ 38%] Linking CXX static library libuestcradar_ringbuf.a
+[ 38%] Built target uestcradar_ringbuf
+[ 46%] Building CXX object CMakeFiles/signalsink-input-fixture.dir/tests/input_fixture.cpp.o
+[ 53%] Building CXX object CMakeFiles/signalsink-throughput.dir/tests/throughput.cpp.o
+[ 61%] Linking CXX executable signalsink-input-fixture
+[ 61%] Built target signalsink-input-fixture
+[ 69%] Building CXX object ringbuf/CMakeFiles/ringbuf-test.dir/ringbuf_test.cpp.o
+[ 76%] Linking CXX executable signalsink
+[ 76%] Built target signalsink
+[ 84%] Linking CXX executable signalsink-throughput
+[ 84%] Built target signalsink-throughput
+[ 92%] Linking CXX executable signalsink-test
+[ 92%] Built target signalsink-test
+[100%] Linking CXX executable ringbuf-test
+[100%] Built target ringbuf-test
+Internal ctest changing into directory: /work/build-sink
+Test project /work/build-sink
+    Start 1: signalsink-test
+1/4 Test #1: signalsink-test ..................   Passed    0.43 sec
+    Start 2: signalsink-integration
+2/4 Test #2: signalsink-integration ...........   Passed    0.29 sec
+    Start 3: signalsink-throughput-smoke
+3/4 Test #3: signalsink-throughput-smoke ......   Passed    0.62 sec
+    Start 4: ringbuf-test
+4/4 Test #4: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   1.35 sec
+
+Native offline tests only; no device mapped, no hardware acquisition, no image publication.

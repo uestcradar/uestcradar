@@ -21,6 +21,7 @@ foreach(required
     "\"name\": \"iq\""
     "\"name\": \"pulse_compression\""
     "\"name\": \"rd\""
+    "\"name\": \"raw_iq\""
     "\"kind\": \"heatmap\"")
     string(FIND "${manifest}" "${required}" found)
     if(found EQUAL -1)
@@ -123,8 +124,10 @@ foreach(case_name zero-count overflowing-array malformed-count)
 endforeach()
 
 file(MAKE_DIRECTORY "${TEST_ROOT}/version-contracts")
-foreach(contract iq pulse_compression rd)
-    file(READ "${SDK_SOURCE_DIR}/contracts/${contract}.json" contract_json)
+file(GLOB contract_schemas "${SDK_SOURCE_DIR}/contracts/*.json")
+foreach(schema IN LISTS contract_schemas)
+    get_filename_component(contract "${schema}" NAME_WE)
+    file(READ "${schema}" contract_json)
     if(contract STREQUAL "rd")
         string(REPLACE "\"type_version\": 2" "\"type_version\": 3"
             contract_json "${contract_json}")
