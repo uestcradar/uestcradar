@@ -1,4 +1,4 @@
-import type { ChainEntry, ClusterSnapshot, DeploymentPlan, NodeInspection, Task } from './types';
+import type { ChainEntry, ClusterSnapshot, DeploymentPlan, NodeInspection, RecordingStatus, Task } from './types';
 
 let csrfToken = '';
 
@@ -43,3 +43,6 @@ export const deployPlan = (planId: string, confirmReplace: boolean) => request<T
 export const stopDeployment = (ips: string[]) => request<Task>('/api/v1/orchestration/deployments/stop', { method: 'POST', body: JSON.stringify({ ips }) });
 export const fetchTask = (id: string, after = 0) => request<Task>(`/api/v1/orchestration/tasks/${encodeURIComponent(id)}?after=${after}`);
 export const fetchSnapshot = () => request<ClusterSnapshot>('/api/snapshot');
+export const recordingStatus = (ip: string, signal?: AbortSignal) => request<RecordingStatus>(`/api/v1/orchestration/signalsink/status?ip=${encodeURIComponent(ip)}`, { signal });
+export const startRecording = (ip: string, directory: string, signal?: AbortSignal) => request<RecordingStatus>('/api/v1/orchestration/signalsink/start', { method: 'POST', signal, body: JSON.stringify({ ip, directory }) });
+export const stopRecording = (ip: string, recordingId: string, signal?: AbortSignal) => request<RecordingStatus>('/api/v1/orchestration/signalsink/stop', { method: 'POST', signal, body: JSON.stringify({ ip, recording_id: recordingId }) });

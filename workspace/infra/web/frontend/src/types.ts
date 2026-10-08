@@ -1,4 +1,21 @@
-export interface WorkerContract { roles: string[]; input: string; output: string }
+export interface WorkerContract { roles: string[]; input: string; output: string; component?: string }
+export interface RecordingStatus {
+  ok: boolean;
+  state: 'idle' | 'starting' | 'recording' | 'stopping' | 'failed';
+  recording_id: string;
+  directory: string;
+  error: string;
+  accepted_frames: string;
+  written_frames: string;
+  written_bytes: string;
+  queue_used_bytes: string;
+  queue_capacity_bytes: string;
+  elapsed_ms: string;
+  sample_continuity: 'unverified';
+  disk_total_bytes: string | null;
+  disk_used_bytes: string | null;
+  disk_available_bytes: string | null;
+}
 export interface ImageInfo {
   reference: string;
   id: string;
@@ -16,6 +33,7 @@ export interface RDMAInterface {
   physical_state: string;
 }
 export interface NodeInspection {
+  signalsink?: boolean;
   error_code?: string;
   ip: string;
   reachable: boolean;

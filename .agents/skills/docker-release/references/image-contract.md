@@ -36,6 +36,7 @@ LABEL io.uestcradar.contract="worker/v2" \
 - `input`、`output` 为 `none` 或 `<type_id>:<type_version>`。
 - Source 必须有 output，Operator 必须同时有 input/output，Sink 必须有 input。
 - 相邻 Worker 由编排控制面校验 `upstream.output == downstream.input`。
+- SignalSink 唯一专例：`io.uestcradar.component=signalsink`、`roles=sink`、`input=any`、`output=none`，Entrypoint 必须为 `/app/signalsink`。Web 在部署前把它绑定到上游的具体 type/version；不放宽其他 Worker 的类型检查。其 SDK 基座必须包含 `Input<RawFrame>::try_read()`，先发布 SDK，再发布 SignalSink。
 - 当前类型：`1:2=IQFrame`、`2:2=PulseCompressionFrame`、`3:2=RDFrame`。
 - `worker/v2` 与 `sidecar/v2` 固定对应 Ring ABI v6；v1 镜像不得混用。
 

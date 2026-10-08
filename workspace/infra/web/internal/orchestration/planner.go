@@ -199,12 +199,24 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 				return DeploymentPlan{}, fmt.Errorf("RDMA interface %s is unavailable on %s", entry.RDMADevice, entry.IP)
 			}
 		}
+		input := worker.Contract.Input
+		isSignalSink := worker.Contract.Component == "signalsink"
+		if isSignalSink {
+			if role != "sink" || input != "any" || worker.Contract.Output != "none" || index == 0 {
+				return DeploymentPlan{}, fmt.Errorf("SignalSink must be a terminal sink")
+			}
+			input = planned[index-1].Output
+			if input == "none" || !validTypeContract(input) {
+				return DeploymentPlan{}, fmt.Errorf("SignalSink requires a concrete upstream type")
+			}
+		}
 		planned[index] = PlannedNode{
-			IP: entry.IP, NodeID: fmt.Sprintf("node-%d", index+1), Role: role,
+			SignalSink: isSignalSink,
+			IP:         entry.IP, NodeID: fmt.Sprintf("node-%d", index+1), Role: role,
 			RDMADevice: ucxDevice(rdma), NetDev: rdma.NetDev, RDMAIP: rdma.IPv4,
 			WorkerReference: worker.Reference, WorkerImageID: worker.ID,
 			WorkerDigest: worker.DigestReference, SidecarDigest: inspection.SidecarDigest,
-			SidecarImageID: inspection.SidecarImageID, Input: worker.Contract.Input,
+			SidecarImageID: inspection.SidecarImageID, Input: input,
 			Output: worker.Contract.Output, ExistingDeployment: inspection.ExistingDeployment,
 			compose: distributedCompose,
 		}
@@ -215,8 +227,15 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		}
 	}
 	for index := range planned {
+		if planned[index].SignalSink {
+			planned[index].compose = strings.Replace(planned[index].compose,
+				"      CASCADE_ROLE: ${CASCADE_ROLE}",
+				"      SIGNALSINK_INPUT: ${SIGNALSINK_INPUT}\n      SIGNALSINK_CAPTURE_ROOT: /captures\n      CASCADE_ROLE: ${CASCADE_ROLE}", 1)
+			planned[index].compose = strings.Replace(planned[index].compose,
+				"    depends_on:\n", "    volumes:\n      - /root/workspace/captures:/captures\n    depends_on:\n", 1)
+		}
 		if request.Transport == "tcp" {
-			planned[index].compose = strings.Replace(distributedCompose, "    devices:\n      - /dev/infiniband:/dev/infiniband\n    cap_add: [IPC_LOCK]\n    ulimits:\n      memlock: {soft: -1, hard: -1}\n", "", 1)
+			planned[index].compose = strings.Replace(planned[index].compose, "    devices:\n      - /dev/infiniband:/dev/infiniband\n    cap_add: [IPC_LOCK]\n    ulimits:\n      memlock: {soft: -1, hard: -1}\n", "", 1)
 		}
 		planned[index].env = renderNodeEnv(planned, index, request, advertiseHost)
 		planned[index].EnvPreview = planned[index].env
@@ -352,6 +371,9 @@ func renderNodeEnv(nodes []PlannedNode, index int, request PlanRequest, advertis
 		"TELEMETRY_HOST=" + advertiseHost,
 		"TELEMETRY_PORT=9900",
 		"SAMPLE_INTERVAL=100",
+	}
+	if node.SignalSink {
+		lines = append(lines, "SIGNALSINK_INPUT="+node.Input)
 	}
 	return strings.Join(lines, "\n") + "\n"
 }

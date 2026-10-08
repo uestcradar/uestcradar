@@ -164,6 +164,66 @@ void seed_iq(
         "could not commit IQ frame");
 }
 
+void test_raw_input(const std::string& prefix) {
+    for (const auto type : {std::uint64_t{1}, std::uint64_t{2}, std::uint64_t{3}, std::uint64_t{987654}}) {
+        OwnedRing ring(prefix + "_raw_" + std::to_string(type), type, 7);
+        ::setenv("UESTCRADAR_UPSTREAM_SHM_NAME", ring.name().c_str(), 1);
+        uestcradar::Input<uestcradar::RawFrame> input(type, 7);
+        require(!input.try_read(), "empty raw input must not wait");
+        bool rejected = false;
+        try { uestcradar::Input<uestcradar::RawFrame> wrong(type, 8); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected, "raw input must retain port contract validation");
+        RingWriteLease out;
+        require(ringbuf_reserve(ring.get(), out) == RingResult::ok, "reserve raw");
+        out.envelope() = {.frame_id = 42, .timestamp = 71, .type_id = type,
+                          .type_version = 7, .payload_length = 13, .flags = 0x1234};
+        std::fill(std::begin(out.envelope().reserved), std::end(out.envelope().reserved), std::byte{0xab});
+        std::fill_n(out.payload().begin(), 13, std::byte{0xcd});
+        std::array<std::byte, 77> expected{};
+        std::memcpy(expected.data(), &out.envelope(), 64);
+        std::memcpy(expected.data() + 64, out.payload().data(), 13);
+        require(ringbuf_commit(out) == RingResult::ok, "commit raw");
+        auto frame = input.try_read();
+        require(frame && std::equal(frame->bytes().begin(), frame->bytes().end(), expected.begin(), expected.end()), "raw bytes changed");
+        rejected = false;
+        try { static_cast<void>(input.try_read()); }
+        catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "live lease must prohibit second read");
+        std::optional<uestcradar::RawFrame> moved{std::move(*frame)};
+        frame.reset();
+        require(ringbuf_occupied_slots(ring.get()) == 1, "moving frame released lease");
+        // Frame must keep the mapping alive even after its Input is gone.
+        {
+            uestcradar::Input<uestcradar::RawFrame> other(type, 7);
+            other = std::move(input);
+        }
+        require(moved->bytes().size() == 77, "input destruction invalidated lease");
+        moved.reset();
+        require(ringbuf_occupied_slots(ring.get()) == 0, "raw frame destruction did not release slot");
+    }
+    OwnedRing ring(prefix + "_raw_bad", 9, 1);
+    ::setenv("UESTCRADAR_UPSTREAM_SHM_NAME", ring.name().c_str(), 1);
+    uestcradar::Input<uestcradar::RawFrame> input(9, 1);
+    RingWriteLease out;
+    require(ringbuf_reserve(ring.get(), out) == RingResult::ok, "reserve malformed fixture");
+    out.envelope() = {.type_id = 9, .type_version = 1, .payload_length = 1};
+    auto* header = &out.envelope();
+    require(ringbuf_commit(out) == RingResult::ok, "commit malformed fixture");
+    header->payload_length = 4097; // Deliberate producer corruption, test only.
+    bool rejected = false;
+    try { static_cast<void>(input.try_read()); }
+    catch (const std::runtime_error&) { rejected = true; }
+    require(rejected, "oversized frame accepted");
+    header->payload_length = 1;
+    { auto recovered = input.try_read(); require(recovered.has_value(), "failed read leaked lease"); }
+    ringbuf_shutdown(ring.get());
+    rejected = false;
+    try { static_cast<void>(input.try_read()); }
+    catch (const std::runtime_error&) { rejected = true; }
+    require(rejected, "shutdown must not appear as would_block");
+}
+
 void test_typed_input_and_lifetime(const std::string& prefix) {
     OwnedRing upstream{prefix + "_iq_up", kIQTypeId, kIQVersion};
     ::setenv(
@@ -496,6 +556,7 @@ int main() {
     try {
         const std::string prefix =
             "/uestcradar_sdk_v5_test_" + std::to_string(::getpid());
+        test_raw_input(prefix);
         test_typed_input_and_lifetime(prefix);
         test_iq_v3_golden_wire(prefix);
         test_operator_inherits_trace(prefix);

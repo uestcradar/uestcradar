@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -16,7 +17,12 @@ func ParseWorkerContract(labels map[string]string) (WorkerContract, error) {
 	rolesText := labels["io.uestcradar.roles"]
 	input := labels["io.uestcradar.input"]
 	output := labels["io.uestcradar.output"]
-	if !validTypeContract(input) || !validTypeContract(output) {
+	component := labels["io.uestcradar.component"]
+	isSignalSink := component == "signalsink" && rolesText == "sink" && input == "any" && output == "none"
+	if component == "signalsink" && !isSignalSink {
+		return WorkerContract{}, fmt.Errorf("invalid SignalSink contract")
+	}
+	if (!validTypeContract(input) && !isSignalSink) || !validTypeContract(output) {
 		return WorkerContract{}, fmt.Errorf("invalid input/output contract")
 	}
 	seen := map[string]bool{}
@@ -35,11 +41,20 @@ func ParseWorkerContract(labels map[string]string) (WorkerContract, error) {
 		return WorkerContract{}, fmt.Errorf("roles are empty")
 	}
 	sort.Strings(roles)
-	return WorkerContract{Roles: roles, Input: input, Output: output}, nil
+	return WorkerContract{Roles: roles, Input: input, Output: output, Component: component}, nil
 }
 
 func validTypeContract(value string) bool {
-	return value == "none" || typeContractPattern.MatchString(value)
+	if value == "none" {
+		return true
+	}
+	if !typeContractPattern.MatchString(value) {
+		return false
+	}
+	parts := strings.SplitN(value, ":", 2)
+	_, typeErr := strconv.ParseUint(parts[0], 10, 64)
+	_, versionErr := strconv.ParseUint(parts[1], 10, 32)
+	return typeErr == nil && versionErr == nil
 }
 
 func supportsRole(contract WorkerContract, role string) bool {

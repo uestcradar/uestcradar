@@ -23,7 +23,9 @@ export function validateChain(chain: ChainEntry[], nodes: NodeInspection[], tran
     const nextNode = nodes.find(node => node.ip === chain[index + 1].ip);
     const current = currentNode?.workers?.find(image => image.reference === chain[index].worker_image);
     const next = nextNode?.workers?.find(image => image.reference === chain[index + 1].worker_image);
-    if (current && next && current.contract.output !== next.contract.input) return `类型不兼容：${current.contract.output} → ${next.contract.input}`;
+    const rawSink = index + 1 === chain.length - 1 && next?.contract.component === 'signalsink' &&
+      next.contract.input === 'any' && next.contract.output === 'none' && current?.contract.output !== 'none';
+    if (current && next && !rawSink && current.contract.output !== next.contract.input) return `类型不兼容：${current.contract.output} → ${next.contract.input}`;
   }
   return '';
 }

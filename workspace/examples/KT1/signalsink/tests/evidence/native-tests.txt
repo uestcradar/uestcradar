@@ -1,0 +1,43 @@
+-- Configuring done (0.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /work/build-sink
+[ 23%] Building CXX object CMakeFiles/signalsink.dir/src/main.cpp.o
+[ 23%] Building CXX object CMakeFiles/signalsink-test.dir/tests/signalsink_test.cpp.o
+[ 23%] Building CXX object CMakeFiles/signalsink.dir/src/control.cpp.o
+[ 38%] Built target uestcradar_ringbuf
+[ 53%] Built target signalsink-input-fixture
+[ 69%] Built target signalsink-throughput
+[ 84%] Built target ringbuf-test
+[ 92%] Linking CXX executable signalsink
+[ 92%] Built target signalsink
+[100%] Linking CXX executable signalsink-test
+[100%] Built target signalsink-test
+Internal ctest changing into directory: /work/build-sdk
+Test project /work/build-sdk
+    Start 1: sdk-test
+1/4 Test #1: sdk-test .........................   Passed    0.00 sec
+    Start 2: sdk-interface-test
+2/4 Test #2: sdk-interface-test ...............   Passed    0.00 sec
+    Start 3: contract-codegen-test
+3/4 Test #3: contract-codegen-test ............   Passed    0.15 sec
+    Start 4: ringbuf-test
+4/4 Test #4: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   0.15 sec
+Internal ctest changing into directory: /work/build-sink
+Test project /work/build-sink
+    Start 1: signalsink-test
+1/4 Test #1: signalsink-test ..................   Passed    0.43 sec
+    Start 2: signalsink-integration
+2/4 Test #2: signalsink-integration ...........   Passed    0.26 sec
+    Start 3: signalsink-throughput-smoke
+3/4 Test #3: signalsink-throughput-smoke ......   Passed    0.74 sec
+    Start 4: ringbuf-test
+4/4 Test #4: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   1.43 sec
+uestcradar-web 80a7d24bd023 Up 5 years

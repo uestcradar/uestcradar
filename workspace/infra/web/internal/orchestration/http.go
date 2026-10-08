@@ -32,6 +32,7 @@ type Service struct {
 	frontendTransport http.RoundTripper
 	mu                sync.RWMutex
 	discovered        map[string]NodeInspection
+	recordingBusy     map[string]bool
 }
 
 func NewService(advertiseHost string, secureCookies bool, nodeTelemetry func(http.ResponseWriter, *http.Request, func() string)) *Service {
@@ -60,6 +61,8 @@ func (s *Service) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	switch {
+	case strings.HasPrefix(path, "/api/v1/orchestration/signalsink/"):
+		s.handleSignalSink(writer, request, session, strings.TrimPrefix(path, "/api/v1/orchestration/signalsink/"))
 	case strings.HasPrefix(path, "/api/v1/nodes/"):
 		s.handleFrontend(writer, request, session)
 	case path == "/api/v1/orchestration/nodes" && request.Method == http.MethodPost:
@@ -585,6 +588,7 @@ func (s *Service) deploy(session *Session, plan DeploymentPlan, confirmed bool, 
 		inspection := session.Nodes[node.IP]
 		inspection.IP = node.IP
 		inspection.NodeID = node.NodeID
+		inspection.SignalSink = node.SignalSink
 		inspection.ExistingDeployment = true
 		inspection.DeploymentState = "running"
 		session.Nodes[node.IP] = inspection
@@ -633,6 +637,7 @@ func (s *Service) stopDeployment(session *Session, ips []string, taskID string) 
 		session.mu.Lock()
 		node := session.Nodes[ip]
 		node.NodeID = ""
+		node.SignalSink = false
 		node.ExistingDeployment = false
 		node.DeploymentState = "absent"
 		session.Nodes[ip] = node

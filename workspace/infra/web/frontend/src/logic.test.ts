@@ -29,6 +29,17 @@ describe('cascade planning', () => {
     const sink = image('worker:sink', '2:1', 'none');
     expect(validateChain([entry('10.0.0.1', source.reference), entry('10.0.0.2', sink.reference)], [node('10.0.0.1', source), node('10.0.0.2', sink)])).toContain('类型不兼容');
   });
+  it('binds only an explicit terminal SignalSink to the upstream type', () => {
+    const source = image('worker:source', 'none', '3:2');
+    const sink = image('worker:signalsink', 'any', 'none');
+    const chain = [entry('10.0.0.1', source.reference), entry('10.0.0.2', sink.reference)];
+    const nodes = [node('10.0.0.1', source), node('10.0.0.2', sink)];
+    expect(validateChain(chain, nodes)).toContain('类型不兼容');
+    sink.contract.component = 'signalsink';
+    expect(validateChain(chain, nodes)).toBe('');
+    source.contract.output = 'none';
+    expect(validateChain(chain, nodes)).toContain('类型不兼容');
+  });
   it('clears a Worker that no longer supports its reordered role', () => {
     const sourceOnly = {...image('worker:source', 'none', '1:1'), contract: {roles: ['source'], input: 'none', output: '1:1'}};
     const sinkOnly = {...image('worker:sink', '1:1', 'none'), contract: {roles: ['sink'], input: '1:1', output: 'none'}};

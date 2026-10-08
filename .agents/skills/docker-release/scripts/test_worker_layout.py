@@ -10,7 +10,11 @@ functions = text[text.index("validate_worker_dockerfile() {"):text.index("run_lo
 tag_code = text[text.index("    local worker_tag="):text.index("    local worker_version=")]
 prefix = 'set -euo pipefail\nrepo_root=$1\n' + functions
 
-workers = ["KT2", "KT1/cascade_worker", "KT1/pcie_source", "KT1/signalsource"]
+examples = root / "workspace/examples"
+workers = [str(path.parent.relative_to(examples))
+           for pattern in ("*/Dockerfile", "KT1/*/Dockerfile")
+           for path in sorted(examples.glob(pattern))]
+assert "KT1/signalsink" in workers
 for index, worker in enumerate(workers, 1):
     tag = worker.rsplit("/", 1)[-1].replace("_", "-").lower()
     subprocess.run(
@@ -25,7 +29,7 @@ check_tag "$@"
 ''', "test", str(root), worker, tag],
         input=f"3\n{index}\n", text=True, capture_output=True, check=True,
     )
-for invalid in ["../KT2", "KT1/../KT2", "KT1/signalsource/extra", "/KT2", "KT1/signalsink"]:
+for invalid in ["../KT2", "KT1/../KT2", "KT1/signalsource/extra", "/KT2", "KT1/not-a-worker"]:
     subprocess.run(
         ["bash", "-c", prefix + '\n! validate_worker_dockerfile "$2"',
          "test", str(root), invalid], capture_output=True, check=True,

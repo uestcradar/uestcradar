@@ -9,9 +9,10 @@ var DefaultNodeIPs = []string{
 }
 
 type WorkerContract struct {
-	Roles  []string `json:"roles"`
-	Input  string   `json:"input"`
-	Output string   `json:"output"`
+	Component string   `json:"component,omitempty"`
+	Roles     []string `json:"roles"`
+	Input     string   `json:"input"`
+	Output    string   `json:"output"`
 }
 
 type ImageInfo struct {
@@ -34,6 +35,7 @@ type RDMAInterface struct {
 }
 
 type NodeInspection struct {
+	SignalSink         bool            `json:"signalsink,omitempty"`
 	NodeID             string          `json:"node_id,omitempty"`
 	ErrorCode          string          `json:"error_code,omitempty"`
 	IP                 string          `json:"ip"`
@@ -81,6 +83,7 @@ type PlanRequest struct {
 }
 
 type PlannedNode struct {
+	SignalSink         bool   `json:"signalsink,omitempty"`
 	IP                 string `json:"ip"`
 	NodeID             string `json:"node_id"`
 	Role               string `json:"role"`

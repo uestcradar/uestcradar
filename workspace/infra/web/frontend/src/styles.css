@@ -63,6 +63,15 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .drawer-backdrop { justify-content: flex-end; }.detail-drawer { width: min(640px, 56vw); min-width: 520px; height: 100%; display: flex; flex-direction: column; overflow: hidden; background: #fff; box-shadow: -15px 0 45px rgba(15,23,42,.16); }.drawer-summary { padding: 16px 18px; display: grid; grid-template-columns: 110px 1fr; gap: 10px; align-items: center; border-bottom: 1px solid #e2e8f0; font-size: 11px; }.drawer-summary > span { color: #64748b; }.link-detail { margin: 14px 18px 0; padding: 13px; border: 1px solid #e2e8f0; border-radius: 9px; }.link-detail > div { display: flex; justify-content: space-between; font-size: 11px; }.link-detail > div span { color: #64748b; }.link-detail dl { margin: 12px 0 0; display: grid; grid-template-columns: 1fr 1fr; font-size: 10px; }.link-detail dt, .link-detail dd { margin: 0; padding: 6px 0; border-top: 1px solid #f1f5f9; }.link-detail dt { color: #64748b; }.link-detail dd { text-align: right; font-family: monospace; }.drawer-empty { padding: 26px; color: #94a3b8; text-align: center; font-size: 12px; }
 .detail-drawer > .drawer-heading, .detail-drawer > .drawer-summary { flex-shrink: 0; }
 .node-frontend { display: block; width: 100%; min-height: 0; flex: 1; border: 0; }
+.recording-panel { flex-shrink: 0; max-height: 40%; overflow: auto; padding: 12px 18px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
+.recording-heading, .recording-directory, .recording-capacity { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
+.recording-directory input { min-width: 0; flex: 1; padding: 5px; }
+.recording-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.recording-actions button { padding: 5px 10px; }
+.recording-capacity { flex-wrap: wrap; }
+.recording-capacity meter { width: 100%; height: 10px; }
+.recording-panel p { margin: 5px 0; color: #64748b; overflow-wrap: anywhere; }
+.recording-panel [role="alert"] { color: #b42318; }
 .drawer-counters { flex: 0 0 auto; max-height: 35%; overflow-y: auto; border-top: 1px solid #e2e8f0; }
 .drawer-counters > summary { padding: 12px 18px; cursor: pointer; font-size: 11px; color: #64748b; }
 .drawer-counters .link-detail { margin-top: 0; margin-bottom: 12px; }

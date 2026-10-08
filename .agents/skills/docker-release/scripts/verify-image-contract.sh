@@ -86,7 +86,12 @@ elif [[ "$kind" == "worker" ]]; then
     done
 
     type_pattern='^(none|[1-9][0-9]*:[1-9][0-9]*)$'
-    [[ "$input" =~ $type_pattern ]] || fail "$image has invalid input: $input"
+    if [[ "$(label io.uestcradar.component)" == "signalsink" ]]; then
+        [[ "$roles" == "sink" && "$input" == "any" && "$output" == "none" && \
+           "$entrypoint" == '["/app/signalsink"]' ]] || fail "$image has invalid SignalSink contract"
+    else
+        [[ "$input" =~ $type_pattern ]] || fail "$image has invalid input: $input"
+    fi
     [[ "$output" =~ $type_pattern ]] || fail "$image has invalid output: $output"
     if [[ -n "${seen[source]:-}" && "$output" == "none" ]]; then
         fail "source Worker requires output"

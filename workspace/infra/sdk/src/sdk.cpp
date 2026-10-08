@@ -218,6 +218,55 @@ struct FrameStorage {
     std::shared_ptr<PortState> state;
 };
 
+struct RawFrame::Impl final : FrameStorage {
+    using FrameStorage::FrameStorage;
+};
+
+RawFrame::RawFrame(std::unique_ptr<Impl> value) noexcept : impl_(std::move(value)) {}
+RawFrame::RawFrame(RawFrame&&) noexcept = default;
+RawFrame& RawFrame::operator=(RawFrame&&) noexcept = default;
+RawFrame::~RawFrame() = default;
+
+std::span<const std::byte> RawFrame::bytes() const {
+    if (!impl_ || impl_->state->kind != LeaseKind::read) {
+        throw std::runtime_error("raw frame is no longer active");
+    }
+    return impl_->state->read_lease.frame();
+}
+
+struct Input<RawFrame>::Impl {
+    Impl(std::uint64_t type_id, std::uint32_t type_version)
+        : state(open_port("UESTCRADAR_UPSTREAM_SHM_NAME", kUpstreamBufName,
+                          type_id, type_version)) {}
+    std::shared_ptr<PortState> state;
+};
+
+Input<RawFrame>::Input(std::uint64_t type_id, std::uint32_t type_version)
+    : impl_(std::make_unique<Impl>(type_id, type_version)) {}
+Input<RawFrame>::Input(Input&&) noexcept = default;
+Input<RawFrame>& Input<RawFrame>::operator=(Input&&) noexcept = default;
+Input<RawFrame>::~Input() = default;
+
+std::optional<RawFrame> Input<RawFrame>::try_read() {
+    if (!impl_) throw std::runtime_error("input port is not open");
+    auto& state = *impl_->state;
+    if (state.kind != LeaseKind::none) {
+        throw std::runtime_error("the previous input frame is still alive");
+    }
+    const auto result = ringbuf_acquire(state.ring, state.read_lease);
+    if (result == RingResult::would_block) return std::nullopt;
+    if (result == RingResult::shutdown) throw std::runtime_error("input has been shut down");
+    if (result != RingResult::ok) throw std::runtime_error("input RingBuffer is corrupt");
+    state.kind = LeaseKind::read;
+    try {
+        return RawFrame{std::make_unique<RawFrame::Impl>(impl_->state)};
+    } catch (...) {
+        static_cast<void>(ringbuf_release(state.read_lease));
+        state.kind = LeaseKind::none;
+        throw;
+    }
+}
+
 #define UESTCRADAR_CONTRACT(Name, FrameType, MetadataType)                         \
     struct FrameType::Impl final : FrameStorage {                                 \
         using FrameStorage::FrameStorage;                                         \

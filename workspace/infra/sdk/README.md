@@ -3,7 +3,29 @@
 SDK 6 面向算法开发者只提供两个头文件：
 
 - `data.h`：`IQFrame`、`PulseCompressionFrame`、`RDFrame` 及其业务 Metadata。
-- `sdk.h`：类型化 `Input`、`Output` 的底层声明；通常只需包含 `data.h`。
+- `sdk.h`：类型化 `Input`、`Output` 的底层声明，以及用于完整帧录制的只读 `RawFrame` / `Input<RawFrame>`；算法处理通常只需包含 `data.h`。
+
+## 非阻塞完整裸帧读取
+
+源码新增接口（尚未完成新的 ARM 镜像发布，旧 algo-base digest 不包含此能力）：
+
+```cpp
+#include <sdk.h>
+
+uestcradar::Input<uestcradar::RawFrame> input(3, 2); // 必须匹配实际输入端口
+if (auto frame = input.try_read()) {
+    const auto bytes = frame->bytes(); // 原始 Envelope + 完整帧体，只读
+    // 在此作用域内使用，或复制到有界自有存储；不要保留 bytes 的悬空视图。
+}
+```
+
+- `try_read()` 不等待新帧，空结果只表示暂无输入；关闭、损坏和契约不匹配明确报错。
+- 一个 Input 同时只能持有一个帧；RawFrame 可移动、不可复制，析构释放 lease。
+- RawFrame 保持底层映射有效，即使 Input 已销毁；离开帧生命周期后 span 失效。
+- 调用者在每轮读取之间检查退出条件，因此退出不依赖上游再发一帧；不改变共享 Ring 的 shutdown。
+- 保留原始字节但不解析自定义 Metadata，也不证明硬件采样连续；它用于录制/诊断，不取代算法的标准类型契约。
+- 原有类型化接口和 Ring ABI 不变。构建 SignalSink 时必须先安装包含此接口的 SDK，并固定验证过的 SDK 镜像版本。
+
 
 > 数据格式使用约束：算法开发者必须使用 `data.h` 中已经定义的标准输入输出帧，
 > 不得在算法项目中私自声明、复制或修改数据帧格式。现有数据帧不能满足算法需求时，

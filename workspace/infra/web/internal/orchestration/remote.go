@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,6 +55,7 @@ func sshErrorCode(err error) string {
 type CommandOutput func(stream, text string)
 
 type RemoteBackend interface {
+	SignalSink(context.Context, *Session, string, string, string) (SignalSinkStatus, error)
 	Inspect(*Session, string, CommandOutput) (NodeInspection, error)
 	PullWorker(*Session, string, string, CommandOutput) error
 	PullSidecar(*Session, string, CommandOutput) error
@@ -73,6 +75,10 @@ func (b *SSHBackend) client(session *Session, ip string) (*ssh.Client, error) {
 }
 
 func (b *SSHBackend) clientAt(session *Session, ip, address string) (*ssh.Client, error) {
+	return b.clientContext(context.Background(), session, ip, address)
+}
+
+func (b *SSHBackend) clientContext(ctx context.Context, session *Session, ip, address string) (*ssh.Client, error) {
 	session.mu.Lock()
 	credentials := Credentials{
 		Username:   session.Credentials.Username,
@@ -119,8 +125,23 @@ func (b *SSHBackend) clientAt(session *Session, ip, address string) (*ssh.Client
 			return nil
 		},
 	}
-	client, err := ssh.Dial("tcp", address, config)
+	connection, err := (&net.Dialer{Timeout: 8 * time.Second}).DialContext(ctx, "tcp", address)
 	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(8 * time.Second)
+	if limit, ok := ctx.Deadline(); ok && limit.Before(deadline) {
+		deadline = limit
+	}
+	if err := connection.SetDeadline(deadline); err != nil {
+		connection.Close()
+		return nil, err
+	}
+	stop := context.AfterFunc(ctx, func() { _ = connection.Close() })
+	defer stop()
+	conn, channels, requests, err := ssh.NewClientConn(connection, address, config)
+	if err != nil {
+		connection.Close()
 		if untrusted {
 			return nil, &HostKeyError{IP: ip, Fingerprint: observed}
 		}
@@ -130,7 +151,15 @@ func (b *SSHBackend) clientAt(session *Session, ip, address string) (*ssh.Client
 		}
 		return nil, err
 	}
-	return client, nil
+	if err := ctx.Err(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if err := connection.SetDeadline(time.Time{}); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return ssh.NewClient(conn, channels, requests), nil
 }
 
 func runSSH(client *ssh.Client, command string) (string, error) {
@@ -311,6 +340,9 @@ func (b *SSHBackend) Inspect(session *Session, ip string, output CommandOutput) 
 		return result, fmt.Errorf("inspect existing deployment: %w", err)
 	}
 	result.ExistingDeployment, result.DeploymentState = deploymentStatus(deployment)
+	if _, image, err := runningSignalSink(client); err == nil {
+		result.SignalSink = knownSignalSinkImage(result, image)
+	}
 	binding, err := runSSHOutput(client, "set -- $(docker ps -q --filter label=com.docker.compose.project=uestcradar-cascade --filter label=com.docker.compose.service=sidecar-node); if [ \"$#\" -eq 1 ]; then docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \"$1\" | grep '^NODE_ID='; fi", output)
 	if err != nil {
 		return result, fmt.Errorf("inspect node identity: %w", err)
