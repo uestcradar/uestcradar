@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "state": "recording",
+  "recording_id": "63aaabc502d012e495bd7d019623600c",
+  "directory": "web-pcie-crossnode-20261008T153307Z/record-10",
+  "error": "",
+  "accepted_frames": "39182",
+  "written_frames": "39180",
+  "written_bytes": "1287298080",
+  "queue_used_bytes": "65728",
+  "queue_capacity_bytes": "536870912",
+  "elapsed_ms": "10448",
+  "sample_continuity": "unverified",
+  "disk_total_bytes": "54715047936",
+  "disk_used_bytes": "18473476096",
+  "disk_available_bytes": "33428979712"
+}

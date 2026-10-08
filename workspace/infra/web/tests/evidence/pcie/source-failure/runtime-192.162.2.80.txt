@@ -1,0 +1,12 @@
+8b9fe0914ada uestcradar-cascade_worker-node_1 Up 26 seconds
+f0dbdfc957de uestcradar-cascade_frontend-node_1 Up 27 seconds (healthy)
+a6ef33141f0d uestcradar-cascade_sidecar-node_1 Up 27 seconds (healthy)
+/uestcradar-cascade_worker-node_1 sha256:8290e0bb3fecf9160afa9a27ba6ac9b0320a9341ea31f73dee58490806b7e144 running exit=0 devices=null caps=null restart={"Name":"unless-stopped","MaximumRetryCount":0}
+/uestcradar-cascade_frontend-node_1 sha256:2ef9656510c7c0636e568785d6588e086fe4ad1c61c990ab8bd4d4257a8f8870 running exit=0 devices=null caps=null restart={"Name":"unless-stopped","MaximumRetryCount":0}
+/uestcradar-cascade_sidecar-node_1 sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240 running exit=0 devices=[{"PathOnHost":"/dev/infiniband","PathInContainer":"/dev/infiniband","CgroupPermissions":"rwm"}] caps=["IPC_LOCK"] restart={"Name":"unless-stopped","MaximumRetryCount":0}
+sidecar: fixed-slot rings ready, upstream=64x1048576 downstream=64x1048576
+sidecar: telemetry started; dual-leg gateway ready
+sidecar: preview connected host=127.0.0.1:9903
+sidecar: leg=upstream event=retry error="accept UCX connection: timed out"
+sidecar: leg=upstream event=retry error="accept UCX connection: timed out"
+sidecar: leg=upstream event=connected

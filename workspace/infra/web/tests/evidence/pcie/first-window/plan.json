@@ -1,0 +1,41 @@
+{
+  "id": "9b36c9bfaf640824743fe318e69cc823aa17123b0556030fb50864abeb4096e3",
+  "created_at": "2026-10-08T15:31:01.895142179Z",
+  "nodes": [
+    {
+      "ip": "192.162.2.64",
+      "node_id": "node-1",
+      "role": "source",
+      "rdma_device": "hns_1:1",
+      "netdev": "enp125s0f1",
+      "rdma_ip": "192.170.2.64",
+      "worker_reference": "registry.chengyistudio.com/cxx/worker:pcie-source-latest",
+      "worker_digest": "registry.chengyistudio.com/cxx/worker@sha256:5cf489a8efd621ee1a1ce5f54a6e33ee8a16d0eca114e40c49d90a00fc1a330b",
+      "sidecar_digest": "registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c",
+      "worker_image_id": "sha256:2d8b7595cb496f3e787e67a48b3c721f5c820ad310ec2bee229384bf9d5d43b9",
+      "sidecar_image_id": "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240",
+      "input": "none",
+      "output": "4:1",
+      "existing_deployment": false,
+      "env_preview": "FRONTEND_IMAGE=registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052\nFRONTEND_HTTP_ADDR=192.162.2.64:8081\nDATA_PATH=strict-rdma\nSIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c\nWORKER_IMAGE=registry.chengyistudio.com/cxx/worker@sha256:5cf489a8efd621ee1a1ce5f54a6e33ee8a16d0eca114e40c49d90a00fc1a330b\nNODE_ID=node-1\nCASCADE_ROLE=source\nUPSTREAM_ROLE=disabled\nUPSTREAM_PEER_NODE_ID=\nUPSTREAM_BIND_HOST=192.170.2.64\nUPSTREAM_PEER_HOST=127.0.0.1\nUPSTREAM_PORT=13337\nDOWNSTREAM_ROLE=connect\nDOWNSTREAM_PEER_NODE_ID=node-2\nDOWNSTREAM_BIND_HOST=192.170.2.64\nDOWNSTREAM_PEER_HOST=192.170.2.80\nDOWNSTREAM_PORT=13337\nCONNECT_TIMEOUT_MS=1000\nUPSTREAM_TYPE_ID=1\nUPSTREAM_TYPE_VERSION=1\nDOWNSTREAM_TYPE_ID=4\nDOWNSTREAM_TYPE_VERSION=1\nSLOT_COUNT=64\nMAX_PAYLOAD_BYTES=1048576\nSIDECAR_SHM_SIZE=256m\nUCX_TLS=rc_verbs,tcp\nUCX_NET_DEVICES=hns_1:1,enp125s0f1\nTELEMETRY_HOST=192.162.2.64\nTELEMETRY_PORT=9900\nSAMPLE_INTERVAL=100\n"
+    },
+    {
+      "signalsink": true,
+      "ip": "192.162.2.80",
+      "node_id": "node-2",
+      "role": "sink",
+      "rdma_device": "hns_1:1",
+      "netdev": "enp125s0f1",
+      "rdma_ip": "192.170.2.80",
+      "worker_reference": "registry.chengyistudio.com/cxx/worker:signalsink-latest",
+      "worker_digest": "registry.chengyistudio.com/cxx/worker@sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46",
+      "sidecar_digest": "registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c",
+      "worker_image_id": "sha256:8290e0bb3fecf9160afa9a27ba6ac9b0320a9341ea31f73dee58490806b7e144",
+      "sidecar_image_id": "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240",
+      "input": "4:1",
+      "output": "none",
+      "existing_deployment": false,
+      "env_preview": "FRONTEND_IMAGE=registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052\nFRONTEND_HTTP_ADDR=192.162.2.80:8081\nDATA_PATH=strict-rdma\nSIDECAR_IMAGE=registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c\nWORKER_IMAGE=registry.chengyistudio.com/cxx/worker@sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46\nNODE_ID=node-2\nCASCADE_ROLE=sink\nUPSTREAM_ROLE=listen\nUPSTREAM_PEER_NODE_ID=node-1\nUPSTREAM_BIND_HOST=192.170.2.80\nUPSTREAM_PEER_HOST=192.170.2.64\nUPSTREAM_PORT=13337\nDOWNSTREAM_ROLE=disabled\nDOWNSTREAM_PEER_NODE_ID=\nDOWNSTREAM_BIND_HOST=192.170.2.80\nDOWNSTREAM_PEER_HOST=127.0.0.1\nDOWNSTREAM_PORT=13337\nCONNECT_TIMEOUT_MS=1000\nUPSTREAM_TYPE_ID=4\nUPSTREAM_TYPE_VERSION=1\nDOWNSTREAM_TYPE_ID=1\nDOWNSTREAM_TYPE_VERSION=1\nSLOT_COUNT=64\nMAX_PAYLOAD_BYTES=1048576\nSIDECAR_SHM_SIZE=256m\nUCX_TLS=rc_verbs,tcp\nUCX_NET_DEVICES=hns_1:1,enp125s0f1\nTELEMETRY_HOST=192.162.2.64\nTELEMETRY_PORT=9900\nSAMPLE_INTERVAL=100\nSIGNALSINK_INPUT=4:1\n"
+    }
+  ]
+}

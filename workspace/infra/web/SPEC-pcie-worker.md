@@ -18,6 +18,6 @@
 1. [x] 增加规划回归：批准镜像得到准确权限；伪造/未知版本不获授权；普通 Source/Sink 不带权限；strict-RDMA/TCP 都不误改其他服务。
 2. [x] 实现 Web 内部固定批准规则、Compose 渲染和只读部署前检查；保持会话、CSRF、SSH 授权和类型匹配检查。
 3. [x] Go 全量测试/vet/orchestration race 通过；前端 29/29 与构建通过。新增测试先在旧实现失败，再通过；更新部署说明。
-4. [ ] 经正式 ARM/Harbor 流程发布 Web，替换 `.64` 的旧 Web，再通过 Web 验证 `.64` 采集、`.80` 保存。实际数据流和长期录制另按证据判定，不将单元测试当成部署成功。
+4. [x] 正式 ARM/Harbor 发布并更新 `.64` Web；正常 Web 编排 `.64`→strict-RDMA→`.80` 已实际运行，短录制文件校验通过。Source 随后在 18.5668 秒配对失败，60 秒未开始；不宣称采集稳定性修复，详见 [验证报告](tests/pcie-results.md)。
 
-测试：在 Web 目录 `go test ./...`、`go vet ./...`、`go test -race ./internal/orchestration`；前端目录 `npm test -- --run`、`npm run build`。沿用现有 Go 测试夹具和固定镜像引用模式，不新增依赖或通用设备授权平台。
+测试：新检出先在 Web 目录执行 `protoc -I ../proto --go_out=. --go_opt=module=uestcradar/telemetry ../proto/telemetry.proto` 并构建前端生成嵌入资源；然后 `go test ./...`、`go vet ./...`、`go test -race ./internal/orchestration`；前端目录 `npm test -- --run`、`npm run build`。沿用现有 Go 测试夹具和固定镜像引用模式，不新增依赖或通用设备授权平台。

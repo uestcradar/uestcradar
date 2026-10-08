@@ -1,0 +1,504 @@
+{
+  "id": "d716b0e33581186d92bd94dae86ce32041f322d2d515d38fd15238f9490f8a16",
+  "kind": "image-sync",
+  "status": "completed",
+  "message": "image synchronized",
+  "current_ip": "192.162.2.80",
+  "completed": [
+    "192.162.2.80"
+  ],
+  "created_at": "2026-10-08T15:30:52.15821621Z",
+  "updated_at": "2026-10-08T15:30:57.578744856Z",
+  "output": [
+    {
+      "sequence": 1,
+      "at": "2026-10-08T15:30:52.251134574Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker pull 'registry.chengyistudio.com/cxx/worker:signalsink-latest'\n"
+    },
+    {
+      "sequence": 2,
+      "at": "2026-10-08T15:30:54.623916016Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "signalsink-latest: Pulling from cxx/worker\n"
+    },
+    {
+      "sequence": 3,
+      "at": "2026-10-08T15:30:54.624491568Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "f397efa33935: Already exists\n"
+    },
+    {
+      "sequence": 4,
+      "at": "2026-10-08T15:30:54.635180595Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "8470267cff9a: Already exists\n"
+    },
+    {
+      "sequence": 5,
+      "at": "2026-10-08T15:30:54.642711234Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "d81b6bc8c61d: Pulling fs layer\n"
+    },
+    {
+      "sequence": 6,
+      "at": "2026-10-08T15:30:54.642728894Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "71c27f5b786a: Pulling fs layer\n77ee0f2b2a21: Pulling fs layer\n"
+    },
+    {
+      "sequence": 7,
+      "at": "2026-10-08T15:30:54.642853654Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "125d9a637775: Pulling fs layer\ncedbe9de985b: Pulling fs layer\n"
+    },
+    {
+      "sequence": 8,
+      "at": "2026-10-08T15:30:54.642870914Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "06dee22755d2: Pulling fs layer\n06dee22755d2: Waiting\n125d9a637775: Waiting\ncedbe9de985b: Waiting\n"
+    },
+    {
+      "sequence": 9,
+      "at": "2026-10-08T15:30:54.682470144Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "77ee0f2b2a21: Verifying Checksum\n"
+    },
+    {
+      "sequence": 10,
+      "at": "2026-10-08T15:30:54.682622424Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "77ee0f2b2a21: Download complete\n"
+    },
+    {
+      "sequence": 11,
+      "at": "2026-10-08T15:30:54.682640834Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "71c27f5b786a: Verifying Checksum\n71c27f5b786a: Download complete\n"
+    },
+    {
+      "sequence": 12,
+      "at": "2026-10-08T15:30:54.687931498Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "d81b6bc8c61d: Download complete\n"
+    },
+    {
+      "sequence": 13,
+      "at": "2026-10-08T15:30:54.723007826Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "cedbe9de985b: Verifying Checksum\ncedbe9de985b: Download complete\n"
+    },
+    {
+      "sequence": 14,
+      "at": "2026-10-08T15:30:54.723359197Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "06dee22755d2: Verifying Checksum\n"
+    },
+    {
+      "sequence": 15,
+      "at": "2026-10-08T15:30:54.723523438Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "06dee22755d2: Download complete\n"
+    },
+    {
+      "sequence": 16,
+      "at": "2026-10-08T15:30:54.7244094Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "125d9a637775: Verifying Checksum\n"
+    },
+    {
+      "sequence": 17,
+      "at": "2026-10-08T15:30:54.72456061Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "125d9a637775: Download complete\n"
+    },
+    {
+      "sequence": 18,
+      "at": "2026-10-08T15:30:54.742442355Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "d81b6bc8c61d: Pull complete\n"
+    },
+    {
+      "sequence": 19,
+      "at": "2026-10-08T15:30:54.798227686Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "71c27f5b786a: Pull complete\n"
+    },
+    {
+      "sequence": 20,
+      "at": "2026-10-08T15:30:54.858210017Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "77ee0f2b2a21: Pull complete\n"
+    },
+    {
+      "sequence": 21,
+      "at": "2026-10-08T15:30:54.919129241Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "125d9a637775: Pull complete\n"
+    },
+    {
+      "sequence": 22,
+      "at": "2026-10-08T15:30:54.976352735Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "cedbe9de985b: Pull complete\n"
+    },
+    {
+      "sequence": 23,
+      "at": "2026-10-08T15:30:55.033548019Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "06dee22755d2: Pull complete\n"
+    },
+    {
+      "sequence": 24,
+      "at": "2026-10-08T15:30:55.047866275Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "Digest: sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46\n"
+    },
+    {
+      "sequence": 25,
+      "at": "2026-10-08T15:30:55.054385692Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "Status: Downloaded newer image for registry.chengyistudio.com/cxx/worker:signalsink-latest\n"
+    },
+    {
+      "sequence": 26,
+      "at": "2026-10-08T15:30:55.054629382Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "registry.chengyistudio.com/cxx/worker:signalsink-latest\n"
+    },
+    {
+      "sequence": 27,
+      "at": "2026-10-08T15:30:55.1411198Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ hostname\n"
+    },
+    {
+      "sequence": 28,
+      "at": "2026-10-08T15:30:55.219384318Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "node5-1\n"
+    },
+    {
+      "sequence": 29,
+      "at": "2026-10-08T15:30:55.219887969Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ uname -m\n"
+    },
+    {
+      "sequence": 30,
+      "at": "2026-10-08T15:30:55.298765478Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "aarch64\n"
+    },
+    {
+      "sequence": 31,
+      "at": "2026-10-08T15:30:55.29941386Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker version --format '{{.Server.Version}}'\n"
+    },
+    {
+      "sequence": 32,
+      "at": "2026-10-08T15:30:55.405863668Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "19.03.15\n"
+    },
+    {
+      "sequence": 33,
+      "at": "2026-10-08T15:30:55.40685219Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker-compose version --short\n"
+    },
+    {
+      "sequence": 34,
+      "at": "2026-10-08T15:30:55.84699984Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "/usr/local/lib/python3.7/site-packages/paramiko/transport.py:32: CryptographyDeprecationWarning: Python 3.7 is no longer supported by the Python core team and support for it is deprecated in cryptography. The next release of cryptography will remove support for Python 3.7.\n  from cryptography.hazmat.backends import default_backend\n"
+    },
+    {
+      "sequence": 35,
+      "at": "2026-10-08T15:30:55.84700469Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "1.29.2\n"
+    },
+    {
+      "sequence": 36,
+      "at": "2026-10-08T15:30:55.893749248Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker info --format '{{.NCPU}}'\n"
+    },
+    {
+      "sequence": 37,
+      "at": "2026-10-08T15:30:56.031133824Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "32\n"
+    },
+    {
+      "sequence": 38,
+      "at": "2026-10-08T15:30:56.031938796Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker info --format '{{.MemTotal}}'\n"
+    },
+    {
+      "sequence": 39,
+      "at": "2026-10-08T15:30:56.168481131Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "64767197184\n"
+    },
+    {
+      "sequence": 40,
+      "at": "2026-10-08T15:30:56.169406033Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ df -B1 --output=avail /var/lib/docker 2>/dev/null | tail -n 1 | tr -d ' '\n"
+    },
+    {
+      "sequence": 41,
+      "at": "2026-10-08T15:30:56.249119894Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "36061306880\n"
+    },
+    {
+      "sequence": 42,
+      "at": "2026-10-08T15:30:56.249793726Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ rdma link show 2>/dev/null || true\n"
+    },
+    {
+      "sequence": 43,
+      "at": "2026-10-08T15:30:56.328651214Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "link hns_0/1 state DOWN physical_state DISABLED netdev enp125s0f0 \nlink hns_1/1 state ACTIVE physical_state LINK_UP netdev enp125s0f1 \n"
+    },
+    {
+      "sequence": 44,
+      "at": "2026-10-08T15:30:56.329304206Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ ip -o -4 addr show 2>/dev/null || true\n"
+    },
+    {
+      "sequence": 45,
+      "at": "2026-10-08T15:30:56.41005226Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "1: lo    inet 127.0.0.1/8 scope host lo\\       valid_lft forever preferred_lft forever\n2: enp125s0f0    inet 192.180.2.80/24 brd 192.180.2.255 scope global enp125s0f0\\       valid_lft forever preferred_lft forever\n3: enp125s0f1    inet 192.170.2.80/24 brd 192.170.2.255 scope global enp125s0f1\\       valid_lft forever preferred_lft forever\n4: enp1s0    inet 192.160.2.80/24 brd 192.160.2.255 scope global enp1s0\\       valid_lft forever preferred_lft forever\n"
+    },
+    {
+      "sequence": 46,
+      "at": "2026-10-08T15:30:56.4102151Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "5: enp2s0f0    inet 192.161.2.80/24 brd 192.161.2.255 scope global enp2s0f0\\       valid_lft forever preferred_lft forever\n6: enp2s0f1    inet 192.162.2.80/24 brd 192.162.2.255 scope global enp2s0f1\\       valid_lft forever preferred_lft forever\n7: enp2s0f2    inet 192.163.2.80/24 brd 192.163.2.255 scope global enp2s0f2\\       valid_lft forever preferred_lft forever\n8: enp2s0f3    inet 192.164.2.80/24 brd 192.164.2.255 scope global enp2s0f3\\       valid_lft forever preferred_lft forever\n9: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\\       valid_lft forever preferred_lft forever\n"
+    },
+    {
+      "sequence": 47,
+      "at": "2026-10-08T15:30:56.410655131Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker image inspect 'registry.chengyistudio.com/cxx/sidecar:latest'\n"
+    },
+    {
+      "sequence": 48,
+      "at": "2026-10-08T15:30:56.516125887Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "[\n    {\n        \"Id\": \"sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240\",\n        \"RepoTags\": [\n            \"registry.chengyistudio.com/cxx/sidecar:latest\"\n        ],\n        \"RepoDigests\": [\n            \"registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c\"\n        ],\n        \"Parent\": \"\",\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-09-17T15:21:46.948050552+08:00\",\n        \"Container\": \"\",\n        \"ContainerConfig\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": null,\n            \"Cmd\": null,\n            \"Image\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"\",\n            \"Entrypoint\": null,\n            \"OnBuild\": null,\n            \"Labels\": null\n        },\n        \"DockerVersion\": \"\",\n        \"Author\": \"\",\n        \"Config\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": null,\n            \"Image\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/sidecar\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.contract\": \"sidecar/v2\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"Architecture\": \"arm64\",\n        \"Os\": \"linux\",\n        \"Size\": 118555586,\n        \"VirtualSize\": 118555586,\n        \"GraphDriver\": {\n            \"Data\": {\n                \"LowerDir\": \"/var/lib/docker/overlay2/2a3b5417c16c6af9bc57d4301026f0672edcbfb03bd8f67fc45cd4ac4372c32b/diff:/var/lib/docker/overlay2/c785c4b5a738de8cbeb78e2e796feb89d0e1a0e2f0b8a5c9f266d331dee07292/diff:/var/lib/docker/overlay2/a5b8175aa0827a6c6fad02ceb0a903a8a3a6b7673bbc1f4f87eeec78da951e81/diff:/var/lib/docker/overlay2/569b153328066b0b7947f942f152cd82e3e4dd1cc8751d653991e78ccd51f1eb/diff\",\n                \"MergedDir\": \"/var/lib/docker/overlay2/2ddb71a59ec6a8fe79ba9e86a70ffa68fd4fb2336192ecd33aede0f66a168417/merged\",\n                \"UpperDir\": \"/var/lib/docker/overlay2/2ddb71a59ec6a8fe79ba9e86a70ffa68fd4fb2336192ecd33aede0f66a168417/diff\",\n                \"WorkDir\": \"/var/lib/docker/overlay2/2ddb71a59ec6a8fe79ba9e86a70ffa68fd4fb2336192ecd33aede0f66a168417/work\"\n            },\n            \"Name\": \"overlay2\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:2c042ab36ee22da5e09730c3dce27e9d84ff1cc8af8e5a8ed2275c05f0133445\",\n                \"sha256:5b386ac6c6f5696ac781f4ef29b101d5b1f9616ac9366428e1faa5a10addf561\",\n                \"sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef\",\n                \"sha256:94b04acada3f4896423d7a6fd755e641d377c592d913f30593ebae7f1386c917\",\n                \"sha256:ee9538e36712507f013b4cbaf0b02b13f13209615a755e70e1d8194e108b82ec\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"0001-01-01T00:00:00Z\"\n        }\n    }\n]\n"
+    },
+    {
+      "sequence": 49,
+      "at": "2026-10-08T15:30:56.516814919Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker image ls --filter label=io.uestcradar.contract=worker/v2 --format '{{.Repository}}:{{.Tag}}'\n"
+    },
+    {
+      "sequence": 50,
+      "at": "2026-10-08T15:30:56.623693338Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "registry.chengyistudio.com/cxx/worker:signalsink-latest\nregistry.chengyistudio.com/cxx/worker:pcsink-d23de312b96c\nregistry.chengyistudio.com/cxx/worker:pcsink-latest\nregistry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0\nregistry.chengyistudio.com/cxx/worker:<none>\nregistry.chengyistudio.com/cxx/worker:<none>\nregistry.chengyistudio.com/cxx/worker:<none>\nregistry.chengyistudio.com/cxx/worker:signalsource-latest\nregistry.chengyistudio.com/cxx/worker:<none>\nregistry.chengyistudio.com/cxx/worker:cascade-worker-latest\n"
+    },
+    {
+      "sequence": 51,
+      "at": "2026-10-08T15:30:56.62452744Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker image inspect 'registry.chengyistudio.com/cxx/worker:signalsink-latest'\n"
+    },
+    {
+      "sequence": 52,
+      "at": "2026-10-08T15:30:56.730411987Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "[\n    {\n        \"Id\": \"sha256:8290e0bb3fecf9160afa9a27ba6ac9b0320a9341ea31f73dee58490806b7e144\",\n        \"RepoTags\": [\n            \"registry.chengyistudio.com/cxx/worker:signalsink-latest\"\n        ],\n        \"RepoDigests\": [\n            \"registry.chengyistudio.com/cxx/worker@sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46\"\n        ],\n        \"Parent\": \"\",\n        \"Comment\": \"\",\n        \"Created\": \"2026-10-08T10:34:43.305348347Z\",\n        \"Container\": \"f53351e6a9342df90d143de83ee3d88d038a2dae82d120734c786101af56dd60\",\n        \"ContainerConfig\": {\n            \"Hostname\": \"f53351e6a934\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": [\n                \"/bin/sh\",\n                \"-c\",\n                \"#(nop) \",\n                \"LABEL io.uestcradar.contract=worker/v2 io.uestcradar.component=signalsink io.uestcradar.roles=sink io.uestcradar.input=any io.uestcradar.output=none\"\n            ],\n            \"Image\": \"sha256:5de4b4f6ee2a171e80c2a64b6fc4d2e361915f6e745c1b8813351e7c08aa4ce9\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/signalsink\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.component\": \"signalsink\",\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"any\",\n                \"io.uestcradar.output\": \"none\",\n                \"io.uestcradar.roles\": \"sink\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"DockerVersion\": \"19.03.15\",\n        \"Author\": \"\",\n        \"Config\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": null,\n            \"Image\": \"sha256:5de4b4f6ee2a171e80c2a64b6fc4d2e361915f6e745c1b8813351e7c08aa4ce9\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/signalsink\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.component\": \"signalsink\",\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"any\",\n                \"io.uestcradar.output\": \"none\",\n                \"io.uestcradar.roles\": \"sink\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"Architecture\": \"arm64\",\n        \"Os\": \"linux\",\n        \"Size\": 445280884,\n        \"VirtualSize\": 445280884,\n        \"GraphDriver\": {\n            \"Data\": {\n                \"LowerDir\": \"/var/lib/docker/overlay2/0c5d7616fe8e694559ce3e9b8beb45da03bf425dfbbd7f218a5b95e8448ceb75/diff:/var/lib/docker/overlay2/4760c6d2d3153435c79dd493741b5130131b6219091059d5269664cf5907cf16/diff:/var/lib/docker/overlay2/e7f68589ff300782cd3a59e4a7ed077e3f45ff7fd702704c03e7d2a42e6e66ca/diff:/var/lib/docker/overlay2/409529fd2c83d783f43ee906e369fc2db82166cdb7f1822246e7c21c9776066f/diff:/var/lib/docker/overlay2/677a6526ef5b2cd17f6a65f68dc3f2be5e621c387af92cc84212b0949ebb2c79/diff:/var/lib/docker/overlay2/27e40da608061a6c4bb165cdcb083504abd1b1051ef26c70970f105ddf2483c5/diff:/var/lib/docker/overlay2/82faecf1d37a98b196d05d320bcc6d7d0f7cde87283d2bd56627d487e5caac32/diff\",\n                \"MergedDir\": \"/var/lib/docker/overlay2/3725d90aa1125ddb92fc9615c6702d4e5780fd6f5b291f20979a8c9fe41c1c06"
+    },
+    {
+      "sequence": 53,
+      "at": "2026-10-08T15:30:56.730423587Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "/merged\",\n                \"UpperDir\": \"/var/lib/docker/overlay2/3725d90aa1125ddb92fc9615c6702d4e5780fd6f5b291f20979a8c9fe41c1c06/diff\",\n                \"WorkDir\": \"/var/lib/docker/overlay2/3725d90aa1125ddb92fc9615c6702d4e5780fd6f5b291f20979a8c9fe41c1c06/work\"\n            },\n            \"Name\": \"overlay2\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:2d8834226313616cc27c8a08ca876096cf83f18090b5fa07fd65dba017ec9e5e\",\n                \"sha256:d47ac722b9a4dbf5e9230ef864b44e94c42e330e94a53f4ce6889eefcbe6bb30\",\n                \"sha256:a721e92e06087dbeccd98bc3b6912670c15c187f00870314b383bb806d2f6906\",\n                \"sha256:9c626f9f6e46752697f9113e681df64b22668ffd09f519e06a24da37d7f4fb48\",\n                \"sha256:6adb9badfca71874c7c160be0c7784f92280004759c67693921811a976eccc9c\",\n                \"sha256:d92c8bfafab29f5978a6f92a5e7357a45acd82862dc2cb8ef6435fdae5e71f95\",\n                \"sha256:8c10d45019c3e707cc292fb3849770f831908514a8af8e9318c740334f44478c\",\n                \"sha256:b9945603d548c4e08c8596cea5f52ae907378a9aed0d9315db81ecb12b2f3392\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"0001-01-01T00:00:00Z\"\n        }\n    }\n]\n"
+    },
+    {
+      "sequence": 54,
+      "at": "2026-10-08T15:30:56.731091109Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker image inspect 'registry.chengyistudio.com/cxx/worker:pcsink-d23de312b96c'\n"
+    },
+    {
+      "sequence": 55,
+      "at": "2026-10-08T15:30:56.836191504Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "[\n    {\n        \"Id\": \"sha256:d23de312b96cd40003f1792381ee38e50a93b3fd611c9e6bd7dc755212e906fd\",\n        \"RepoTags\": [\n            \"registry.chengyistudio.com/cxx/worker:pcsink-d23de312b96c\",\n            \"registry.chengyistudio.com/cxx/worker:pcsink-latest\"\n        ],\n        \"RepoDigests\": [\n            \"registry.chengyistudio.com/cxx/worker@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233\"\n        ],\n        \"Parent\": \"\",\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-09-17T18:54:10.053788774+08:00\",\n        \"Container\": \"\",\n        \"ContainerConfig\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": null,\n            \"Cmd\": null,\n            \"Image\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"\",\n            \"Entrypoint\": null,\n            \"OnBuild\": null,\n            \"Labels\": null\n        },\n        \"DockerVersion\": \"\",\n        \"Author\": \"\",\n        \"Config\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": null,\n            \"Image\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/signalsink\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"2:2\",\n                \"io.uestcradar.output\": \"none\",\n                \"io.uestcradar.roles\": \"sink\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"Architecture\": \"arm64\",\n        \"Os\": \"linux\",\n        \"Size\": 445233251,\n        \"VirtualSize\": 445233251,\n        \"GraphDriver\": {\n            \"Data\": {\n                \"LowerDir\": \"/var/lib/docker/overlay2/3e8a62cadf14cd622083655700be04d02f70622cef4249992bac4e480c5967ee/diff:/var/lib/docker/overlay2/931257d8a15923461f90970132248423602d284769c3eb384a5c5550402659c4/diff:/var/lib/docker/overlay2/72148aad5e891a94245d95567201784474f232fe7af8e736f1e14172af247bf4/diff:/var/lib/docker/overlay2/ffd755791681dc057c1f94f95af581d56e36d8c03c5389d164cf77c1cc145e80/diff:/var/lib/docker/overlay2/de7b404e683e0a420e3e6aad00fcfe9219f217ed46183494c3d9860e71cec1da/diff:/var/lib/docker/overlay2/e54487adad14dadad0a6f8b242ff0fb71d17b0b0e3742977f88cde4df0a11696/diff:/var/lib/docker/overlay2/27e40da608061a6c4bb165cdcb083504abd1b1051ef26c70970f105ddf2483c5/diff:/var/lib/docker/overlay2/82faecf1d37a98b196d05d320bcc6d7d0f7cde87283d2bd56627d487e5caac32/diff\",\n                \"MergedDir\": \"/var/lib/docker/overlay2/35507bcb3e9eedd9845788c3c55d74069c81ce462956e9cae104d4f4ca26bf1b/merged\",\n                \"UpperDir\": \"/var/lib/docker/overlay2/35507bcb3e9eedd9845788c3c55d74069c81ce462956e9cae104d4f4ca26bf1b/diff\",\n                \"WorkDir\": \"/var/lib/docker/overlay2/35507bcb3e9eedd9845788c3c55d74069c81ce462956e9cae104d4f4ca26bf1b/work\"\n            },\n            \"Name\": \"overlay2\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:2d8834226313616cc27c8a08ca876096cf83f18090b5fa07fd65dba017ec9e5e\",\n                \"sha256:d47ac722b9a4dbf5e9230ef864b44e94c42e330e94a53f4ce6889eefcbe6bb30\",\n                \"sha256:5306353fd47869dedd78a9fa1f386628fc925b1ed4798517002a289192fea5b4\",\n                \"sha256:cd2ce9996cfbf4f54fd7485fc615f9d07b8ebb3a93ea4f4ce35c6236cb2d77a8\",\n                \"sha256:ee25c4de7bd9c3742bbcfa656b05bd1dcd1775d19b076ce4a26cab4f806e3b88\",\n                \"s"
+    },
+    {
+      "sequence": 56,
+      "at": "2026-10-08T15:30:56.836199324Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "ha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef\",\n                \"sha256:590aaf047b48a60cd7d29b5e1674549cc5e8e9248c1655905f853b709cb577ad\",\n                \"sha256:7f01edd01945a8abeedd0e13df05f9f84868f55ca177f35acb6ef64ec808febc\",\n                \"sha256:dce6fe2c8b8e290ab5b97c6ac93e8fe04ea344fb6d7142cb4c3ed6433ea2a684\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"0001-01-01T00:00:00Z\"\n        }\n    }\n]\n"
+    },
+    {
+      "sequence": 57,
+      "at": "2026-10-08T15:30:56.836897116Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker image inspect 'registry.chengyistudio.com/cxx/worker:pcsink-latest'\n"
+    },
+    {
+      "sequence": 58,
+      "at": "2026-10-08T15:30:56.942273542Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "[\n    {\n        \"Id\": \"sha256:d23de312b96cd40003f1792381ee38e50a93b3fd611c9e6bd7dc755212e906fd\",\n        \"RepoTags\": [\n            \"registry.chengyistudio.com/cxx/worker:pcsink-d23de312b96c\",\n            \"registry.chengyistudio.com/cxx/worker:pcsink-latest\"\n        ],\n        \"RepoDigests\": [\n            \"registry.chengyistudio.com/cxx/worker@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233\"\n        ],\n        \"Parent\": \"\",\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-09-17T18:54:10.053788774+08:00\",\n        \"Container\": \"\",\n        \"ContainerConfig\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": null,\n            \"Cmd\": null,\n            \"Image\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"\",\n            \"Entrypoint\": null,\n            \"OnBuild\": null,\n            \"Labels\": null\n        },\n        \"DockerVersion\": \"\",\n        \"Author\": \"\",\n        \"Config\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": null,\n            \"Image\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/signalsink\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"2:2\",\n                \"io.uestcradar.output\": \"none\",\n                \"io.uestcradar.roles\": \"sink\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"Architecture\": \"arm64\",\n        \"Os\": \"linux\",\n        \"Size\": 445233251,\n        \"VirtualSize\": 445233251,\n        \"GraphDriver\": {\n            \"Data\": {\n                \"LowerDir\": \"/var/lib/docker/overlay2/3e8a62cadf14cd622083655700be04d02f70622cef4249992bac4e480c5967ee/diff:/var/lib/docker/overlay2/931257d8a15923461f90970132248423602d284769c3eb384a5c5550402659c4/diff:/var/lib/docker/overlay2/72148aad5e891a94245d95567201784474f232fe7af8e736f1e14172af247bf4/diff:/var/lib/docker/overlay2/ffd755791681dc057c1f94f95af581d56e36d8c03c5389d164cf77c1cc145e80/diff:/var/lib/docker/overlay2/de7b404e683e0a420e3e6aad00fcfe9219f217ed46183494c3d9860e71cec1da/diff:/var/lib/docker/overlay2/e54487adad14dadad0a6f8b242ff0fb71d17b0b0e3742977f88cde4df0a11696/diff:/var/lib/docker/overlay2/27e40da608061a6c4bb165cdcb083504abd1b1051ef26c70970f105ddf2483c5/diff:/var/lib/docker/overlay2/82faecf1d37a98b196d05d320bcc6d7d0f7cde87283d2bd56627d487e5caac32/diff\",\n                \"MergedDir\": \"/var/lib/docker/overlay2/35507bcb3e9eedd9845788c3c55d74069c81ce462956e9cae104d4f4ca26bf1b/merged\",\n                \"UpperDir\": \"/var/lib/docker/overlay2/35507bcb3e9eedd9845788c3c55d74069c81ce462956e9cae104d4f4ca26bf1b/diff\",\n                \"WorkDir\": \"/var/lib/docker/overlay2/35507bcb3e9eedd9845788c3c55d74069c81ce462956e9cae104d4f4ca26bf1b/work\"\n            },\n            \"Name\": \"overlay2\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:2d8834226313616cc27c8a08ca876096cf83f18090b5fa07fd65dba017ec9e5e\",\n                \"sha256:d47ac722b9a4dbf5e9230ef864b44e94c42e330e94a53f4ce6889eefcbe6bb30\",\n                \"sha256:5306353fd47869dedd78a9fa1f386628fc925b1ed4798517002a289192fea5b4\",\n                \"sha256:cd2ce9996cfbf4f54fd7485fc615f9d07b8ebb3a93ea4f4ce35c6236cb2d77a8\",\n                \"sha256:ee25c4de7bd9c3742bbcfa656b05bd1dcd1775d19b076ce4a26cab4f806e3b88\",\n                \"s"
+    },
+    {
+      "sequence": 59,
+      "at": "2026-10-08T15:30:56.942282372Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "ha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef\",\n                \"sha256:590aaf047b48a60cd7d29b5e1674549cc5e8e9248c1655905f853b709cb577ad\",\n                \"sha256:7f01edd01945a8abeedd0e13df05f9f84868f55ca177f35acb6ef64ec808febc\",\n                \"sha256:dce6fe2c8b8e290ab5b97c6ac93e8fe04ea344fb6d7142cb4c3ed6433ea2a684\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"0001-01-01T00:00:00Z\"\n        }\n    }\n]\n"
+    },
+    {
+      "sequence": 60,
+      "at": "2026-10-08T15:30:56.942945223Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker image inspect 'registry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0'\n"
+    },
+    {
+      "sequence": 61,
+      "at": "2026-10-08T15:30:57.049271091Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "[\n    {\n        \"Id\": \"sha256:109123e5c1da63b7d1a015ed13fc2a86e82d0f334abd4d947a920bc8680b9d20\",\n        \"RepoTags\": [\n            \"registry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0\"\n        ],\n        \"RepoDigests\": [\n            \"registry.chengyistudio.com/cxx/worker@sha256:0213dfc739c7ca3ca6f689e03ac02a2a2ad29f6ac74a85a5b38f77bf1d89e00a\"\n        ],\n        \"Parent\": \"\",\n        \"Comment\": \"buildkit.dockerfile.v0\",\n        \"Created\": \"2026-09-17T16:39:38.651497357+08:00\",\n        \"Container\": \"\",\n        \"ContainerConfig\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": null,\n            \"Cmd\": null,\n            \"Image\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"\",\n            \"Entrypoint\": null,\n            \"OnBuild\": null,\n            \"Labels\": null\n        },\n        \"DockerVersion\": \"\",\n        \"Author\": \"\",\n        \"Config\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": null,\n            \"Image\": \"\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/qt5-algorithm\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"2:2\",\n                \"io.uestcradar.output\": \"3:2\",\n                \"io.uestcradar.roles\": \"operator\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"Architecture\": \"arm64\",\n        \"Os\": \"linux\",\n        \"Size\": 865214799,\n        \"VirtualSize\": 865214799,\n        \"GraphDriver\": {\n            \"Data\": {\n                \"LowerDir\": \"/var/lib/docker/overlay2/ba4b02300d9aa86d7e45ea81749d85e04a384e5a258032ce8a330850b4c85c75/diff:/var/lib/docker/overlay2/e162c89d167b4f2bf73758742c2720286ce44c6af4f554d2d483061e88e0aa85/diff:/var/lib/docker/overlay2/0d264c5dec497e56006c1a7433618aa6b51e4cf2fa627ca7e489489da131ad2d/diff:/var/lib/docker/overlay2/379c61cd3de9aa79a2d8d1f67fdb169d20bed0e5ee340b66411349348d76680a/diff:/var/lib/docker/overlay2/c3aabac40600214c7bb7ed30989410fa2ee48da39f9bce394d46cac1d2825ba8/diff:/var/lib/docker/overlay2/d451a6e6f917e410872c5294116c6c69da8544cfd402408db0ef11804d7642f7/diff:/var/lib/docker/overlay2/71a6263cad234ea518f8963b6655ffaf1f4488709a740729e30e09f1479321de/diff:/var/lib/docker/overlay2/af5f0879683f2b8433610b74686bc08ba289b0f98f99eb12490728c0dbff377d/diff:/var/lib/docker/overlay2/844d61bea8ef61e98913b044999b9a9e710d2ef9e47ab92fcf83df2182d5f1fc/diff:/var/lib/docker/overlay2/50d82518f0efeb3f5c1394a3f57f60ab47765223f7e1fd8ff40ca118769fb0b9/diff:/var/lib/docker/overlay2/20a697b932b33f0cf4aee762732b6c4f1e9ac83631ede2721a40bb0eae66e5a2/diff:/var/lib/docker/overlay2/99557ea803544c27b9e15c7a79703f672386df26b17d32c0314ca6ac58ff9a29/diff:/var/lib/docker/overlay2/6c8e4387ca194edab1385239ab4111d76e15d172cc54faddec85fab438d79122/diff:/var/lib/docker/overlay2/a2266733d6788d952ab8677eea5eebdeedccac13f30d86a8105b03f24a781344/diff:/var/lib/docker/overlay2/a2863e2c30f2c35e4ed423a88a1d3ab856c2011bf884ff325ca70c787f7592af/diff:/var/lib/docker/overlay2/ffd755791681dc057c1f94f95af581d56e36d8c03c5389d164cf77c1cc145e80/diff:/var/lib/docker/overlay2/de7b404e683e0a420e3e6aad00fcfe9219f217ed46183494c3d9860e71cec1da/diff:/var/lib/docker/overlay2/e54487adad14dadad0a6f8b242ff0fb71d17b0b0e3742977f88cde4df0a11696/diff:/var/lib/docker/overlay2/27e40da608061a6c4bb165cdcb083504abd1b1051ef26c70970f105ddf2483c5/diff:/"
+    },
+    {
+      "sequence": 62,
+      "at": "2026-10-08T15:30:57.049292821Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "var/lib/docker/overlay2/82faecf1d37a98b196d05d320bcc6d7d0f7cde87283d2bd56627d487e5caac32/diff\",\n                \"MergedDir\": \"/var/lib/docker/overlay2/a93574659de2f5bb0145ce14c0326c0a7028993578ad5d0671c11012f91614e2/merged\",\n                \"UpperDir\": \"/var/lib/docker/overlay2/a93574659de2f5bb0145ce14c0326c0a7028993578ad5d0671c11012f91614e2/diff\",\n                \"WorkDir\": \"/var/lib/docker/overlay2/a93574659de2f5bb0145ce14c0326c0a7028993578ad5d0671c11012f91614e2/work\"\n            },\n            \"Name\": \"overlay2\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:2d8834226313616cc27c8a08ca876096cf83f18090b5fa07fd65dba017ec9e5e\",\n                \"sha256:d47ac722b9a4dbf5e9230ef864b44e94c42e330e94a53f4ce6889eefcbe6bb30\",\n                \"sha256:5306353fd47869dedd78a9fa1f386628fc925b1ed4798517002a289192fea5b4\",\n                \"sha256:cd2ce9996cfbf4f54fd7485fc615f9d07b8ebb3a93ea4f4ce35c6236cb2d77a8\",\n                \"sha256:ee25c4de7bd9c3742bbcfa656b05bd1dcd1775d19b076ce4a26cab4f806e3b88\",\n                \"sha256:94d2d112160e71ef5c4c19d17be8b87ebb77db59386c4d379f074023a17f8f82\",\n                \"sha256:4bbca6c716954b6525b13124c48094da2e7e67c2f21f75dc2d45c1533d880216\",\n                \"sha256:ac3e3f976d85c96d6c208b24a681cb6f24165148b04f60b50bed2920d18e28ad\",\n                \"sha256:bcd56098642538b2539aa6d02ac93974f2f54db446249bd08517eaadf40fc681\",\n                \"sha256:224fc5f0240933118f0b0b91ac0c519b841851c2c7ff8e529fbb2c86dd434207\",\n                \"sha256:5fe9492cdc4f057745a40f90819c7073760d12e34145dc0a222dd44c2a57fb0d\",\n                \"sha256:1c1329436a18742c53cb2b7caa2c745a0e4bc4a7bac3659be21508abe4adc574\",\n                \"sha256:c293f0b68608ebe3b4131a15c2b508927699731264a0931e5839eb58ea0d669c\",\n                \"sha256:932f069a9e64c1437ebef47ff648a21351649fcae46d75031994bae2d9642c7b\",\n                \"sha256:1b2b3f59eb9f817bbc0eda819dd165ff530298fd9fff98f87735e012e4d476ef\",\n                \"sha256:5b4de31e26b1716b68a2568028bded96b69d540608bb309f529b2216e9822c92\",\n                \"sha256:890ba65d12c9f189c16b1ac29b9926c77b81c0c56b363aca0960ca7127ac0aab\",\n                \"sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef\",\n                \"sha256:adbffcb4a957511dd1c77c04832e0c48491ecf24e92a9cbe110e48131c59738a\",\n                \"sha256:8145e6abc2ab6fa374a693ac0f5f90f0523c942ba22feb507953ecddcbd43634\",\n                \"sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"0001-01-01T00:00:00Z\"\n        }\n    }\n]\n"
+    },
+    {
+      "sequence": 63,
+      "at": "2026-10-08T15:30:57.049836993Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker image inspect 'registry.chengyistudio.com/cxx/worker:signalsource-latest'\n"
+    },
+    {
+      "sequence": 64,
+      "at": "2026-10-08T15:30:57.156866633Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "[\n    {\n        \"Id\": \"sha256:88f4d61bfa31f7d87947ababb043ab17ae4432ef684a85511e17e34145d406f0\",\n        \"RepoTags\": [\n            \"registry.chengyistudio.com/cxx/worker:signalsource-latest\"\n        ],\n        \"RepoDigests\": [\n            \"registry.chengyistudio.com/cxx/worker@sha256:c6833658a15367f4c4b115fa6391f563af26c7a04853519379f424da72c5feb9\"\n        ],\n        \"Parent\": \"\",\n        \"Comment\": \"Embed authoritative EchoExport CPI0-CPI9 datasets\",\n        \"Created\": \"2026-08-02T12:05:37.216368236Z\",\n        \"Container\": \"7996c5685597afc8adbf90a8a66f583d0cb8c6dfa03ef894fb9924f1452d2c44\",\n        \"ContainerConfig\": {\n            \"Hostname\": \"7996c5685597\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": null,\n            \"Image\": \"registry.chengyistudio.com/cxx/worker:signalsource-latest\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/entrypoint.sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"2:2\",\n                \"io.uestcradar.output\": \"1:3\",\n                \"io.uestcradar.roles\": \"source,sink\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"DockerVersion\": \"\",\n        \"Author\": \"UESTC Radar\",\n        \"Config\": {\n            \"Hostname\": \"7996c5685597\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": true,\n            \"AttachStderr\": true,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": null,\n            \"Image\": \"registry.chengyistudio.com/cxx/worker:signalsource-latest\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/entrypoint.sh\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"2:2\",\n                \"io.uestcradar.output\": \"1:3\",\n                \"io.uestcradar.roles\": \"source,sink\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"Architecture\": \"arm64\",\n        \"Os\": \"linux\",\n        \"Size\": 595743003,\n        \"VirtualSize\": 595743003,\n        \"GraphDriver\": {\n            \"Data\": {\n                \"LowerDir\": \"/var/lib/docker/overlay2/436bcec2b518beacec39228fbfebc8d87adc4b23b1112e23bb3da9d71680e975/diff:/var/lib/docker/overlay2/5be0f98d105b12f8c3e103838bf3cb548694fbc028b67f322699da1b96e93ee5/diff:/var/lib/docker/overlay2/5d9b094fb0727e2118a636ed3f6333d8b960220f1e5963df2bcef28b6f48f39a/diff:/var/lib/docker/overlay2/ffd755791681dc057c1f94f95af581d56e36d8c03c5389d164cf77c1cc145e80/diff:/var/lib/docker/overlay2/de7b404e683e0a420e3e6aad00fcfe9219f217ed46183494c3d9860e71cec1da/diff:/var/lib/docker/overlay2/e54487adad14dadad0a6f8b242ff0fb71d17b0b0e3742977f88cde4df0a11696/diff:/var/lib/docker/overlay2/27e40da608061a6c4bb165cdcb083504abd1b1051ef26c70970f105ddf2483c5/diff:/var/lib/docker/overlay2/82faecf1d37a98b196d05d320bcc6d7d0f7cde87283d2bd56627d487e5caac32/diff\",\n                \"MergedDir\": \"/var/lib/docker/overlay2/5cad68b5144de26ae59c2239caf6cc000dd14fb3235798b52c7f2ecbd9d15ea8/merged\",\n                \"UpperDir\": \"/var/lib/docker/overlay2/5cad68b5144de26ae59c2239caf6cc000dd14fb3235798b52c7f2ecbd9d15ea8/diff\",\n                \"WorkDir\": \"/var/lib/docker/overlay2/5cad68b5144de26ae59c2239caf6cc00"
+    },
+    {
+      "sequence": 65,
+      "at": "2026-10-08T15:30:57.156879383Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "0dd14fb3235798b52c7f2ecbd9d15ea8/work\"\n            },\n            \"Name\": \"overlay2\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:2d8834226313616cc27c8a08ca876096cf83f18090b5fa07fd65dba017ec9e5e\",\n                \"sha256:d47ac722b9a4dbf5e9230ef864b44e94c42e330e94a53f4ce6889eefcbe6bb30\",\n                \"sha256:5306353fd47869dedd78a9fa1f386628fc925b1ed4798517002a289192fea5b4\",\n                \"sha256:cd2ce9996cfbf4f54fd7485fc615f9d07b8ebb3a93ea4f4ce35c6236cb2d77a8\",\n                \"sha256:ee25c4de7bd9c3742bbcfa656b05bd1dcd1775d19b076ce4a26cab4f806e3b88\",\n                \"sha256:faac58a8b8020e447af8a94281ed28c497199b657ff28cfac00b4b8b7a89cddb\",\n                \"sha256:2c72358eafddc9756d5da6bdbaf506869cc4834964702b50e0664369f1485192\",\n                \"sha256:39bfe843aca00df46aaf62d92ee507c2b30e8db340d033c9a11d4404cfbe59d4\",\n                \"sha256:c50dec0e31aa0cc35eca9b89ec4aa55454cda9354bd6a0ebc4ffef41ba95f2b9\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"0001-01-01T00:00:00Z\"\n        }\n    }\n]\n"
+    },
+    {
+      "sequence": 66,
+      "at": "2026-10-08T15:30:57.157555784Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ docker image inspect 'registry.chengyistudio.com/cxx/worker:cascade-worker-latest'\n"
+    },
+    {
+      "sequence": 67,
+      "at": "2026-10-08T15:30:57.26280071Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "[\n    {\n        \"Id\": \"sha256:4914f5d800dec3a6679c0194055e1feba006c2c76c42e403de88ecdd4e405745\",\n        \"RepoTags\": [\n            \"registry.chengyistudio.com/cxx/worker:cascade-worker-latest\"\n        ],\n        \"RepoDigests\": [\n            \"registry.chengyistudio.com/cxx/worker@sha256:70060095bd76a60cec594c0f493e3def3b2c59b323580ac393029434c6080424\"\n        ],\n        \"Parent\": \"\",\n        \"Comment\": \"\",\n        \"Created\": \"2026-08-02T03:46:10.213516054Z\",\n        \"Container\": \"dcf7e14ad0bcb6413fad5f9b007997fa0bd0a04f6804d4fe2816263dd3678326\",\n        \"ContainerConfig\": {\n            \"Hostname\": \"dcf7e14ad0bc\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": [\n                \"/bin/sh\",\n                \"-c\",\n                \"#(nop) \",\n                \"LABEL io.uestcradar.contract=worker/v2 io.uestcradar.roles=source,operator,sink io.uestcradar.input=1:2 io.uestcradar.output=1:2\"\n            ],\n            \"Image\": \"sha256:4af5ed2f487c064a64b449541a4ca57da4411ec743524f3f933aba3bfb744239\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/cascade-worker\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"1:2\",\n                \"io.uestcradar.output\": \"1:2\",\n                \"io.uestcradar.roles\": \"source,operator,sink\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"DockerVersion\": \"19.03.15\",\n        \"Author\": \"\",\n        \"Config\": {\n            \"Hostname\": \"\",\n            \"Domainname\": \"\",\n            \"User\": \"\",\n            \"AttachStdin\": false,\n            \"AttachStdout\": false,\n            \"AttachStderr\": false,\n            \"Tty\": false,\n            \"OpenStdin\": false,\n            \"StdinOnce\": false,\n            \"Env\": [\n                \"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n                \"DEBIAN_FRONTEND=noninteractive\"\n            ],\n            \"Cmd\": [\n                \"--test\",\n                \"benchmark\",\n                \"--payload-bytes\",\n                \"134217728\",\n                \"--duration-seconds\",\n                \"86400\"\n            ],\n            \"Image\": \"sha256:4af5ed2f487c064a64b449541a4ca57da4411ec743524f3f933aba3bfb744239\",\n            \"Volumes\": null,\n            \"WorkingDir\": \"/app\",\n            \"Entrypoint\": [\n                \"/app/cascade-worker\"\n            ],\n            \"OnBuild\": null,\n            \"Labels\": {\n                \"io.uestcradar.contract\": \"worker/v2\",\n                \"io.uestcradar.input\": \"1:2\",\n                \"io.uestcradar.output\": \"1:2\",\n                \"io.uestcradar.roles\": \"source,operator,sink\",\n                \"org.opencontainers.image.version\": \"24.04\"\n            }\n        },\n        \"Architecture\": \"arm64\",\n        \"Os\": \"linux\",\n        \"Size\": 445116844,\n        \"VirtualSize\": 445116844,\n        \"GraphDriver\": {\n            \"Data\": {\n                \"LowerDir\": \"/var/lib/docker/overlay2/41d71f7a8629b030d49c8030d122fbdcd63ff17b50de0b04f9849804aeb63f15/diff:/var/lib/docker/overlay2/f3d8fba15891ae535f51ee144fdd635254632c75b8d6f9395d926c192f2bc318/diff:/var/lib/docker/overlay2/4d8631d76a2e6cdf682309fe5d8154e0687c10ffebeadf17c59ce786deca12af/diff:/var/lib/docker/overlay2/dac586284c6742d2982cd6a5b87054f92ee8cb52d9b635d89922055598d448c1/diff:/var/lib/docker/overlay2/11a37cc515bf7154eb5e9027f7bfb95a8819a476e99708d37e9f63ea3778d42a/diff:/var/lib/docker/overlay2/8a2eb49e926a2567e6c575f140a06e4dd219bddfc859c59fe2d56b50548a2ca2/diff:/var/lib/docker/overlay2/82faecf1d37a98b196d05d320bcc6d7d0f7cde87283d2bd56627d487e5caac32/diff\",\n                \"Me"
+    },
+    {
+      "sequence": 68,
+      "at": "2026-10-08T15:30:57.2628142Z",
+      "ip": "192.162.2.80",
+      "stream": "stdout",
+      "text": "rgedDir\": \"/var/lib/docker/overlay2/4568fae22ddeee7fd968dcef93b8d2e0acca312b99c9733d44b20e4f199d319b/merged\",\n                \"UpperDir\": \"/var/lib/docker/overlay2/4568fae22ddeee7fd968dcef93b8d2e0acca312b99c9733d44b20e4f199d319b/diff\",\n                \"WorkDir\": \"/var/lib/docker/overlay2/4568fae22ddeee7fd968dcef93b8d2e0acca312b99c9733d44b20e4f199d319b/work\"\n            },\n            \"Name\": \"overlay2\"\n        },\n        \"RootFS\": {\n            \"Type\": \"layers\",\n            \"Layers\": [\n                \"sha256:2d8834226313616cc27c8a08ca876096cf83f18090b5fa07fd65dba017ec9e5e\",\n                \"sha256:67acc1f2a865d0771e8acba0147eda6ed118062ee6a65d8ae1e21fa211ed7ec2\",\n                \"sha256:661e5a1bb2f6197cedd33ec46fa4060e99ca37cb3821b8eba96854e4cf62bb6c\",\n                \"sha256:19d2a5fa4b965553e7ffe7f89ef615b1a7335499aa5c7c56763aff0f2ad2fed6\",\n                \"sha256:f4773069f0ef69c70b2e13f12f88e315f6c81873444f0f3c158ef36dc13cce0d\",\n                \"sha256:22324f7e6ed963237ea5749153465786444fc2a38218471bcb4306f920181afc\",\n                \"sha256:b2f31682fac913108aa90d1cd71103975ab51213b0f0315201629ad5f9b5473e\",\n                \"sha256:2b24c9b7c964f77fd7b405b30cf923c27aec29cd3eb18eb6dba652090d83db45\"\n            ]\n        },\n        \"Metadata\": {\n            \"LastTagTime\": \"0001-01-01T00:00:00Z\"\n        }\n    }\n]\n"
+    },
+    {
+      "sequence": 69,
+      "at": "2026-10-08T15:30:57.263675842Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ for id in $(docker ps -aq --filter label=com.docker.compose.project=uestcradar-cascade); do docker inspect --format '{{index .Config.Labels \"com.docker.compose.service\"}}|{{.State.Status}}' \"$id\"; done\n"
+    },
+    {
+      "sequence": 70,
+      "at": "2026-10-08T15:30:57.475123125Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ set -- $(docker ps -q --filter label=com.docker.compose.project=uestcradar-cascade --filter label=com.docker.compose.service=sidecar-node); if [ \"$#\" -eq 1 ]; then docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \"$1\" | grep '^NODE_ID='; fi\n"
+    }
+  ]
+}
