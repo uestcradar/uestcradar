@@ -2,7 +2,7 @@
 
 同一 Go + React 应用用于单机直接访问和后续 Web 同源内嵌。复用原预览协议、波形/RD 绘图与遥测；不包含 SSH、Docker 编排或账号系统。
 
-当前状态：已完成 ARM64 构建/测试、Harbor 发布及 KT2/KT3 本机真实绘图与隔离验收；**Web 集成及服务器链路尚未完成**。见 [验收证据](../tasks/evidence/acceptance.md) 和 [todo](../tasks/todo.md)。
+本文说明 Frontend 的部署与维护；系统架构统一以 [TARGET_ARCHITECTURE.md](../../TARGET_ARCHITECTURE.md) 为准。
 
 ## 部署入口
 
@@ -12,7 +12,7 @@
 docker compose up -d --no-build
 ```
 
-Compose 已包含经验证的 ARM64 Harbor digest 与节点默认配置，无需部署环境文件。KT2 算法页为 `http://127.0.0.1:8082`，KT3 RD 页为 `http://127.0.0.1:8083`；两案例不同时运行。当前 Frontend digest 为 `sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052`，来源与发布记录见 [发布证据](../tasks/evidence/frontend-release.md)。
+Compose 已包含经验证的 ARM64 Harbor digest 与节点默认配置，无需部署环境文件。KT2 算法页为 `http://127.0.0.1:8082`，KT3 RD 页为 `http://127.0.0.1:8083`；两案例不同时运行。当前 Frontend digest 为 `sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052`。
 
 ## 节点配置
 
