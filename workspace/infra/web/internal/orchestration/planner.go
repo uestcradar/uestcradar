@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+// Hardware access is an explicit release approval, not a tag/Entrypoint claim.
+const pcieSourceReference = "registry.chengyistudio.com/cxx/worker@sha256:5cf489a8efd621ee1a1ce5f54a6e33ee8a16d0eca114e40c49d90a00fc1a330b"
+
 const frontendReference = "registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052"
 
 const distributedCompose = `version: "2.4"
@@ -182,6 +185,9 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		if worker.Architecture != "arm64" {
 			return DeploymentPlan{}, fmt.Errorf("Worker %s is not ARM64", entry.WorkerImage)
 		}
+		if err := validatePCIeSource(worker, role); err != nil {
+			return DeploymentPlan{}, err
+		}
 		if role == "source" && worker.Contract.Output == "none" {
 			return DeploymentPlan{}, fmt.Errorf("Source output cannot be none")
 		}
@@ -227,6 +233,11 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		}
 	}
 	for index := range planned {
+		if planned[index].WorkerDigest == pcieSourceReference {
+			planned[index].compose = strings.Replace(planned[index].compose,
+				"    ipc: service:sidecar-node\n    restart: unless-stopped\n",
+				"    ipc: service:sidecar-node\n    restart: \"no\"\n    devices:\n      - /dev/mem:/dev/mem:rw\n    cap_add: [SYS_RAWIO]\n", 1)
+		}
 		if planned[index].SignalSink {
 			planned[index].compose = strings.Replace(planned[index].compose,
 				"      CASCADE_ROLE: ${CASCADE_ROLE}",
@@ -245,6 +256,20 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		return DeploymentPlan{}, err
 	}
 	return DeploymentPlan{ID: id, CreatedAt: now, Nodes: planned}, nil
+}
+
+func validatePCIeSource(worker ImageInfo, role string) error {
+	approved := worker.DigestReference == pcieSourceReference
+	claimsPCIe := len(worker.Entrypoint) > 0 && worker.Entrypoint[0] == "/app/pcie_source"
+	if !approved && !claimsPCIe {
+		return nil
+	}
+	if !approved || role != "source" || len(worker.Entrypoint) != 1 || !claimsPCIe ||
+		len(worker.Command) != 0 || len(worker.Contract.Roles) != 1 || worker.Contract.Roles[0] != "source" ||
+		worker.Contract.Input != "none" || worker.Contract.Output != "4:1" {
+		return fmt.Errorf("PCIe Source requires the approved immutable digest, exact Entrypoint and source none→4:1 contract; hardware access denied")
+	}
+	return nil
 }
 
 func supportedSlotCount(value uint32) bool {

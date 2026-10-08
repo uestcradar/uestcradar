@@ -487,12 +487,30 @@ func (b *SSHBackend) HasDeployment(session *Session, ip string, output CommandOu
 	return existing, nil
 }
 
+// Read-only checks for the hardware layout used by the approved PCIe image.
+// Never repair host permissions or touch BAR/DMA registers during preflight.
+const pcieDevicePreflight = `set -eu
+fail() { echo "PCIe Source device preflight failed: $1" >&2; exit 1; }
+test -c /dev/mem && test -r /dev/mem && test -w /dev/mem || fail '/dev/mem is not accessible'
+board=/sys/bus/pci/devices/0000:04:00.0
+test -r "$board/vendor" && test -r "$board/device" && test -r "$board/resource" || fail 'expected PCIe board is absent'
+read -r vendor < "$board/vendor"
+read -r device < "$board/device"
+read -r base end flags < "$board/resource"
+test "$vendor" = 0x10ee && test "$device" = 0x7038 && test "$base" = 0x00000000ef000000 || fail 'board identity or BAR differs from approved image'
+`
+
 func (b *SSHBackend) UploadAndValidate(session *Session, node PlannedNode, output CommandOutput) error {
 	client, err := b.client(session, node.IP)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
+	if node.WorkerDigest == pcieSourceReference {
+		if _, err := runSSHOutput(client, pcieDevicePreflight, output); err != nil {
+			return fmt.Errorf("PCIe Source preflight: %w", err)
+		}
+	}
 	if err := pullFrontendImage(client, output); err != nil {
 		return err
 	}
