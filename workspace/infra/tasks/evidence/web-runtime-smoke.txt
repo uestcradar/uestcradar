@@ -1,0 +1,16 @@
+sha256:10cc29c22cba9aa41b12c3582d24d3f63f69536ee18b6242290f90783aee8711 arm64 65532:65532 ["/telemetry"]
+c863cdf1e16efb8791fa2a1cfd33bbca82fefff69eda76e531bfa432ea97177c
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (7) Failed to connect to 127.0.0.1 port 18080 after 0 ms: Couldn't connect to server
+Warning: Problem : connection refused. Will retry in 1 seconds. 10 retries
+Warning: left.
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+100    61  100    61    0     0   110k      0 --:{"generated_at":"2026-10-07T13:34:01.627387656Z","nodes":[]}
+--:-- --:--:-- --:--:-- 61000
+exit=0
+RUNTIME-ARM64-NONROOT-API-NO-9901-SHUTDOWN-PASS

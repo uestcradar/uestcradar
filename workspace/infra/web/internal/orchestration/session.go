@@ -1,6 +1,7 @@
 package orchestration
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"sync"
@@ -26,6 +27,8 @@ type Session struct {
 	Nodes       map[string]NodeInspection
 	Plans       map[string]DeploymentPlan
 	Tasks       map[string]*Task
+	ctx         context.Context
+	cancel      context.CancelFunc
 	timer       *time.Timer
 	mu          sync.Mutex
 }
@@ -49,7 +52,9 @@ func (s *SessionStore) Create(credentials Credentials) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	session := &Session{
+		ctx: ctx, cancel: cancel,
 		ID: id, CSRF: csrf, Credentials: credentials,
 		ExpiresAt: s.now().Add(sessionTTL), TrustedKeys: map[string]string{},
 		Nodes: map[string]NodeInspection{}, Plans: map[string]DeploymentPlan{},
@@ -74,9 +79,7 @@ func (s *SessionStore) Get(id string) (*Session, bool) {
 		if session.timer != nil {
 			session.timer.Stop()
 		}
-		session.mu.Lock()
-		zeroCredentials(&session.Credentials)
-		session.mu.Unlock()
+		session.invalidate()
 		return nil, false
 	}
 	session.ExpiresAt = s.now().Add(sessionTTL)
@@ -95,9 +98,7 @@ func (s *SessionStore) Delete(id string) {
 	}
 	s.mu.Unlock()
 	if session != nil {
-		session.mu.Lock()
-		zeroCredentials(&session.Credentials)
-		session.mu.Unlock()
+		session.invalidate()
 	}
 }
 
@@ -116,9 +117,16 @@ func (s *SessionStore) expire(id string) {
 	}
 	delete(s.sessions, id)
 	s.mu.Unlock()
-	session.mu.Lock()
-	zeroCredentials(&session.Credentials)
-	session.mu.Unlock()
+	session.invalidate()
+}
+
+func (s *Session) invalidate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cancel != nil {
+		s.cancel()
+	}
+	zeroCredentials(&s.Credentials)
 }
 
 func randomToken() (string, error) {

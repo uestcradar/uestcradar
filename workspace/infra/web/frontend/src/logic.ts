@@ -14,9 +14,9 @@ export function shmSizeForRing(slotCount: number, maxPayloadBytes: number): stri
   return `${Math.ceil(total / gibibyte)}g`;
 }
 
-export function validateChain(chain: ChainEntry[], nodes: NodeInspection[]): string {
+export function validateChain(chain: ChainEntry[], nodes: NodeInspection[], transport: 'strict-rdma' | 'tcp' = 'strict-rdma'): string {
 	if (chain.length < 2) return '至少需要一个 Source 节点和一个 Sink 节点';
-  if (chain.some(entry => !entry.ip || !entry.rdma_device || !entry.worker_image)) return '请完整选择每个节点、RDMA 端口和 Worker';
+  if (chain.some(entry => !entry.ip || (transport === 'strict-rdma' && !entry.rdma_device) || !entry.worker_image)) return '请完整选择每个节点、RDMA 端口和 Worker';
   if (new Set(chain.map(entry => entry.ip)).size !== chain.length) return '同一物理节点不能重复出现在链路中';
   for (let index = 0; index < chain.length - 1; index++) {
     const currentNode = nodes.find(node => node.ip === chain[index].ip);

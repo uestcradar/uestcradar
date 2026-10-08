@@ -1,0 +1,52 @@
+Sending build context to Docker daemon  398.3kB
+
+Step 1/12 : ARG WEB_PLATFORM=linux/arm64
+Step 2/12 : ARG GO_BASE=registry.chengyistudio.com/cxx/web:build-base
+Step 3/12 : FROM --platform=${WEB_PLATFORM} ${GO_BASE} AS builder
+ ---> 56887034ebde
+Step 4/12 : WORKDIR /src/web
+ ---> Using cache
+ ---> 872687865773
+Step 5/12 : ENV GOPROXY=https://goproxy.cn,direct
+ ---> Using cache
+ ---> 83eb6eaeb03f
+Step 6/12 : COPY workspace/infra/web/go.mod workspace/infra/web/go.sum ./
+ ---> Using cache
+ ---> 8f7883f39b8a
+Step 7/12 : RUN go mod download
+ ---> Using cache
+ ---> e1a645c6dfaa
+Step 8/12 : COPY workspace/infra/web/frontend/package.json workspace/infra/web/frontend/package-lock.json ./frontend/
+ ---> Using cache
+ ---> c3f99bd16769
+Step 9/12 : RUN cmp frontend/package-lock.json /opt/web-frontend/package-lock.json     && cp -a /opt/web-frontend/node_modules frontend/node_modules
+ ---> Using cache
+ ---> d88a70aebfb8
+Step 10/12 : COPY workspace/infra/web/ ./
+ ---> 6ba7b4bbf36e
+Step 11/12 : COPY workspace/infra/proto/telemetry.proto /src/proto/telemetry.proto
+ ---> f52318d56598
+Step 12/12 : RUN (cd frontend && npm run build)     && protoc       -I /src/proto       --go_out=.       --go_opt=module=uestcradar/telemetry       /src/proto/telemetry.proto     && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags="-s -w"        -o /out/telemetry ./cmd/telemetry
+ ---> Running in 8d05272ad46a
+
+> uestcradar-control-plane@1.0.0 build
+> tsc && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 30 modules transformed.
+rendering chunks...
+computing gzip size...
+../web/dist/index.html                   0.41 kB │ gzip:  0.29 kB
+../web/dist/assets/index-3nX5ytIv.css   12.51 kB │ gzip:  3.35 kB
+../web/dist/assets/index-DOXA29bo.js   173.41 kB │ gzip: 56.57 kB
+✓ built in 1.19s
+[91mnpm notice
+npm notice New major version of npm available! 10.8.2 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+[0mRemoving intermediate container 8d05272ad46a
+ ---> 4afe4ca1c1d7
+Successfully built 4afe4ca1c1d7
+Successfully tagged uestcradar/web:lan-g01-tests

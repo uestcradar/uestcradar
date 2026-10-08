@@ -15,12 +15,13 @@ type WorkerContract struct {
 }
 
 type ImageInfo struct {
-	Reference    string         `json:"reference"`
-	ID           string         `json:"id"`
-	Architecture string         `json:"architecture"`
-	Entrypoint   []string       `json:"entrypoint,omitempty"`
-	Command      []string       `json:"command,omitempty"`
-	Contract     WorkerContract `json:"contract"`
+	DigestReference string         `json:"digest_reference,omitempty"`
+	Reference       string         `json:"reference"`
+	ID              string         `json:"id"`
+	Architecture    string         `json:"architecture"`
+	Entrypoint      []string       `json:"entrypoint,omitempty"`
+	Command         []string       `json:"command,omitempty"`
+	Contract        WorkerContract `json:"contract"`
 }
 
 type RDMAInterface struct {
@@ -33,6 +34,7 @@ type RDMAInterface struct {
 }
 
 type NodeInspection struct {
+	NodeID             string          `json:"node_id,omitempty"`
 	ErrorCode          string          `json:"error_code,omitempty"`
 	IP                 string          `json:"ip"`
 	Reachable          bool            `json:"reachable"`
@@ -46,6 +48,7 @@ type NodeInspection struct {
 	RDMA               []RDMAInterface `json:"rdma"`
 	SidecarImageID     string          `json:"sidecar_image_id,omitempty"`
 	SidecarContract    string          `json:"sidecar_contract,omitempty"`
+	SidecarDigest      string          `json:"sidecar_digest,omitempty"`
 	Workers            []ImageInfo     `json:"workers"`
 	ExistingDeployment bool            `json:"existing_deployment"`
 	DeploymentState    string          `json:"deployment_state,omitempty"`
@@ -70,6 +73,7 @@ type ChainEntry struct {
 }
 
 type PlanRequest struct {
+	Transport       string       `json:"transport,omitempty"`
 	Chain           []ChainEntry `json:"chain"`
 	SlotCount       uint32       `json:"slot_count"`
 	MaxPayloadBytes uint32       `json:"max_payload_bytes"`
@@ -84,6 +88,8 @@ type PlannedNode struct {
 	NetDev             string `json:"netdev"`
 	RDMAIP             string `json:"rdma_ip"`
 	WorkerReference    string `json:"worker_reference"`
+	WorkerDigest       string `json:"worker_digest"`
+	SidecarDigest      string `json:"sidecar_digest"`
 	WorkerImageID      string `json:"worker_image_id"`
 	SidecarImageID     string `json:"sidecar_image_id"`
 	Input              string `json:"input"`

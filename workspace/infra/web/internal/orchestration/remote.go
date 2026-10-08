@@ -57,6 +57,7 @@ type RemoteBackend interface {
 	Inspect(*Session, string, CommandOutput) (NodeInspection, error)
 	PullWorker(*Session, string, string, CommandOutput) error
 	PullSidecar(*Session, string, CommandOutput) error
+	PullFrontend(*Session, string, CommandOutput) error
 	HasDeployment(*Session, string, CommandOutput) (bool, error)
 	UploadAndValidate(*Session, PlannedNode, CommandOutput) error
 	Start(*Session, PlannedNode, CommandOutput) error
@@ -221,13 +222,26 @@ func copyCommandOutput(group *sync.WaitGroup, source io.Reader, destination *byt
 }
 
 type dockerInspect struct {
-	ID           string `json:"Id"`
-	Architecture string `json:"Architecture"`
+	RepoDigests  []string `json:"RepoDigests"`
+	ID           string   `json:"Id"`
+	Architecture string   `json:"Architecture"`
 	Config       struct {
 		Labels     map[string]string `json:"Labels"`
 		Entrypoint []string          `json:"Entrypoint"`
 		Cmd        []string          `json:"Cmd"`
+		User       string            `json:"User"`
 	} `json:"Config"`
+}
+
+var harborDigestPattern = regexp.MustCompile(`^registry\.chengyistudio\.com/cxx/(worker|sidecar)@sha256:[0-9a-f]{64}$`)
+
+func harborDigest(image dockerInspect, repository string) string {
+	for _, digest := range image.RepoDigests {
+		if strings.HasPrefix(digest, "registry.chengyistudio.com/cxx/"+repository+"@") && harborDigestPattern.MatchString(digest) {
+			return digest
+		}
+	}
+	return ""
 }
 
 func inspectImage(client *ssh.Client, reference string, sink CommandOutput) (dockerInspect, error) {
@@ -270,6 +284,7 @@ func (b *SSHBackend) Inspect(session *Session, ip string, output CommandOutput) 
 
 	sidecar, err := inspectImage(client, sidecarReference, output)
 	if err == nil {
+		result.SidecarDigest = harborDigest(sidecar, "sidecar")
 		result.SidecarImageID = sidecar.ID
 		result.SidecarContract = sidecar.Config.Labels["io.uestcradar.contract"]
 	}
@@ -288,7 +303,7 @@ func (b *SSHBackend) Inspect(session *Session, ip string, output CommandOutput) 
 		if contractErr != nil || (len(image.Config.Entrypoint) == 0 && len(image.Config.Cmd) == 0) {
 			continue
 		}
-		result.Workers = append(result.Workers, ImageInfo{Reference: reference, ID: image.ID, Architecture: image.Architecture, Entrypoint: image.Config.Entrypoint, Command: image.Config.Cmd, Contract: contract})
+		result.Workers = append(result.Workers, ImageInfo{Reference: reference, DigestReference: harborDigest(image, "worker"), ID: image.ID, Architecture: image.Architecture, Entrypoint: image.Config.Entrypoint, Command: image.Config.Cmd, Contract: contract})
 	}
 	sort.Slice(result.Workers, func(i, j int) bool { return result.Workers[i].Reference < result.Workers[j].Reference })
 	deployment, err := runSSHOutput(client, deploymentStatusCommand, output)
@@ -296,6 +311,16 @@ func (b *SSHBackend) Inspect(session *Session, ip string, output CommandOutput) 
 		return result, fmt.Errorf("inspect existing deployment: %w", err)
 	}
 	result.ExistingDeployment, result.DeploymentState = deploymentStatus(deployment)
+	binding, err := runSSHOutput(client, "set -- $(docker ps -q --filter label=com.docker.compose.project=uestcradar-cascade --filter label=com.docker.compose.service=sidecar-node); if [ \"$#\" -eq 1 ]; then docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \"$1\" | grep '^NODE_ID='; fi", output)
+	if err != nil {
+		return result, fmt.Errorf("inspect node identity: %w", err)
+	}
+	if binding != "" {
+		if !strings.HasPrefix(binding, "NODE_ID=") || strings.ContainsAny(binding, "\\\r\n\t ") {
+			return result, fmt.Errorf("invalid deployed node identity")
+		}
+		result.NodeID = strings.TrimPrefix(binding, "NODE_ID=")
+	}
 	return result, nil
 }
 
@@ -393,6 +418,29 @@ func (b *SSHBackend) PullSidecar(session *Session, ip string, output CommandOutp
 	return err
 }
 
+func (b *SSHBackend) PullFrontend(session *Session, ip string, output CommandOutput) error {
+	client, err := b.client(session, ip)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return pullFrontendImage(client, output)
+}
+
+func pullFrontendImage(client *ssh.Client, output CommandOutput) error {
+	if _, err := runSSHOutput(client, "docker pull "+shellQuote(frontendReference), output); err != nil {
+		return err
+	}
+	image, err := inspectImage(client, frontendReference, output)
+	if err != nil {
+		return err
+	}
+	if image.Architecture != "arm64" || len(image.Config.Entrypoint) != 1 || image.Config.Entrypoint[0] != "/frontend" || image.Config.User != "65532:65532" {
+		return fmt.Errorf("unexpected Frontend image architecture, entrypoint or user")
+	}
+	return nil
+}
+
 func (b *SSHBackend) HasDeployment(session *Session, ip string, output CommandOutput) (bool, error) {
 	client, err := b.client(session, ip)
 	if err != nil {
@@ -413,6 +461,9 @@ func (b *SSHBackend) UploadAndValidate(session *Session, node PlannedNode, outpu
 		return err
 	}
 	defer client.Close()
+	if err := pullFrontendImage(client, output); err != nil {
+		return err
+	}
 	if _, err := runSSHOutput(client, "mkdir -p "+shellQuote(remoteDirectory), output); err != nil {
 		return err
 	}
@@ -421,6 +472,11 @@ func (b *SSHBackend) UploadAndValidate(session *Session, node PlannedNode, outpu
 		return err
 	}
 	defer sftpClient.Close()
+	revision, err := installFrontendTLS(sftpClient, node.IP)
+	if err != nil {
+		return fmt.Errorf("prepare Frontend TLS: %w", err)
+	}
+	node.env += "FRONTEND_TLS_REV=" + revision + "\n"
 	composeTemp := remoteDirectory + "/." + composeFilename + ".tmp"
 	envTemp := remoteDirectory + "/." + envFilename + ".tmp"
 	if err := writeRemoteFile(sftpClient, composeTemp, []byte(node.compose), 0644); err != nil {

@@ -6,7 +6,7 @@
 - Node.js、npm
 - 与 `frontend/package-lock.json` 对应的离线 `node_modules`
 
-运行镜像仍只使用两个标准 Tag：
+既有发布流程保留以下标准 Tag。本次 HTTPS 集成代码尚未发布；验收必须另记录获批的新不可变版本/digest，不把现有 `latest` 当作本次实现，也不擅自覆盖现有版本：
 
 ```text
 registry.chengyistudio.com/cxx/web:build-base
@@ -50,18 +50,38 @@ docker login registry.chengyistudio.com
 # 2. 强制拉取最新 Web 运行镜像
 docker pull registry.chengyistudio.com/cxx/web:latest
 
-# 3. 后台启动 Web 容器（共享宿主机物理网络，直通 8080/HTTP 与 9900/UDP）
+# 3. 后台启动 Web 容器（此配置启用 8080/HTTPS；9900/UDP 仍独立接收遥测）
 docker run -d \
   --name uestcradar-web \
   --network host \
   -e TELEMETRY_ADVERTISE_HOST=192.162.2.64 \
   -e TELEMETRY_TLS_CERT_FILE=/etc/uestcradar/tls/tls.crt \
   -e TELEMETRY_TLS_KEY_FILE=/etc/uestcradar/tls/tls.key \
-  -v /etc/uestcradar/tls:/etc/uestcradar/tls:ro \
+  -v /etc/uestcradar/tls/tls.crt:/etc/uestcradar/tls/tls.crt:ro \
+  -v /etc/uestcradar/tls/tls.key:/etc/uestcradar/tls/tls.key:ro \
   registry.chengyistudio.com/cxx/web:latest
 
 docker start uestcradar-web
 ```
+
+## 内网 HTTPS 节点预览（新版本，自动准备）
+
+- 浏览器只访问 Web；详情 iframe 使用 `/api/v1/nodes/{ip}/frontend/`，Web 通过 HTTPS/WSS 直连该节点管理 IP 的 8081。SSH 仅用于检查和部署，无预览隧道。
+- 按用户确认的可信内网模式，Web→Frontend 使用 HTTPS/WSS，但不校验证书链、有效期或 SAN。没有 CA 配置、签发服务或白名单配置页面。仅提供加密、不验证节点身份，不面向公网。
+- 部署自动生成自签证书，经 SSH/SFTP 上传到 `/root/workspace/docker/frontend-tls/<revision>/{server.crt,server.key}`；只读挂载，私钥为 UID/GID 65532:65532、0400。无 CA 签发私钥；不打印证书私钥、不进入镜像。
+- Frontend 的 SSL_CERT_FILE 指向自身 server.crt，仅用于原镜像的本地 healthcheck。Web 对浏览器的 TLS、已有 SSH 登录和主机指纹确认不变。
+- 不修改宿主防火墙，不要求用户配置 8081 来源限制；仅在可信内网部署。Sidecar 预览只到本机 9903，全局遥测仍直达 Web 9900。
+- Sidecar/Worker 先通过现有同步/检查流程取得 Harbor RepoDigest；生成配置使用 manifest digest，不回退到本地镜像 ID、dev 标签或临时构建。Frontend 使用已验收 digest。
+- 默认 strict-RDMA；选 TCP 必须显式操作，生成 functional/tcp,self 且不挂 RDMA 设备。刷新后选择器恢复 strict-RDMA 默认值；它表示下次部署配置，当前实际运输方式以链路遥测为准。
+- 每次部署自动生成新的十年期自签证书；revision 卷路径变化让 Compose 更新 Frontend，不为证书单独重启主链。保留旧版本目录，避免影响仍在运行的容器；不需手工续期或重启 Web 加载信任。
+
+节点从现有列表探查选择；仍需要可用的已有 SSH 凭据，不覆盖未知业务。证书、CA、8081 白名单不再是执行门槛。新版本移除 Web 9901 和旧预览实现，无双路径兼容。
+
+## 更新节点 Frontend
+
+已探查节点的操作区包含“更新 Sidecar / 更新 Worker / 更新 Frontend”。Frontend 更新复用现有登录、SSH 指纹确认、异步任务和控制台日志；拉取 Web 当前配置的已发布 Frontend digest，并检查 ARM64、入口及运行用户。不是选择任意 latest 标签，也不新增凭据。
+
+与现有镜像同步按钮一致，该操作仅同步节点镜像，不重启运行容器，不修改证书/Compose，不打断算法流。需要切换运行版本时，通过正常部署流程应用。
 
 ## 刷新后保留拓扑
 

@@ -14,7 +14,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"uestcradar/telemetry/internal/orchestration"
-	previewserver "uestcradar/telemetry/internal/preview"
 	pb "uestcradar/telemetry/internal/telemetrypb"
 	webassets "uestcradar/telemetry/web"
 )
@@ -27,7 +26,6 @@ const (
 // Config controls UDP ingestion and HTTP/WebSocket serving.
 type Config struct {
 	UDPAddress        string
-	PreviewTCPAddress string
 	HTTPAddress       string
 	TLSCertFile       string
 	TLSKeyFile        string
@@ -39,7 +37,6 @@ type Config struct {
 func ConfigFromEnv() Config {
 	return Config{
 		UDPAddress:        envOr("TELEMETRY_UDP_ADDR", ":9900"),
-		PreviewTCPAddress: envOr("PREVIEW_TCP_ADDR", ":9901"),
 		HTTPAddress:       envOr("TELEMETRY_HTTP_ADDR", ":8080"),
 		TLSCertFile:       os.Getenv("TELEMETRY_TLS_CERT_FILE"),
 		TLSKeyFile:        os.Getenv("TELEMETRY_TLS_KEY_FILE"),
@@ -59,20 +56,16 @@ func Run(parent context.Context, config Config) error {
 	if !secureHTTP && !config.AllowInsecureHTTP && !loopbackAddress(config.HTTPAddress) {
 		return fmt.Errorf("TLS certificate and key are required for non-loopback HTTP")
 	}
-	orchestrator := orchestration.NewService(config.AdvertiseHost, secureHTTP)
-	preview := previewserver.NewService()
+	orchestrator := orchestration.NewService(config.AdvertiseHost, secureHTTP, hub.ServeNodeTelemetry)
 	go hub.Run(ctx)
 	go scanNodeLeases(ctx, store, hub, nodeLeaseTTL, nodeScanInterval)
 
 	httpServer := &http.Server{
 		Addr:              config.HTTPAddress,
-		Handler:           newHTTPHandler(store, hub, orchestrator, preview),
+		Handler:           newHTTPHandler(store, hub, orchestrator),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	errorsChannel := make(chan error, 3)
-	go func() {
-		errorsChannel <- preview.RunTCP(ctx, config.PreviewTCPAddress)
-	}()
+	errorsChannel := make(chan error, 2)
 	go func() {
 		errorsChannel <- receiveUDP(ctx, config.UDPAddress, store, hub)
 	}()
@@ -121,9 +114,6 @@ func newHTTPHandler(store *Store, hub *Hub, orchestrationHandlers ...http.Handle
 	mux.HandleFunc("/ws", hub.ServeWebSocket)
 	if len(orchestrationHandlers) > 0 && orchestrationHandlers[0] != nil {
 		mux.Handle("/api/v1/", orchestrationHandlers[0])
-	}
-	if len(orchestrationHandlers) > 1 && orchestrationHandlers[1] != nil {
-		mux.Handle("/ws/frames", orchestrationHandlers[1])
 	}
 	mux.Handle("/", http.FileServer(http.FS(webassets.Files())))
 	return mux

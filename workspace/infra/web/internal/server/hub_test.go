@@ -9,7 +9,7 @@ import (
 func TestHubClientQueueKeepsLatestSnapshot(t *testing.T) {
 	store := NewStore()
 	hub := NewHub(store)
-	client := hub.subscribe()
+	client := hub.subscribe(nil)
 	defer hub.unsubscribe(client)
 
 	hub.mu.Lock()

@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const frontendReference = "registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052"
+
 const distributedCompose = `version: "2.4"
 
 services:
@@ -31,14 +33,14 @@ services:
       SIDECAR_UPSTREAM_PEER_HOST: ${UPSTREAM_PEER_HOST:-127.0.0.1}
       SIDECAR_UPSTREAM_PORT: ${UPSTREAM_PORT:-13337}
       SIDECAR_UPSTREAM_CONNECT_TIMEOUT_MS: ${CONNECT_TIMEOUT_MS:-1000}
-      SIDECAR_UPSTREAM_DATA_PATH: strict-rdma
+      SIDECAR_UPSTREAM_DATA_PATH: ${DATA_PATH}
       SIDECAR_DOWNSTREAM_ROLE: ${DOWNSTREAM_ROLE}
       SIDECAR_DOWNSTREAM_PEER_NODE_ID: ${DOWNSTREAM_PEER_NODE_ID:-}
       SIDECAR_DOWNSTREAM_BIND_HOST: ${DOWNSTREAM_BIND_HOST:-0.0.0.0}
       SIDECAR_DOWNSTREAM_PEER_HOST: ${DOWNSTREAM_PEER_HOST:-127.0.0.1}
       SIDECAR_DOWNSTREAM_PORT: ${DOWNSTREAM_PORT:-13337}
       SIDECAR_DOWNSTREAM_CONNECT_TIMEOUT_MS: ${CONNECT_TIMEOUT_MS:-1000}
-      SIDECAR_DOWNSTREAM_DATA_PATH: strict-rdma
+      SIDECAR_DOWNSTREAM_DATA_PATH: ${DATA_PATH}
       SIDECAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_upstream
       SIDECAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_downstream
       SIDECAR_UPSTREAM_SLOT_COUNT: ${SLOT_COUNT:-64}
@@ -62,6 +64,34 @@ services:
       TELEMETRY_HOST: ${TELEMETRY_HOST}
       TELEMETRY_PORT: ${TELEMETRY_PORT:-9900}
       SAMPLE_INTERVAL: ${SAMPLE_INTERVAL:-100}
+      PREVIEW_HOST: 127.0.0.1
+      PREVIEW_PORT: "9903"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          { test "$$SIDECAR_UPSTREAM_ROLE" = disabled || test -e /dev/shm/uestcradar_cascade_upstream; } &&
+          { test "$$SIDECAR_DOWNSTREAM_ROLE" = disabled || test -e /dev/shm/uestcradar_cascade_downstream; }
+      interval: 1s
+      timeout: 1s
+      retries: 90
+
+  frontend-node:
+    image: ${FRONTEND_IMAGE:?set FRONTEND_IMAGE}
+    platform: linux/arm64
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      NODE_ID: ${NODE_ID}
+      TELEMETRY_HTTP_ADDR: ${FRONTEND_HTTP_ADDR}
+      TELEMETRY_UDP_ADDR: 127.0.0.1:9902
+      PREVIEW_TCP_ADDR: 127.0.0.1:9903
+      TELEMETRY_TLS_CERT_FILE: /tls/server.crt
+      TELEMETRY_TLS_KEY_FILE: /tls/server.key
+      SSL_CERT_FILE: /tls/server.crt
+    volumes:
+      - /root/workspace/docker/frontend-tls/${FRONTEND_TLS_REV:?automatic TLS revision}/server.crt:/tls/server.crt:ro
+      - /root/workspace/docker/frontend-tls/${FRONTEND_TLS_REV:?automatic TLS revision}/server.key:/tls/server.key:ro
 
   worker-node:
     image: ${WORKER_IMAGE:?set WORKER_IMAGE}
@@ -73,10 +103,18 @@ services:
       CASCADE_ROLE: ${CASCADE_ROLE}
       UESTCRADAR_UPSTREAM_SHM_NAME: /uestcradar_cascade_upstream
       UESTCRADAR_DOWNSTREAM_SHM_NAME: /uestcradar_cascade_downstream
-    depends_on: [sidecar-node]
+    depends_on:
+      sidecar-node:
+        condition: service_healthy
 `
 
 func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHost string, now time.Time) (DeploymentPlan, error) {
+	if request.Transport == "" {
+		request.Transport = "strict-rdma"
+	}
+	if request.Transport != "strict-rdma" && request.Transport != "tcp" {
+		return DeploymentPlan{}, fmt.Errorf("transport must be strict-rdma or tcp")
+	}
 	if len(request.Chain) < 2 {
 		return DeploymentPlan{}, fmt.Errorf("chain requires a Source and Sink")
 	}
@@ -105,6 +143,9 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 	sidecarImageID := ""
 	planned := make([]PlannedNode, len(request.Chain))
 	for index, entry := range request.Chain {
+		if ip := net.ParseIP(entry.IP); ip == nil || ip.To4() == nil || ip.String() != entry.IP {
+			return DeploymentPlan{}, fmt.Errorf("node must be a canonical IPv4 address")
+		}
 		if seenIPs[entry.IP] {
 			return DeploymentPlan{}, fmt.Errorf("node %s is repeated", entry.IP)
 		}
@@ -132,6 +173,9 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		if !ok {
 			return DeploymentPlan{}, fmt.Errorf("Worker %s is not local on %s", entry.WorkerImage, entry.IP)
 		}
+		if !harborDigestPattern.MatchString(inspection.SidecarDigest) || !strings.HasPrefix(inspection.SidecarDigest, "registry.chengyistudio.com/cxx/sidecar@") || !harborDigestPattern.MatchString(worker.DigestReference) || !strings.HasPrefix(worker.DigestReference, "registry.chengyistudio.com/cxx/worker@") {
+			return DeploymentPlan{}, fmt.Errorf("node %s requires Harbor RepoDigests; synchronize Sidecar/Worker images and inspect again", entry.IP)
+		}
 		if !supportsRole(worker.Contract, role) {
 			return DeploymentPlan{}, fmt.Errorf("Worker %s does not support %s", entry.WorkerImage, role)
 		}
@@ -147,14 +191,19 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		if role == "sink" && worker.Contract.Input == "none" {
 			return DeploymentPlan{}, fmt.Errorf("Sink input cannot be none")
 		}
-		rdma, ok := findRDMA(inspection.RDMA, entry.RDMADevice)
-		if !ok || rdma.IPv4 == "" || !strings.EqualFold(rdma.State, "ACTIVE") {
-			return DeploymentPlan{}, fmt.Errorf("RDMA interface %s is unavailable on %s", entry.RDMADevice, entry.IP)
+		rdma := RDMAInterface{IPv4: entry.IP}
+		if request.Transport == "strict-rdma" {
+			var found bool
+			rdma, found = findRDMA(inspection.RDMA, entry.RDMADevice)
+			if !found || net.ParseIP(rdma.IPv4) == nil || !strings.EqualFold(rdma.State, "ACTIVE") {
+				return DeploymentPlan{}, fmt.Errorf("RDMA interface %s is unavailable on %s", entry.RDMADevice, entry.IP)
+			}
 		}
 		planned[index] = PlannedNode{
 			IP: entry.IP, NodeID: fmt.Sprintf("node-%d", index+1), Role: role,
 			RDMADevice: ucxDevice(rdma), NetDev: rdma.NetDev, RDMAIP: rdma.IPv4,
 			WorkerReference: worker.Reference, WorkerImageID: worker.ID,
+			WorkerDigest: worker.DigestReference, SidecarDigest: inspection.SidecarDigest,
 			SidecarImageID: inspection.SidecarImageID, Input: worker.Contract.Input,
 			Output: worker.Contract.Output, ExistingDeployment: inspection.ExistingDeployment,
 			compose: distributedCompose,
@@ -166,6 +215,9 @@ func BuildPlan(request PlanRequest, nodes map[string]NodeInspection, advertiseHo
 		}
 	}
 	for index := range planned {
+		if request.Transport == "tcp" {
+			planned[index].compose = strings.Replace(distributedCompose, "    devices:\n      - /dev/infiniband:/dev/infiniband\n    cap_add: [IPC_LOCK]\n    ulimits:\n      memlock: {soft: -1, hard: -1}\n", "", 1)
+		}
 		planned[index].env = renderNodeEnv(planned, index, request, advertiseHost)
 		planned[index].EnvPreview = planned[index].env
 	}
@@ -265,9 +317,16 @@ func renderNodeEnv(nodes []PlannedNode, index int, request PlanRequest, advertis
 	}
 	upTypeID, upTypeVersion := splitType(node.Input)
 	downTypeID, downTypeVersion := splitType(node.Output)
+	dataPath, ucxTLS, netDevices := "strict-rdma", "rc_verbs,tcp", node.RDMADevice+","+node.NetDev
+	if request.Transport == "tcp" {
+		dataPath, ucxTLS, netDevices = "functional", "tcp,self", "all"
+	}
 	lines := []string{
-		"SIDECAR_IMAGE=" + node.SidecarImageID,
-		"WORKER_IMAGE=" + node.WorkerImageID,
+		"FRONTEND_IMAGE=" + frontendReference,
+		"FRONTEND_HTTP_ADDR=" + net.JoinHostPort(node.IP, "8081"),
+		"DATA_PATH=" + dataPath,
+		"SIDECAR_IMAGE=" + node.SidecarDigest,
+		"WORKER_IMAGE=" + node.WorkerDigest,
 		"NODE_ID=" + node.NodeID,
 		"CASCADE_ROLE=" + node.Role,
 		"UPSTREAM_ROLE=" + upRole,
@@ -288,8 +347,8 @@ func renderNodeEnv(nodes []PlannedNode, index int, request PlanRequest, advertis
 		"SLOT_COUNT=" + strconv.FormatUint(uint64(request.SlotCount), 10),
 		"MAX_PAYLOAD_BYTES=" + strconv.FormatUint(uint64(request.MaxPayloadBytes), 10),
 		"SIDECAR_SHM_SIZE=" + request.SHMSize,
-		"UCX_TLS=rc_verbs,tcp",
-		"UCX_NET_DEVICES=" + node.RDMADevice + "," + node.NetDev,
+		"UCX_TLS=" + ucxTLS,
+		"UCX_NET_DEVICES=" + netDevices,
 		"TELEMETRY_HOST=" + advertiseHost,
 		"TELEMETRY_PORT=9900",
 		"SAMPLE_INTERVAL=100",

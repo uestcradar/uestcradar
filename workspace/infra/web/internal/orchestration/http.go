@@ -24,16 +24,18 @@ var usernamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.-]{0,63}$`)
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
 
 type Service struct {
-	sessions      *SessionStore
-	remote        RemoteBackend
-	advertiseHost string
-	secureCookies bool
-	mu            sync.RWMutex
-	discovered    map[string]NodeInspection
+	sessions          *SessionStore
+	remote            RemoteBackend
+	advertiseHost     string
+	secureCookies     bool
+	nodeTelemetry     func(http.ResponseWriter, *http.Request, func() string)
+	frontendTransport http.RoundTripper
+	mu                sync.RWMutex
+	discovered        map[string]NodeInspection
 }
 
-func NewService(advertiseHost string, secureCookies bool) *Service {
-	service := &Service{sessions: NewSessionStore(), remote: NewSSHBackend(), advertiseHost: advertiseHost, secureCookies: secureCookies, discovered: map[string]NodeInspection{}}
+func NewService(advertiseHost string, secureCookies bool, nodeTelemetry func(http.ResponseWriter, *http.Request, func() string)) *Service {
+	service := &Service{nodeTelemetry: nodeTelemetry, sessions: NewSessionStore(), remote: NewSSHBackend(), advertiseHost: advertiseHost, secureCookies: secureCookies, discovered: map[string]NodeInspection{}}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	for _, node := range Discover(ctx, DefaultNodeIPs, defaultDial) {
@@ -58,6 +60,8 @@ func (s *Service) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	switch {
+	case strings.HasPrefix(path, "/api/v1/nodes/"):
+		s.handleFrontend(writer, request, session)
 	case path == "/api/v1/orchestration/nodes" && request.Method == http.MethodPost:
 		s.handleAddNode(writer, request, session)
 	case path == "/api/v1/orchestration/inspect" && request.Method == http.MethodPost:
@@ -69,7 +73,9 @@ func (s *Service) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	case path == "/api/v1/orchestration/images/sync" && request.Method == http.MethodPost:
 		s.handleImageSync(writer, request, session)
 	case path == "/api/v1/orchestration/images/sidecar/sync" && request.Method == http.MethodPost:
-		s.handleSidecarSync(writer, request, session)
+		s.handleInfrastructureSync(writer, request, session, "Sidecar")
+	case path == "/api/v1/orchestration/images/frontend/sync" && request.Method == http.MethodPost:
+		s.handleInfrastructureSync(writer, request, session, "Frontend")
 	case path == "/api/v1/orchestration/plans/preview" && request.Method == http.MethodPost:
 		s.handlePreview(writer, request, session)
 	case path == "/api/v1/orchestration/deployments" && request.Method == http.MethodPost:
@@ -440,7 +446,7 @@ func (s *Service) handleImageSync(writer http.ResponseWriter, request *http.Requ
 	writeJSON(writer, http.StatusAccepted, task)
 }
 
-func (s *Service) handleSidecarSync(writer http.ResponseWriter, request *http.Request, session *Session) {
+func (s *Service) handleInfrastructureSync(writer http.ResponseWriter, request *http.Request, session *Session, component string) {
 	var body struct {
 		IP string `json:"ip"`
 	}
@@ -458,11 +464,15 @@ func (s *Service) handleSidecarSync(writer http.ResponseWriter, request *http.Re
 		http.Error(writer, "node must be inspected before image synchronization", http.StatusConflict)
 		return
 	}
-	task := s.newTask(session, "sidecar-image-sync")
+	task := s.newTask(session, strings.ToLower(component)+"-image-sync")
 	go func() {
-		s.updateTask(session, task.ID, "running", body.IP, "pulling Sidecar image", nil)
+		s.updateTask(session, task.ID, "running", body.IP, "pulling "+component+" image", nil)
 		output := s.taskOutput(session, task.ID, body.IP)
-		if err := s.remote.PullSidecar(session, body.IP, output); err != nil {
+		pull := s.remote.PullSidecar
+		if component == "Frontend" {
+			pull = s.remote.PullFrontend
+		}
+		if err := pull(session, body.IP, output); err != nil {
 			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil, sshErrorCode(err))
 			return
 		}
@@ -471,14 +481,14 @@ func (s *Service) handleSidecarSync(writer http.ResponseWriter, request *http.Re
 			s.updateTask(session, task.ID, "failed", body.IP, err.Error(), nil, sshErrorCode(err))
 			return
 		}
-		if inspection.SidecarContract != "sidecar/v2" || inspection.SidecarImageID == "" {
+		if component == "Sidecar" && (inspection.SidecarContract != "sidecar/v2" || inspection.SidecarImageID == "") {
 			s.updateTask(session, task.ID, "failed", body.IP, "updated image does not satisfy sidecar/v2", nil)
 			return
 		}
 		session.mu.Lock()
 		session.Nodes[body.IP] = inspection
 		session.mu.Unlock()
-		s.updateTask(session, task.ID, "completed", body.IP, "Sidecar image synchronized", []string{body.IP})
+		s.updateTask(session, task.ID, "completed", body.IP, component+" image synchronized (running containers unchanged)", []string{body.IP})
 	}()
 	writeJSON(writer, http.StatusAccepted, task)
 }
@@ -574,6 +584,7 @@ func (s *Service) deploy(session *Session, plan DeploymentPlan, confirmed bool, 
 		session.mu.Lock()
 		inspection := session.Nodes[node.IP]
 		inspection.IP = node.IP
+		inspection.NodeID = node.NodeID
 		inspection.ExistingDeployment = true
 		inspection.DeploymentState = "running"
 		session.Nodes[node.IP] = inspection
@@ -621,6 +632,7 @@ func (s *Service) stopDeployment(session *Session, ips []string, taskID string) 
 		completed = append(completed, ip)
 		session.mu.Lock()
 		node := session.Nodes[ip]
+		node.NodeID = ""
 		node.ExistingDeployment = false
 		node.DeploymentState = "absent"
 		session.Nodes[ip] = node

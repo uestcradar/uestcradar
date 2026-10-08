@@ -33,10 +33,11 @@ export const addNode = (ip: string) => request<NodeInspection>('/api/v1/orchestr
 export const inspectNodes = (ips: string[]) => request<Task>('/api/v1/orchestration/inspections', { method: 'POST', body: JSON.stringify({ ips }) });
 export const confirmHostKey = (ip: string, fingerprint: string) => request<void>('/api/v1/orchestration/host-keys/confirm', { method: 'POST', body: JSON.stringify({ ip, fingerprint }) });
 export const syncWorker = (ip: string, image: string) => request<Task>('/api/v1/orchestration/images/sync', { method: 'POST', body: JSON.stringify({ ip, image }) });
+export const syncFrontend = (ip: string) => request<Task>('/api/v1/orchestration/images/frontend/sync', { method: 'POST', body: JSON.stringify({ ip }) });
 export const syncSidecar = (ip: string) => request<Task>('/api/v1/orchestration/images/sidecar/sync', { method: 'POST', body: JSON.stringify({ ip }) });
 export const previewPlan = (chain: ChainEntry[], slotCount: number, maxPayloadBytes: number) => request<DeploymentPlan>('/api/v1/orchestration/plans/preview', {
   method: 'POST',
-  body: JSON.stringify({ chain: chain.map(({ip, rdma_device, worker_image}) => ({ip, rdma_device, worker_image})), slot_count: slotCount, max_payload_bytes: maxPayloadBytes }),
+  body: JSON.stringify({ transport: 'strict-rdma', chain: chain.map(({ip, rdma_device, worker_image}) => ({ip, rdma_device, worker_image})), slot_count: slotCount, max_payload_bytes: maxPayloadBytes }),
 });
 export const deployPlan = (planId: string, confirmReplace: boolean) => request<Task>('/api/v1/orchestration/deployments', { method: 'POST', body: JSON.stringify({ plan_id: planId, confirm_replace: confirmReplace }) });
 export const stopDeployment = (ips: string[]) => request<Task>('/api/v1/orchestration/deployments/stop', { method: 'POST', body: JSON.stringify({ ips }) });

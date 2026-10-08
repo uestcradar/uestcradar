@@ -25,6 +25,7 @@ func (f *fakeRemote) Inspect(_ *Session, ip string, output CommandOutput) (NodeI
 }
 func (f *fakeRemote) PullWorker(*Session, string, string, CommandOutput) error { return nil }
 func (f *fakeRemote) PullSidecar(*Session, string, CommandOutput) error        { return nil }
+func (f *fakeRemote) PullFrontend(*Session, string, CommandOutput) error       { return nil }
 func (f *fakeRemote) HasDeployment(_ *Session, ip string, _ CommandOutput) (bool, error) {
 	return f.existing[ip], nil
 }

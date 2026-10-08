@@ -7,7 +7,65 @@ import (
 )
 
 func inspectedNode(ip string, worker ImageInfo) NodeInspection {
-	return NodeInspection{IP: ip, Reachable: true, Architecture: "aarch64", ComposeCLI: "v1", SidecarImageID: "sha256:sidecar", SidecarContract: "sidecar/v2", Workers: []ImageInfo{worker}, RDMA: []RDMAInterface{{Device: "hns_1", Port: "1", NetDev: "enp1s0", IPv4: ip, State: "ACTIVE"}}}
+	if worker.DigestReference == "" {
+		worker.DigestReference = "registry.chengyistudio.com/cxx/worker@sha256:" + strings.Repeat("a", 64)
+	}
+	return NodeInspection{SidecarDigest: "registry.chengyistudio.com/cxx/sidecar@sha256:" + strings.Repeat("b", 64), IP: ip, Reachable: true, Architecture: "aarch64", ComposeCLI: "v1", SidecarImageID: "sha256:sidecar", SidecarContract: "sidecar/v2", Workers: []ImageInfo{worker}, RDMA: []RDMAInterface{{Device: "hns_1", Port: "1", NetDev: "enp1s0", IPv4: ip, State: "ACTIVE"}}}
+}
+
+func TestFrontendTLSAndExplicitTCPPlan(t *testing.T) {
+	worker := ImageInfo{Reference: workerRepository + "test", ID: "sha256:worker", Architecture: "arm64", Contract: WorkerContract{Roles: []string{"source", "sink"}, Input: "1:2", Output: "1:2"}}
+	nodes := map[string]NodeInspection{"10.0.0.1": inspectedNode("10.0.0.1", worker), "10.0.0.2": inspectedNode("10.0.0.2", worker)}
+	request := PlanRequest{Chain: []ChainEntry{{IP: "10.0.0.1", WorkerImage: worker.Reference}, {IP: "10.0.0.2", WorkerImage: worker.Reference}}}
+	for _, mode := range []string{"", "strict-rdma", "tcp", "automatic"} {
+		request.Transport = mode
+		plan, err := BuildPlan(request, nodes, "10.0.0.99", time.Now())
+		if mode != "tcp" {
+			if err == nil {
+				t.Fatalf("%q silently accepted missing RDMA selection", mode)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, node := range plan.Nodes {
+			for _, value := range []string{"DATA_PATH=functional", "UCX_TLS=tcp,self", "FRONTEND_IMAGE=" + frontendReference, "FRONTEND_HTTP_ADDR=" + node.IP + ":8081", "TELEMETRY_PORT=9900"} {
+				if !strings.Contains(node.env, value) {
+					t.Fatalf("missing %s", value)
+				}
+			}
+			for _, value := range []string{"/dev/infiniband", "cap_add:", "memlock:", "insecure"} {
+				if strings.Contains(node.compose, value) {
+					t.Fatalf("unexpected %s", value)
+				}
+			}
+			for _, value := range []string{"server.key:/tls/server.key:ro", "SSL_CERT_FILE: /tls/server.crt", "PREVIEW_PORT: \"9903\"", "condition: service_healthy", "ipc: service:sidecar-node"} {
+				if !strings.Contains(node.compose, value) {
+					t.Fatalf("missing %s", value)
+				}
+			}
+		}
+	}
+}
+
+func TestBuildPlanRequiresHarborDigests(t *testing.T) {
+	worker := ImageInfo{Reference: workerRepository + "test", ID: "sha256:worker", Architecture: "arm64", Contract: WorkerContract{Roles: []string{"source", "sink"}, Input: "1:2", Output: "1:2"}}
+	first, second := inspectedNode("10.0.0.1", worker), inspectedNode("10.0.0.2", worker)
+	request := PlanRequest{Transport: "tcp", Chain: []ChainEntry{{IP: first.IP, WorkerImage: worker.Reference}, {IP: second.IP, WorkerImage: worker.Reference}}}
+	plan, err := BuildPlan(request, map[string]NodeInspection{first.IP: first, second.IP: second}, "10.0.0.99", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plan.Nodes[0].env, "WORKER_IMAGE="+first.Workers[0].DigestReference) || !strings.Contains(plan.Nodes[0].env, "SIDECAR_IMAGE="+first.SidecarDigest) {
+		t.Fatal("plan did not use manifest digests")
+	}
+	for _, bad := range []string{"", "registry.chengyistudio.com/cxx/worker:dev", "untrusted.invalid/worker@sha256:" + strings.Repeat("a", 64)} {
+		first.Workers[0].DigestReference = bad
+		if _, err := BuildPlan(request, map[string]NodeInspection{first.IP: first, second.IP: second}, "10.0.0.99", time.Now()); err == nil {
+			t.Fatal("accepted missing/untrusted digest")
+		}
+	}
 }
 
 func TestBuildPlanRejectsDifferentSidecarLatestImages(t *testing.T) {

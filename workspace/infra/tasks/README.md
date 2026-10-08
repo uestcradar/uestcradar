@@ -2,7 +2,7 @@
 
 **目标：单机直接访问和服务器经 Web 内嵌，使用同一 Frontend，看到同一套节点结果。** 抽出已有预览，不重写算法、绘图或部署管理。
 
-Frontend 单机阶段全部有效任务已完成：ARM64 构建/测试、Harbor 发布、两个单一 Compose、真实图像与旁路隔离均通过。G01 尚未完成；Web 集成规格待审，服务器部署未改。当前没有明确硬件阻塞。
+Frontend 单机阶段全部有效任务已完成：ARM64 构建/测试、Harbor 发布、两个单一 Compose、真实图像与旁路隔离均通过。G01 尚未完成；实施已获确认，G03–G10 已通过 ARM 测试与 HTTPS 浏览器验证，内网简化模式已实现（自动自签、关闭节点证书校验），G11/G12 当前等待已有节点的 SSH 访问条件，实际业务部署未改。当前没有明确硬件阻塞。
 
 ## 文档
 
@@ -12,7 +12,7 @@ Frontend 单机阶段全部有效任务已完成：ARM64 构建/测试、Harbor 
 - [ARM64 环境证据](evidence/arm64-environment.md)：已完成操作；宿主重启后须重新检查。
 - [应用执行证据](evidence/frontend-runtime.md)：第一阶段实现检查点（历史状态）。
 - [发布记录](evidence/frontend-release.md)、[单机验收汇总](evidence/acceptance.md)：最终镜像、两个案例及范围检查。
-- [Web 集成规格](../SPEC-web-frontend-integration.md)：G01 待审，不能跳过审定或当作已实现。
+- [Web 集成规格](../SPEC-web-frontend-integration.md)：HTTPS 实施已获确认；[计划第 10 节](plan.md)、[G03–G12 子任务](todo.md) 与 [实际测试证据](evidence/web-frontend-tests.md) 分别记录方案、进度和结果，不能把代理单元测试当作服务器验收。
 
 ## 保留的部署边界
 

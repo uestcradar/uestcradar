@@ -1,6 +1,6 @@
 # Capability Map：节点 Frontend 分离与统一部署
 
-状态：**frontend-runtime 单机阶段已完成，含 Harbor 发布与两个真实案例；web-frontend-integration 规格待审、尚未实现，整体目标未完成。**
+状态：**frontend-runtime 单机阶段已完成，含 Harbor 发布与两个真实案例；web-frontend-integration 实施已获确认，G03–G10 已完成 ARM 与 HTTPS 浏览器验证，内网自动证书已实现，G11/G12 等待节点 SSH 访问条件，整体目标未完成。**
 
 架构依据：[TARGET_ARCHITECTURE.md](../TARGET_ARCHITECTURE.md)。
 流程入口：[tasks/README.md](tasks/README.md)。功能实现位于 `workspace/infra/web/`、`workspace/infra/frontend/`；KT2/KT3 各合并为根目录一份 `compose.yaml` 并删除旧 infra/worker 配置。算法源码、测试、数据与契约不动。能力图、规格、tasks 及案例 README 部署说明为文档例外。
@@ -65,6 +65,6 @@
 按模块逐一执行 Specify → Plan → Tasks → Implement，每阶段均需人工确认：
 
 - [SPEC-frontend-runtime.md](SPEC-frontend-runtime.md)：单机模块已验收，见 [验收汇总](tasks/evidence/acceptance.md)。
-- [SPEC-web-frontend-integration.md](SPEC-web-frontend-integration.md)：G01 待审；审定方案与服务器清单后再推进计划、任务和实施。
+- [SPEC-web-frontend-integration.md](SPEC-web-frontend-integration.md)：HTTPS 方向已确认，SSH 只负责管理；实施计划与 G03–G12 子任务已获实施确认，部署前落实服务器及证书/访问规则。
 
 各规格与本能力图并列保存；单机真实验收不代表整体交付完成。Web 集成仍先审定规格、计划和任务，使用稳定模块 ID 标识归属。

@@ -7,6 +7,11 @@ const node = (ip: string, worker: ImageInfo): NodeInspection => ({ ip, reachable
 const entry = (ip: string, worker: string): ChainEntry => ({ key: ip, ip, rdma_device: 'hns_1:1', worker_image: worker });
 
 describe('cascade planning', () => {
+  it('requires RDMA unless TCP is explicitly selected', () => {
+    const chain = [entry('10.0.0.1', 'worker:a'), entry('10.0.0.2', 'worker:b')].map(value => ({...value, rdma_device: ''}));
+    expect(validateChain(chain, [])).toContain('RDMA');
+    expect(validateChain(chain, [], 'tcp')).toBe('');
+  });
   it('infers terminal and operator roles', () => {
     expect([0, 1, 2].map(index => roleAt(index, 3))).toEqual(['source', 'operator', 'sink']);
   });

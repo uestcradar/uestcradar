@@ -2,7 +2,7 @@
 
 目标：从 Web 抽出已有节点预览，使本机直接访问和服务器经 Web 访问使用**同一 Frontend 镜像、页面、解码与绘图实现**。不改算法，不另做单机版 UI。
 
-单机阶段已完成：独立 Frontend 经 ARM 构建测试、Harbor 发布与两个真实案例验收；Web 集成规格待审。详细任务覆盖 `frontend-runtime`；随后完成 `web-frontend-integration` 才算整体目标交付。依据：[规格](../SPEC-frontend-runtime.md)、[能力图](../CAPABILITY_MAP.md)；执行：[todo.md](todo.md)。
+单机阶段已完成：独立 Frontend 经 ARM 构建测试、Harbor 发布与两个真实案例验收；Web 集成 HTTPS 计划已获实施确认；G03–G10 已完成，G11/G12 尚未完成，内网自动证书模式已实现，当前等待现有节点 SSH 访问条件。详细任务覆盖 `frontend-runtime`；随后完成 `web-frontend-integration` 才算整体目标交付。依据：[规格](../SPEC-frontend-runtime.md)、[能力图](../CAPABILITY_MAP.md)；执行：[todo.md](todo.md)。
 
 ## 1. 修改边界
 
@@ -31,8 +31,8 @@
 ### Web 保留管理，节点页面交给 Frontend
 
 - Web 保留拓扑、SSH/Compose 部署、主机检查、全局遥测与现有会话安全。
-- G01 用同源代理内嵌同一 Frontend；切换后删除 Web 旧节点预览渲染、预览转发实现与 `9901/TCP` 监听，不保留双实现或旧入口兼容。
-- 本机 Frontend 仅监听 loopback；服务器 Frontend 仅允许 Web 主机访问。浏览器沿用 Web 会话；SSH 密码、私钥不进入 Frontend、iframe 或日志，不弱化 TLS/CSRF/Origin 检查。
+- G01 用同源代理经 HTTPS/WSS 直连节点，内嵌同一 Frontend；SSH 仅用于部署管理，不建立预览隧道；切换后删除 Web 旧节点预览渲染、预览转发实现与 `9901/TCP` 监听，不保留双实现或旧入口兼容。
+- 单机 Frontend 监听 loopback；服务器采用用户确认的可信内网 HTTPS 模式，Web→Frontend 不校验证书，不要求 8081 白名单。浏览器沿用 Web 会话，SSH 密码/私钥不进入 Frontend、iframe 或日志，CSRF/Origin 与 SSH 主机信任保持。
 
 ## 4. 数据去向与端口
 
@@ -152,8 +152,56 @@ F21 汇总规格 F01–F08：页面、数据与原校验正确，根路径/代�
 
 ## 9. 最终交付：Web 内嵌与服务器结果
 
-G01 先审定集成规格，再实施 Web 同源嵌入与节点部署，使用已验证的同一 Frontend 镜像，不复制渲染代码。把更新后的 Web 部署到 `192.162.2.64`，通过它部署选定服务器并检查真实链路。
+G01 规格与实施计划已获确认，按 HTTPS 方向实施 Web 同源嵌入与节点部署，使用已验证的同一 Frontend 镜像，不复制渲染代码。把更新后的 Web 部署到 `192.162.2.64`，通过它部署选定服务器并检查真实链路。
 
 保留多机默认 strict-RDMA、显式 TCP 选择及禁止静默降级；不增加 RDMA 性能压测。对同一案例配置核对节点、输入/输出类型、数值与坐标语义、原算法结果校验；不是比较不同运行时刻截图是否逐像素相同。
 
 服务器内嵌与单机直达均显示真实结果，Web 管理正常、Frontend 故障不影响主链与 Web 全局状态，才算整体完成。部署说明随这两阶段交付，不再另设第三个部署配置模块。
+
+## 10. G01 实施细化（已获实施确认）
+
+依据：[Web 集成规格](../SPEC-web-frontend-integration.md)。以下按现有代码拆分，进度见 todo；不将部署参数缺失当作硬件阻塞，也不借此修改宿主或放宽安全要求。
+
+### 代码依据与最小实现
+
+- `orchestration/http.go` 已提供 authorize、sameOrigin 和节点检查结果；新前缀在这些边界内处理，不能另外开匿名代理。
+- `session.go` 有 Get 超时、Delete 和定时 expire 三条失效路径，目前只清除凭据。先统一增加取消通知，再让预览 HTTP/WS 和节点遥测订阅响应取消；不改变滑动 TTL 或 SSH 认证方式。
+- `httputil.ReverseProxy` + 标准 HTTP Transport 直接访问固定节点管理 IP 的 HTTPS 8081；节点/IP/端口只来自受信配置。原始 Cookie/Authorization 不转发，TLS 保留加密但按内网模式关闭节点证书校验，拒绝跨 Origin 与路径逃逸，不在代理中调用 SSH。
+- Web 的 Store/Hub 提供限定节点的 snapshot/WS；全局 `/ws` 保留原行为。通过 server 注入必要处理入口，避免 orchestration 反向导入 server 形成循环。
+- 每次部署用 Go 标准库生成自签证书，经 SFTP 上传版本目录；Frontend 的 SSL_CERT_FILE 指向自身证书以支持本地 healthcheck。没有 CA/用户配置项，不重新发布 Frontend。
+- 现有远程部署模板添加 Frontend、只读 TLS 文件挂载和固定 digest；SSH 仍只执行检查、拉取、上传配置与启停。私钥不放进 node.env、任务输出或镜像；node.env 仅保存自动 revision，文件写完才更新配置。
+- 详情改用同源 iframe 后，分批删除旧预览 UI/协议代码、后台接收器及 9901 入口；只在完整切换验证后发布 Web。不增加双实现开关，不为清理无用依赖修改 UI lockfile、重建基座。
+- 现有 planner 只有 strict-RDMA 路径。按既定规格补显式 TCP 选择时，默认仍为 strict-RDMA；TCP 的 Compose 不挂 RDMA 设备，失败不得自动切换模式。
+
+### 实施顺序
+
+G03 会话取消 → G04 HTTPS 代理 → G05 节点遥测 → G06 部署配置 → G07 显式 transport → G08 iframe 与旧 UI 清理 → G09 旧后端移除 → G10 ARM 集成验证 → G11 发布/部署准备 → G12 实际服务器验收。
+
+这里只安排一个执行链，不委派子代理、不同时安排多个写入者。已有本机验收不重复；只有 Frontend 运行代码改变才补必要回归并发布新 digest。
+
+### ARM 构建与测试
+
+从已确认源码版本，在原生 ARM 构建机仓库根目录执行：
+
+```bash
+test "$(uname -m)" = aarch64
+docker build --target builder \
+  --build-arg GO_BASE=registry.chengyistudio.com/cxx/web@sha256:52c3755b78f07a64e28b95efccf3d4c70ac97808b65b51bc1e8f8a7829c2835b \
+  -f workspace/infra/web/Dockerfile -t uestcradar/web:integration-test .
+docker run --rm --network none --entrypoint sh uestcradar/web:integration-test \
+  -ec 'go test -count=1 ./... && go vet ./... && cd frontend && npm test'
+docker run --rm --network none --entrypoint sh uestcradar/web:integration-test \
+  -ec 'CGO_ENABLED=1 go test -race ./internal/orchestration ./internal/server'
+```
+
+测试证书仅用于测试，不能成为部署 CA 或写入运行镜像。验证受信/过期/错误 SAN/未知 CA、HTTP 与 WS 代理、节点隔离、慢消费者、会话失效和超时；真实服务器连通性不由 mock 测试抵扣。
+
+### 发布和部署前必须落实
+
+1. 从 Web 已有节点列表自动探查选择，Web 固定 `.64`。当前模型每个 IP 一个节点，按 KT2/KT3 链路所需数量选择，不覆盖已有业务。
+2. 节点自签证书自动生成安装，私钥 65532:65532/0400，只读挂载；无需用户提供证书/CA。
+3. 无 8081 白名单前提，不改宿主防火墙/Docker/驱动。仅供可信内网；当前仍需要可用的原有 SSH 凭据与连接条件。
+4. 检查现有工作负载与端口。需要替换时单独确认；没有权限或参数就暂停部署，不暂停可独立完成的本地代码/测试。
+5. Web 新版本先通过 ARM 验证，再以未占用的不可变标签发布 Harbor并拉回检查；沿用既有发布流程，不增加工具链。
+
+G12 使用 Web 实际部署与观测两条链，记录节点、镜像、运输方式、图像和原校验结果，并完成 30 秒隔离/恢复。G03–G11 通过都不能代替 G12；G01 只在所有实际交付完成后关闭。

@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
 import { loadTopology, saveTopology } from './topology';
-import { PreviewPanel } from './PreviewPanel';
-import { parseContract } from './preview';
 import type { ChainEntry, ClusterSnapshot, LinkSnapshot, NodeInspection, Task, TaskOutputChunk, TelemetryNode } from './types';
 import { reconcileRoles, roleAt, shmSizeForRing, telemetryForEntry, validateChain } from './logic';
 
@@ -219,6 +217,10 @@ export default function App() {
     try { await runTask(await api.syncSidecar(node.ip), `更新 ${node.ip} Sidecar`); await refreshNodes(); }
     catch (error) { handleError(error, appendLog, openClusterLogin); }
   });
+  const updateFrontend = (node: NodeInspection) => requireSession(async () => {
+    try { await runTask(await api.syncFrontend(node.ip), `更新 ${node.ip} Frontend`); await refreshNodes(); }
+    catch (error) { handleError(error, appendLog, openClusterLogin); }
+  });
   const updateWorker = async (node: NodeInspection, image: string) => {
     setWorkerNode(undefined);
     try { await runTask(await api.syncWorker(node.ip, image), `更新 ${node.ip} Worker`); await refreshNodes(); }
@@ -288,7 +290,7 @@ export default function App() {
     {nodes.some(node => node.host_key_required) && <div className="running-banner">部分节点等待 SSH 主机指纹确认。<button onClick={() => setHostKeyNode(nodes.find(node => node.host_key_required))}>确认 SSH 主机指纹</button></div>}
     {isStreamRunning && <div className="running-banner">数据流正在运行。拓扑配置已锁定，实时链路与 RingBuffer 指标保持更新。</div>}
     <main className="dashboard-body">
-      <NodePool nodes={poolNodes} locked={controlsLocked} onInspect={inspectAll} onAdd={addCustomNode} onJoin={addToChain} onSidecar={updateSidecar} onWorker={node => requireSession(async () => setWorkerNode(node))} onLogin={inspectOne} />
+      <NodePool nodes={poolNodes} locked={controlsLocked} onInspect={inspectAll} onAdd={addCustomNode} onJoin={addToChain} onSidecar={updateSidecar} onFrontend={updateFrontend} onWorker={node => requireSession(async () => setWorkerNode(node))} onLogin={inspectOne} />
       <section className="workspace-column">
         <TopologyCanvas chain={chain} nodes={nodes} telemetry={snapshot.nodes} locked={controlsLocked} goodput={totalGoodput} slotCount={slotCount} maxPayloadBytes={maxPayloadBytes} onSlotCount={setSlotCount} onMaxPayloadBytes={setMaxPayloadBytes} onChange={updateEntry} onMove={moveEntry} onRemove={removeEntry} onDetail={entry => setDetailKey(entry.key)} />
         <Console logs={logs} onClear={() => setLogs([])} />
@@ -301,7 +303,7 @@ export default function App() {
   </div>;
 }
 
-function NodePool({nodes, locked, onInspect, onAdd, onJoin, onSidecar, onWorker, onLogin}: {nodes: NodeInspection[]; locked: boolean; onInspect: () => void; onAdd: (ip: string) => void; onJoin: (node: NodeInspection) => void; onSidecar: (node: NodeInspection) => void; onWorker: (node: NodeInspection) => void; onLogin: (node: NodeInspection) => void}) {
+export function NodePool({nodes, locked, onInspect, onAdd, onJoin, onSidecar, onFrontend, onWorker, onLogin}: {nodes: NodeInspection[]; locked: boolean; onInspect: () => void; onAdd: (ip: string) => void; onJoin: (node: NodeInspection) => void; onSidecar: (node: NodeInspection) => void; onFrontend: (node: NodeInspection) => void; onWorker: (node: NodeInspection) => void; onLogin: (node: NodeInspection) => void}) {
   const [ip, setIP] = useState('');
   return <aside className="node-pool panel-surface">
     <div className="section-heading"><div><span className="section-kicker">PHYSICAL NODES</span><h2>已发现物理节点池</h2></div><button className="outline-button" disabled={locked} onClick={onInspect}><SearchIcon />探查节点</button></div>
@@ -312,6 +314,7 @@ function NodePool({nodes, locked, onInspect, onAdd, onJoin, onSidecar, onWorker,
         {node.host_key_required && <p className="node-warning">需要确认 SSH Host Key</p>}
         <button className="node-action sidecar" disabled={!node.hostname} onClick={() => onSidecar(node)}>更新 Sidecar</button>
         <button className="node-action worker" disabled={!node.hostname || !node.workers?.length} onClick={() => onWorker(node)}>更新 Worker</button>
+        <button className="node-action frontend" disabled={!node.hostname} onClick={() => onFrontend(node)}>更新 Frontend</button>
         <button className="node-action login" onClick={() => onLogin(node)}>登录节点</button>
         <button className="join-button" disabled={!node.hostname || Boolean(node.error) || Boolean(node.host_key_required)} onClick={() => onJoin(node)}><PlusIcon />添加到拓扑</button>
       </article>)}
@@ -365,7 +368,7 @@ function TopologyCard({cardRef, entry, index, total, node, telemetry, locked, on
     <div className="topology-card-head"><div><span className={`role-pill ${role}`}>{role}</span><strong>{node?.hostname || entry.ip}</strong><small>{entry.ip}</small></div><div className={`card-tools ${locked ? 'locked-controls' : ''}`}><IconButton label="前移" disabled={index === 0} onClick={() => onMove(-1)}><LeftIcon /></IconButton><IconButton label="后移" disabled={index === total - 1} onClick={() => onMove(1)}><RightIcon /></IconButton><IconButton label="移除" onClick={onRemove}><CloseIcon /></IconButton></div></div>
     <div className={`card-config ${locked ? 'locked-controls' : ''}`}>
       <label><span>1. Worker 算法</span><select title={entry.worker_image} value={entry.worker_image} onChange={event => onChange({worker_image: event.target.value})}><option value="">选择本地算法镜像</option>{entry.worker_image && !workers.some(image => image.reference === entry.worker_image) && <option value={entry.worker_image}>{entry.worker_image} · 待探查确认</option>}{workers.map(image => <option key={image.reference} value={image.reference}>{image.reference} · {image.contract.input}→{image.contract.output}</option>)}</select></label>
-      <label><span>2. 网络 / RDMA</span><select value={entry.rdma_device} onChange={event => onChange({rdma_device: event.target.value})}><option value="">选择 RDMA 网卡与 IP</option>{entry.rdma_device && !(node?.rdma || []).some(item => item.ipv4 && rdmaName(item) === entry.rdma_device) && <option value={entry.rdma_device}>{entry.rdma_device} · 待探查确认</option>}{(node?.rdma || []).filter(item => item.ipv4).map(item => <option key={rdmaName(item)} value={rdmaName(item)}>{rdmaName(item)} · {item.netdev} · {item.ipv4}</option>)}</select></label>
+      <label><span>2. RDMA 网卡（严格模式必选）</span><select value={entry.rdma_device} onChange={event => onChange({rdma_device: event.target.value})}><option value="">选择 RDMA 网卡与 IP</option>{entry.rdma_device && !(node?.rdma || []).some(item => item.ipv4 && rdmaName(item) === entry.rdma_device) && <option value={entry.rdma_device}>{entry.rdma_device} · 待探查确认</option>}{(node?.rdma || []).filter(item => item.ipv4).map(item => <option key={rdmaName(item)} value={rdmaName(item)}>{rdmaName(item)} · {item.netdev} · {item.ipv4}</option>)}</select></label>
     </div>
     <div className="live-metrics"><div><span>Goodput</span><strong>{(telemetry?.goodput_gbps || 0).toFixed(2)} <small>GB/s</small></strong></div><StatusLabel node={telemetry} /></div>
     <RingMeter title="Upstream 槽位" link={upstream} variant="upstream" />
@@ -402,11 +405,8 @@ function HostKeyModal({node, onClose, onConfirm}: {node: NodeInspection; onClose
   return <Modal title={`确认 SSH Host Key · ${node.ip}`} onClose={onClose}><div className="modal-form"><p>这是当前 Session 首次连接该节点。请核对以下 SHA256 指纹，指纹发生变化时系统会阻止连接。</p><code className="fingerprint">{node.host_key_fingerprint}</code><button className="primary-button" disabled={submitting} onClick={async () => {setSubmitting(true); try {await onConfirm();} finally {setSubmitting(false);}}}>{submitting ? '正在确认并探查…' : '确认指纹并继续探查'}</button></div></Modal>;
 }
 
-function DetailDrawer({entry, inspection, node, onClose}: {entry: ChainEntry; inspection?: NodeInspection; node?: TelemetryNode; onClose: () => void}) {
-  const worker = inspection?.workers?.find(image => image.reference === entry.worker_image);
-  const input = parseContract(worker?.contract.input);
-  const output = parseContract(worker?.contract.output);
-  return <div className="drawer-backdrop" onMouseDown={event => {if (event.target === event.currentTarget) onClose();}}><aside className="detail-drawer"><div className="drawer-heading"><div><span className="section-kicker">TELEMETRY DETAIL</span><h2>{entry.ip}</h2></div><IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton></div><div className="drawer-summary"><span>节点状态</span><StatusLabel node={node} /><span>Goodput</span><strong>{(node?.goodput_gbps || 0).toFixed(3)} GB/s</strong><span>最后心跳</span><strong>{node?.last_seen ? new Date(node.last_seen).toLocaleString('zh-CN') : '未上报'}</strong></div><PreviewPanel nodeId={node?.node_id} input={input} output={output} />{(node?.links || []).map(link => <article className="link-detail" key={link.link_id}><div><strong>{link.link_id}</strong><span>{link.transport?.toUpperCase() || 'UNKNOWN'} · {link.status}</span></div><dl><dt>Peer</dt><dd>{link.peer_node_id || '无'}</dd><dt>Goodput</dt><dd>{(link.goodput_gbps || 0).toFixed(3)} GB/s</dd><dt>Capacity</dt><dd>{link.ring.capacity_slots}</dd><dt>Used</dt><dd>{link.ring.used_slots}</dd><dt>Write Position</dt><dd>{link.ring.write_position}</dd><dt>Read Position</dt><dd>{link.ring.read_position}</dd><dt>Watermark</dt><dd>{link.ring.watermark_pct.toFixed(1)}%</dd></dl></article>)}{!node?.links?.length && <p className="drawer-empty">当前节点尚无遥测明细。</p>}</aside></div>;
+function DetailDrawer({entry, node, onClose}: {entry: ChainEntry; inspection?: NodeInspection; node?: TelemetryNode; onClose: () => void}) {
+  return <div className="drawer-backdrop" onMouseDown={event => {if (event.target === event.currentTarget) onClose();}}><aside className="detail-drawer"><div className="drawer-heading"><div><span className="section-kicker">TELEMETRY DETAIL</span><h2>{entry.ip}</h2></div><IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton></div><div className="drawer-summary"><span>节点状态</span><StatusLabel node={node} /><span>Goodput</span><strong>{(node?.goodput_gbps || 0).toFixed(3)} GB/s</strong><span>最后心跳</span><strong>{node?.last_seen ? new Date(node.last_seen).toLocaleString('zh-CN') : '未上报'}</strong></div><iframe key={entry.ip} title={`${entry.ip} 节点预览`} src={`/api/v1/nodes/${encodeURIComponent(entry.ip)}/frontend/`} className="node-frontend" /><details className="drawer-counters"><summary>高级计数（读写位置）</summary>{(node?.links || []).map(link => <article className="link-detail" key={link.link_id}><div><strong>{link.link_id}</strong></div><dl><dt>Write Position</dt><dd>{link.ring.write_position}</dd><dt>Read Position</dt><dd>{link.ring.read_position}</dd></dl></article>)}{!node?.links?.length && <p className="drawer-empty">当前节点尚无遥测明细。</p>}</details></aside></div>;
 }
 
 function Modal({title, onClose, children}: {title: string; onClose?: () => void; children: React.ReactNode}) { return <div className="modal-backdrop" onMouseDown={event => {if (onClose && event.target === event.currentTarget) onClose();}}><section className="modal"><div className="modal-heading"><h2>{title}</h2>{onClose && <IconButton label="关闭" onClick={onClose}><CloseIcon /></IconButton>}</div>{children}</section></div>; }
