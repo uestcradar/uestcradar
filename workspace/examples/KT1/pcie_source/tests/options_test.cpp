@@ -9,12 +9,12 @@ int main() {
         return pcie_source::parse_options(static_cast<int>(argv.size()), argv.data());
     };
     const auto defaults = parse({"pcie_source"});
-    assert(defaults.channel == 0 && defaults.data_root == "/data" && !defaults.capture_only);
+    assert(defaults.channel == 0 && defaults.queue_frames == 512 && !defaults.capture_only);
     assert(defaults.timestamp_errors == "rx_timestamp_errors.jsonl");
     const auto capture = parse({"pcie_source", "--capture-only", "--channel", "7",
-        "--duration-seconds", "30", "--data-root", "/tmp/templates", "--timestamp-errors", "/tmp/errors.jsonl"});
+        "--duration-seconds", "30", "--queue-frames", "64", "--timestamp-errors", "/tmp/errors.jsonl"});
     assert(capture.capture_only && capture.channel == 7 && capture.duration_seconds == 30);
-    assert(capture.timestamp_errors == "/tmp/errors.jsonl");
+    assert(capture.timestamp_errors == "/tmp/errors.jsonl" && capture.queue_frames == 64);
     const auto fails = [&](std::initializer_list<const char*> args) {
         try { (void)parse(args); } catch (const std::invalid_argument&) { return true; }
         return false;
@@ -28,4 +28,7 @@ int main() {
     assert(fails({"pcie_source", "--timestamp-errors"}));
     assert(fails({"pcie_source", "--timestamp-errors", ""}));
     assert(fails({"pcie_source", "--check-frame-sequence"}));
+    assert(fails({"pcie_source", "--data-root", "/data"}));
+    assert(fails({"pcie_source", "--queue-frames", "0"}));
+    assert(fails({"pcie_source", "--queue-frames", "32769"}));
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include "raw_frame.hpp"
 
 #include <atomic>
@@ -132,6 +134,8 @@ static_assert(offsetof(RingBufferHeader, shutdown) == 192);
     const char* name,
     const RingBufferConfig& config);
 [[nodiscard]] RingBuffer* ringbuf_open(const char* name);
+// Bounds both waiting for a name and waiting for its initialized header.
+[[nodiscard]] RingBuffer* ringbuf_open(const char* name, std::chrono::milliseconds timeout);
 
 [[nodiscard]] RingResult ringbuf_reserve(
     RingBuffer* ring,

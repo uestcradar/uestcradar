@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -43,6 +44,13 @@ private:
     std::size_t columns_;
 };
 
+struct RawIQMetadata {
+    std::uint64_t tx_timestamp{};
+    std::uint64_t rx_timestamp{};
+    std::uint32_t channel_count{};
+    std::uint32_t samples_per_channel{};
+};
+
 struct IQMetadata {
     std::uint64_t cpi_index{};
     std::uint32_t channel_count{};
@@ -77,6 +85,26 @@ struct RDMetadata {
     std::uint32_t doppler_bin_count{};
     double range_resolution_m{};
     double velocity_resolution_mps{};
+};
+
+class CYCOMM_SDK_API RawIQFrame final {
+public:
+    RawIQFrame(RawIQFrame&& other) noexcept;
+    RawIQFrame& operator=(RawIQFrame&& other) noexcept;
+    ~RawIQFrame();
+
+    [[nodiscard]] RawIQMetadata metadata() const;
+    [[nodiscard]] Array2D<ComplexInt16> data();
+    [[nodiscard]] Array2D<const ComplexInt16> data() const;
+
+private:
+    struct Impl;
+    explicit RawIQFrame(std::unique_ptr<Impl> impl) noexcept;
+    [[nodiscard]] const void* sdk_trace_context() const;
+    std::unique_ptr<Impl> impl_;
+    friend class Input<RawIQFrame>;
+    template <class>
+    friend class Output;
 };
 
 class CYCOMM_SDK_API IQFrame final {
@@ -163,12 +191,15 @@ private:
     class CYCOMM_SDK_API Output<FrameType> final {                    \
     public:                                                           \
         Output();                                                     \
+        explicit Output(std::chrono::milliseconds open_timeout);      \
         Output(Output&& other) noexcept;                              \
         Output& operator=(Output&& other) noexcept;                   \
         Output(const Output&) = delete;                               \
         Output& operator=(const Output&) = delete;                    \
         ~Output();                                                    \
         [[nodiscard]] FrameType create(const MetadataType& metadata); \
+        [[nodiscard]] std::optional<FrameType> try_create(             \
+            const MetadataType& metadata);                            \
         template <class ParentFrame>                                  \
         [[nodiscard]] FrameType create(                               \
             const MetadataType& metadata, const ParentFrame& parent) { \

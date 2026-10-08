@@ -1,0 +1,58 @@
+[ 14%] Built target pcie_json
+[ 14%] Built target pcie_rx
+[ 20%] Built target uestcradar_ringbuf
+[ 31%] Built target iq_decode_test
+[ 31%] Built target cpi_templates_test
+[ 37%] Built target cpi_assembler_test
+[ 40%] Building CXX object CMakeFiles/pcie_source.dir/src/main.cpp.o
+[ 42%] Building CXX object CMakeFiles/pcie_source.dir/src/pcie_receiver.cpp.o
+[ 48%] Built target options_test
+[ 54%] Built target receiver_test
+[ 60%] Built target timestamp_check_test
+[ 62%] Building CXX object CMakeFiles/receiver_control_test.dir/tests/receiver_control_test.cpp.o
+[ 65%] Building CXX object CMakeFiles/receiver_control_test.dir/src/pcie_receiver.cpp.o
+[ 71%] Built target dma_snapshot_test
+[ 77%] Built target raw_assembler_test
+[ 82%] Built target raw_output_test
+[ 88%] Built target raw-iq-check
+[ 94%] Built target ringbuf-test
+[ 97%] Linking CXX executable receiver_control_test
+[ 97%] Built target receiver_control_test
+[100%] Linking CXX executable pcie_source
+[100%] Built target pcie_source
+Internal ctest changing into directory: /work/build-pcie
+Test project /work/build-pcie
+      Start  1: pcie-iq_decode
+ 1/15 Test  #1: pcie-iq_decode ...................   Passed    0.00 sec
+      Start  2: pcie-cpi_templates
+ 2/15 Test  #2: pcie-cpi_templates ...............   Passed    0.01 sec
+      Start  3: pcie-cpi_assembler
+ 3/15 Test  #3: pcie-cpi_assembler ...............   Passed    0.05 sec
+      Start  4: pcie-options
+ 4/15 Test  #4: pcie-options .....................   Passed    0.00 sec
+      Start  5: pcie-receiver
+ 5/15 Test  #5: pcie-receiver ....................   Passed    0.00 sec
+      Start  6: pcie-timestamp_check
+ 6/15 Test  #6: pcie-timestamp_check .............   Passed    0.00 sec
+      Start  7: pcie-receiver_control
+ 7/15 Test  #7: pcie-receiver_control ............   Passed    0.00 sec
+      Start  8: pcie-dma_snapshot
+ 8/15 Test  #8: pcie-dma_snapshot ................   Passed    0.04 sec
+      Start  9: pcie-raw_assembler
+ 9/15 Test  #9: pcie-raw_assembler ...............   Passed    0.00 sec
+      Start 10: pcie-help
+10/15 Test #10: pcie-help ........................   Passed    0.00 sec
+      Start 11: pcie-reject-channel
+11/15 Test #11: pcie-reject-channel ..............   Passed    0.00 sec
+      Start 12: pcie-reject-missing-port
+12/15 Test #12: pcie-reject-missing-port .........   Passed    3.02 sec
+      Start 13: pcie-raw-output
+13/15 Test #13: pcie-raw-output ..................   Passed    5.01 sec
+      Start 14: raw-iq-source-stop
+14/15 Test #14: raw-iq-source-stop ...............   Passed    3.06 sec
+      Start 15: ringbuf-test
+15/15 Test #15: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 15
+
+Total Test time (real) =  11.19 sec

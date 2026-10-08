@@ -1,0 +1,117 @@
+请选择要发布的镜像：
+  1) Sidecar
+  2) Web
+  3) Worker
+  4) SDK / Algo Base
+  0) 退出
+dispatching sdk release to root@192.162.2.64:/root/workspace/uestcradar
+[release] remote host=node4-1 arch=aarch64 component=sdk
+[release] validating release checkout
+[release] checking Docker engine
+Docker server=19.03.15 storage=overlay2
+[release] checking Registry read access with registry.chengyistudio.com/cxx/ubuntu:24.04
+24.04: Pulling from cxx/ubuntu
+Digest: sha256:022e550f77cc1971f56e90cf12c5b5a78ab0e97b9ed8957c521d394bcdc9e8fc
+Status: Image is up to date for registry.chengyistudio.com/cxx/ubuntu:24.04
+registry.chengyistudio.com/cxx/ubuntu:24.04
+[release] checking immutable Tag is unused: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+[release] immutable Tag is available: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+[release] building SDK Algo Base: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+Sending build context to Docker daemon  9.757MB
+Step 1/15 : ARG BASE_IMAGE=registry.chengyistudio.com/cxx/ubuntu:24.04
+Step 2/15 : FROM ${BASE_IMAGE} AS builder
+ ---> 1f701c2d4555
+Step 3/15 : ENV DEBIAN_FRONTEND=noninteractive
+ ---> Using cache
+ ---> 021913657613
+Step 4/15 : RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy     && apt-get update     && apt-get install -y --no-install-recommends cmake g++ make     && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 1bca8ba9ad7c
+Step 5/15 : WORKDIR /src
+ ---> Using cache
+ ---> 626f955987ef
+Step 6/15 : COPY workspace/infra/common/ ./common/
+ ---> 8e0143b7413b
+Step 7/15 : COPY workspace/infra/sdk/ ./sdk/
+ ---> 2c6a301fe077
+Step 8/15 : RUN cmake -S sdk -B sdk-build        -DCMAKE_BUILD_TYPE=Release        -DCMAKE_INSTALL_PREFIX=/out/sdk     && cmake --build sdk-build --parallel     && cmake --install sdk-build
+ ---> Running in 38efd9a8d0b2
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (0.6s)
+-- Generating done (0.0s)
+-- Build files have been written to: /src/sdk-build
+[ 10%] Building CXX object CMakeFiles/contract-codegen.dir/tools/contract_codegen.cpp.o
+[ 10%] Building CXX object ringbuf/CMakeFiles/uestcradar_ringbuf.dir/ringbuf.cpp.o
+[ 15%] Linking CXX static library libuestcradar_ringbuf.a
+[ 15%] Built target uestcradar_ringbuf
+[ 21%] Building CXX object ringbuf/CMakeFiles/ringbuf-test.dir/ringbuf_test.cpp.o
+[ 26%] Linking CXX executable ringbuf-test
+[ 26%] Built target ringbuf-test
+[ 31%] Linking CXX executable contract-codegen
+[ 31%] Built target contract-codegen
+[ 36%] Generating generated/contracts.generated.stamp
+[ 36%] Built target generate-contracts
+[ 47%] Building CXX object CMakeFiles/uestcradar_sdk.dir/generated/contract_iq.generated.cpp.o
+[ 47%] Building CXX object CMakeFiles/uestcradar_sdk.dir/src/sdk.cpp.o
+[ 63%] Building CXX object CMakeFiles/uestcradar_sdk.dir/generated/contract_rd.generated.cpp.o
+[ 63%] Building CXX object CMakeFiles/uestcradar_sdk.dir/generated/contract_pulse_compression.generated.cpp.o
+[ 63%] Building CXX object CMakeFiles/uestcradar_sdk.dir/generated/contract_raw_iq.generated.cpp.o
+[ 68%] Linking CXX shared library libuestcradar_sdk.so
+[ 68%] Built target uestcradar_sdk
+[ 84%] Building CXX object CMakeFiles/sdk-benchmark.dir/src/sdk_benchmark.cpp.o
+[ 84%] Building CXX object CMakeFiles/sdk-interface-test.dir/src/sdk_interface_test.cpp.o
+[ 84%] Building CXX object CMakeFiles/sdk-test.dir/src/sdk_test.cpp.o
+[ 89%] Linking CXX executable sdk-interface-test
+[ 89%] Built target sdk-interface-test
+[ 94%] Linking CXX executable sdk-benchmark
+[ 94%] Built target sdk-benchmark
+[100%] Linking CXX executable sdk-test
+[100%] Built target sdk-test
+-- Install configuration: "Release"
+-- Installing: /out/sdk/lib/libuestcradar_sdk.so
+-- Installing: /out/sdk/include/sdk.h
+-- Installing: /out/sdk/include/data.h
+-- Installing: /out/sdk/include/contract_catalog.def
+-- Installing: /out/sdk/share/cycomm_sdk/contracts/contracts.manifest.json
+-- Installing: /out/sdk/share/cycomm_sdk/contracts/preview_contracts.generated.hpp
+-- Installing: /out/sdk/share/cycomm_sdk/contracts/contracts.generated.go
+-- Installing: /out/sdk/share/cycomm_sdk/contracts/contracts.generated.ts
+-- Installing: /out/sdk/lib/cmake/cycomm_sdk/cycomm_sdkTargets.cmake
+-- Installing: /out/sdk/lib/cmake/cycomm_sdk/cycomm_sdkTargets-release.cmake
+-- Installing: /out/sdk/lib/cmake/cycomm_sdk/cycomm_sdkConfig.cmake
+-- Installing: /out/sdk/lib/cmake/cycomm_sdk/cycomm_sdkConfigVersion.cmake
+Removing intermediate container 38efd9a8d0b2
+ ---> c7b17809b919
+Step 9/15 : FROM ${BASE_IMAGE} AS algo-base
+ ---> 1f701c2d4555
+Step 10/15 : LABEL io.uestcradar.contract="algo-base/v2"
+ ---> Using cache
+ ---> 85e0da737175
+Step 11/15 : ENV DEBIAN_FRONTEND=noninteractive
+ ---> Using cache
+ ---> afc2f85b974b
+Step 12/15 : RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy     && apt-get update     && apt-get install -y --no-install-recommends g++ make cmake     && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 1f8bb2f9de40
+Step 13/15 : COPY --from=builder /out/sdk/ /usr/local/
+ ---> 031679ed9d46
+Step 14/15 : RUN ldconfig
+ ---> Running in ef6c04c3a245
+Removing intermediate container ef6c04c3a245
+ ---> 05f4b35e0d7b
+Step 15/15 : WORKDIR /app
+ ---> Running in 721ed9cc24f2
+Removing intermediate container 721ed9cc24f2
+ ---> e683273fe978
+Successfully built e683273fe978
+Successfully tagged registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+[release] verifying SDK Algo Base image contract
+contract verified: image=registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64 kind=sdk architecture=arm64
+[release] pushing immutable image: registry.chengyistudio.com/cxx/algo-base:sha-fdb78ccbef00-arm64
+The push refers to repository [registry.chengyistudio.com/cxx/algo-base]
+Get "https://registry.chengyistudio.com/v2/": net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)

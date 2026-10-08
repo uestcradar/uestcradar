@@ -1,0 +1,129 @@
+请选择要发布的镜像：
+  1) Sidecar
+  2) Web
+  3) Worker
+  4) SDK / Algo Base
+  0) 退出
+请选择 Worker：
+  1) KT2
+  2) KT1/cascade_worker
+  3) KT1/pcie_source
+  4) KT1/signalsink
+  5) KT1/signalsource
+  6) KT1/signalsource_raw_iq
+  0) 退出
+dispatching Worker 'KT1/signalsink' release to root@192.162.2.64:/root/workspace/uestcradar
+[release] remote host=node4-1 arch=aarch64 component=worker worker=KT1/signalsink
+[release] validating release checkout
+[release] checking Docker engine
+Docker server=19.03.15 storage=overlay2
+[release] checking Registry read access with registry.chengyistudio.com/cxx/sidecar:latest
+latest: Pulling from cxx/sidecar
+Digest: sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c
+Status: Image is up to date for registry.chengyistudio.com/cxx/sidecar:latest
+registry.chengyistudio.com/cxx/sidecar:latest
+[release] checking immutable Tag is unused: registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64
+[release] immutable Tag is available: registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64
+[release] pulling Worker SDK base: registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42: Pulling from cxx/algo-base
+Digest: sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+Status: Image is up to date for registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+[release] building Worker 'KT1/signalsink': registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64
+Sending build context to Docker daemon  413.7kB
+Step 1/8 : ARG ALGO_BASE
+Step 2/8 : FROM ${ALGO_BASE}
+ ---> e683273fe978
+Step 3/8 : WORKDIR /app
+ ---> Using cache
+ ---> 98a22000a76a
+Step 4/8 : COPY CMakeLists.txt ./CMakeLists.txt
+ ---> 5e4edb092d31
+Step 5/8 : COPY src/ ./src/
+ ---> eb24f20fb47b
+Step 6/8 : RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF     && cmake --build build --parallel     && cp build/signalsink /app/signalsink     && rm -rf build src CMakeLists.txt
+ ---> Running in d1645c475981
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Configuring done (0.3s)
+-- Generating done (0.0s)
+-- Build files have been written to: /app/build
+[ 66%] Building CXX object CMakeFiles/signalsink.dir/src/main.cpp.o
+[ 66%] Building CXX object CMakeFiles/signalsink.dir/src/control.cpp.o
+[100%] Linking CXX executable signalsink
+[100%] Built target signalsink
+Removing intermediate container d1645c475981
+ ---> ef1c39b90a0a
+Step 7/8 : ENTRYPOINT ["/app/signalsink"]
+ ---> Running in 80946e0962e1
+Removing intermediate container 80946e0962e1
+ ---> 5de4b4f6ee2a
+Step 8/8 : LABEL io.uestcradar.contract="worker/v2"       io.uestcradar.component="signalsink"       io.uestcradar.roles="sink"       io.uestcradar.input="any"       io.uestcradar.output="none"
+ ---> Running in f53351e6a934
+Removing intermediate container f53351e6a934
+ ---> 8290e0bb3fec
+Successfully built 8290e0bb3fec
+Successfully tagged registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64
+[release] verifying Worker image contract
+contract verified: image=registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64 kind=worker architecture=arm64
+[release] pushing immutable image: registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64
+The push refers to repository [registry.chengyistudio.com/cxx/worker]
+b9945603d548: Preparing
+8c10d45019c3: Preparing
+d92c8bfafab2: Preparing
+6adb9badfca7: Preparing
+9c626f9f6e46: Preparing
+a721e92e0608: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+a721e92e0608: Waiting
+2d8834226313: Waiting
+6adb9badfca7: Layer already exists
+9c626f9f6e46: Layer already exists
+a721e92e0608: Layer already exists
+d47ac722b9a4: Layer already exists
+2d8834226313: Layer already exists
+d92c8bfafab2: Pushed
+8c10d45019c3: Pushed
+b9945603d548: Pushed
+signalsink-sha-fdb78ccbef00-arm64: digest: sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46 size: 1990
+[release] pulling immutable image for contract verification: registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64
+signalsink-sha-fdb78ccbef00-arm64: Pulling from cxx/worker
+Digest: sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46
+Status: Image is up to date for registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64
+registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64
+contract verified: image=registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64 kind=worker architecture=arm64
+[release] updating moving Tag: registry.chengyistudio.com/cxx/worker:signalsink-latest
+The push refers to repository [registry.chengyistudio.com/cxx/worker]
+b9945603d548: Preparing
+8c10d45019c3: Preparing
+d92c8bfafab2: Preparing
+6adb9badfca7: Preparing
+9c626f9f6e46: Preparing
+a721e92e0608: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+2d8834226313: Waiting
+a721e92e0608: Waiting
+9c626f9f6e46: Layer already exists
+6adb9badfca7: Layer already exists
+8c10d45019c3: Layer already exists
+b9945603d548: Layer already exists
+d92c8bfafab2: Layer already exists
+d47ac722b9a4: Layer already exists
+a721e92e0608: Layer already exists
+2d8834226313: Layer already exists
+signalsink-latest: digest: sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46 size: 1990
+signalsink-latest: Pulling from cxx/worker
+Digest: sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46
+Status: Image is up to date for registry.chengyistudio.com/cxx/worker:signalsink-latest
+registry.chengyistudio.com/cxx/worker:signalsink-latest
+contract verified: image=registry.chengyistudio.com/cxx/worker:signalsink-latest kind=worker architecture=arm64
+registry.chengyistudio.com/cxx/worker@sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46

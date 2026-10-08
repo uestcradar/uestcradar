@@ -1,0 +1,4 @@
+ffa696360c8709fa5a917cc31cca156c2b2f8bf63e5ebbdb8b207d84e0c9524b
+2
+{"Status":"exited","Running":false,"Paused":false,"Restarting":false,"OOMKilled":false,"Dead":false,"Pid":0,"ExitCode":2,"Error":"","StartedAt":"2026-10-08T10:37:27.165983756Z","FinishedAt":"2026-10-08T10:37:38.230905898Z"}
+rawiq-hw-fdb78cc-diagnostic

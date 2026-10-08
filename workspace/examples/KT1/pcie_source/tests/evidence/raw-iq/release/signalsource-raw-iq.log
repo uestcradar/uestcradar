@@ -1,0 +1,135 @@
+请选择要发布的镜像：
+  1) Sidecar
+  2) Web
+  3) Worker
+  4) SDK / Algo Base
+  0) 退出
+请选择 Worker：
+  1) KT2
+  2) KT1/cascade_worker
+  3) KT1/pcie_source
+  4) KT1/signalsink
+  5) KT1/signalsource
+  6) KT1/signalsource_raw_iq
+  0) 退出
+dispatching Worker 'KT1/signalsource_raw_iq' release to root@192.162.2.64:/root/workspace/uestcradar
+[release] remote host=node4-1 arch=aarch64 component=worker worker=KT1/signalsource_raw_iq
+[release] validating release checkout
+[release] checking Docker engine
+Docker server=19.03.15 storage=overlay2
+[release] checking Registry read access with registry.chengyistudio.com/cxx/sidecar:latest
+latest: Pulling from cxx/sidecar
+Digest: sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c
+Status: Image is up to date for registry.chengyistudio.com/cxx/sidecar:latest
+registry.chengyistudio.com/cxx/sidecar:latest
+[release] checking immutable Tag is unused: registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64
+[release] immutable Tag is available: registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64
+[release] pulling Worker SDK base: registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42: Pulling from cxx/algo-base
+Digest: sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+Status: Image is up to date for registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+[release] building Worker 'KT1/signalsource_raw_iq': registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64
+Sending build context to Docker daemon  14.34kB
+Step 1/11 : ARG ALGO_BASE=registry.chengyistudio.com/cxx/algo-base:latest
+Step 2/11 : FROM ${ALGO_BASE} AS build
+ ---> e683273fe978
+Step 3/11 : WORKDIR /app
+ ---> Running in 3a560fe06634
+Removing intermediate container 3a560fe06634
+ ---> 98a22000a76a
+Step 4/11 : COPY CMakeLists.txt ./
+ ---> f49303df605e
+Step 5/11 : COPY src/ ./src/
+ ---> f46fc0d2fdfc
+Step 6/11 : RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON     && cmake --build build --parallel 4     && ctest --test-dir build --output-on-failure
+ ---> Running in b2b8e38f4fba
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (0.2s)
+-- Generating done (0.0s)
+-- Build files have been written to: /app/build
+[ 50%] Building CXX object CMakeFiles/signalsource-raw-iq.dir/src/main.cpp.o
+[100%] Linking CXX executable signalsource-raw-iq
+[100%] Built target signalsource-raw-iq
+Internal ctest changing into directory: /app/build
+Test project /app/build
+    Start 1: raw-iq-source-help
+1/3 Test #1: raw-iq-source-help ...............   Passed    0.00 sec
+    Start 2: raw-iq-source-reject-negative
+2/3 Test #2: raw-iq-source-reject-negative ....   Passed    0.00 sec
+    Start 3: raw-iq-source-reject-empty
+3/3 Test #3: raw-iq-source-reject-empty .......   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   0.01 sec
+Removing intermediate container b2b8e38f4fba
+ ---> a5c43876285e
+Step 7/11 : FROM ${ALGO_BASE}
+ ---> e683273fe978
+Step 8/11 : WORKDIR /app
+ ---> Using cache
+ ---> 98a22000a76a
+Step 9/11 : COPY --from=build /app/build/signalsource-raw-iq /app/signalsource-raw-iq
+ ---> 712d8183e7be
+Step 10/11 : ENTRYPOINT ["/app/signalsource-raw-iq"]
+ ---> Running in e0f898cbe953
+Removing intermediate container e0f898cbe953
+ ---> 7b83521f51f7
+Step 11/11 : LABEL io.uestcradar.contract="worker/v2"       io.uestcradar.roles="source"       io.uestcradar.input="none"       io.uestcradar.output="4:1"
+ ---> Running in 4c6908a041be
+Removing intermediate container 4c6908a041be
+ ---> 0bf09c1b9517
+Successfully built 0bf09c1b9517
+Successfully tagged registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64
+[release] verifying Worker image contract
+contract verified: image=registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64 kind=worker architecture=arm64
+[release] pushing immutable image: registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64
+The push refers to repository [registry.chengyistudio.com/cxx/worker]
+5bc588a3536c: Preparing
+6adb9badfca7: Preparing
+9c626f9f6e46: Preparing
+a721e92e0608: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+2d8834226313: Waiting
+d47ac722b9a4: Layer already exists
+2d8834226313: Layer already exists
+a721e92e0608: Mounted from cxx/algo-base
+6adb9badfca7: Mounted from cxx/algo-base
+9c626f9f6e46: Mounted from cxx/algo-base
+5bc588a3536c: Pushed
+signalsource-raw-iq-sha-fdb78ccbef00-arm64: digest: sha256:b6e1a0505bb2579aa8ad8e4f438cd7738979bbe38d98ad34fa895801a1ea23c1 size: 1574
+[release] pulling immutable image for contract verification: registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64
+signalsource-raw-iq-sha-fdb78ccbef00-arm64: Pulling from cxx/worker
+Digest: sha256:b6e1a0505bb2579aa8ad8e4f438cd7738979bbe38d98ad34fa895801a1ea23c1
+Status: Image is up to date for registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64
+registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64
+contract verified: image=registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64 kind=worker architecture=arm64
+[release] updating moving Tag: registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-latest
+The push refers to repository [registry.chengyistudio.com/cxx/worker]
+5bc588a3536c: Preparing
+6adb9badfca7: Preparing
+9c626f9f6e46: Preparing
+a721e92e0608: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+2d8834226313: Waiting
+d47ac722b9a4: Layer already exists
+5bc588a3536c: Layer already exists
+6adb9badfca7: Layer already exists
+9c626f9f6e46: Layer already exists
+a721e92e0608: Layer already exists
+2d8834226313: Layer already exists
+signalsource-raw-iq-latest: digest: sha256:b6e1a0505bb2579aa8ad8e4f438cd7738979bbe38d98ad34fa895801a1ea23c1 size: 1574
+signalsource-raw-iq-latest: Pulling from cxx/worker
+Digest: sha256:b6e1a0505bb2579aa8ad8e4f438cd7738979bbe38d98ad34fa895801a1ea23c1
+Status: Image is up to date for registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-latest
+registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-latest
+contract verified: image=registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-latest kind=worker architecture=arm64
+registry.chengyistudio.com/cxx/worker@sha256:b6e1a0505bb2579aa8ad8e4f438cd7738979bbe38d98ad34fa895801a1ea23c1

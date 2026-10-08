@@ -1,0 +1,7 @@
+uestcradar-web 80a7d24bd023
+/dev/sda4 ext4   /
+949a87fe338c9b0bad874ef8ee79022f874b41105072944999853e8b3aef9a9f  /tmp/rawiq-native.4YyApG/build-source/signalsource-raw-iq
+aacca82b000bd2cbdcda7572439f4d1bf6ad04a2600ada313a048cf213308b64  /tmp/rawiq-native.4YyApG/build-pcie/pcie_source
+ad9fd75fcc8630bc6c8ac38f8fd4b7319594153409f5cacee77585d10e8509b0  /tmp/rawiq-native.4YyApG/build-sink/signalsink
+5275e421fdd91bc9d6df1f44477142be0d4b680384ce71e91caa354973eb5738  /tmp/rawiq-native.4YyApG/install/lib/libuestcradar_sdk.so
+20e8ccd89cb9ea17c80b16086b9328a3df8b1a87bfb426da9f7820d301de5ea2  /root/workspace/captures/raw-iq-native-proof-4/smoke/2db22851695adc11d61a183980d06b47.sink

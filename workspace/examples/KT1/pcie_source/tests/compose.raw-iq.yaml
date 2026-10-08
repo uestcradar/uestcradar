@@ -1,0 +1,85 @@
+# Standalone explicit-TCP acceptance fixture, NOT Web strict-RDMA deployment.
+services:
+  sink-sidecar:
+    image: ${SIDECAR_IMAGE:?set immutable Sidecar image}
+    platform: ${SIDECAR_PLATFORM:-linux/arm64}
+    network_mode: host
+    ipc: shareable
+    shm_size: 32m
+    environment:
+      NODE_ID: raw-iq-test-sink
+      TELEMETRY_HOST: 127.0.0.1
+      TELEMETRY_PORT: '44322'
+      PREVIEW_HOST: 127.0.0.1
+      PREVIEW_PORT: '44323'
+      UCX_TLS: tcp,self
+      SIDECAR_UPSTREAM_ROLE: listen
+      SIDECAR_UPSTREAM_BIND_HOST: 127.0.0.1
+      SIDECAR_UPSTREAM_PORT: ${RAWIQ_TEST_PORT:-43637}
+      SIDECAR_UPSTREAM_DATA_PATH: functional
+      SIDECAR_UPSTREAM_SHM_NAME: /rawiq_test_up
+      SIDECAR_UPSTREAM_SLOT_COUNT: '64'
+      SIDECAR_UPSTREAM_MAX_PAYLOAD_BYTES: '32792'
+      SIDECAR_UPSTREAM_TYPE_ID: '4'
+      SIDECAR_UPSTREAM_TYPE_VERSION: '1'
+      SIDECAR_DOWNSTREAM_ROLE: disabled
+      SIDECAR_DOWNSTREAM_SHM_NAME: /rawiq_sink_disabled
+    healthcheck:
+      test: [CMD-SHELL, 'test -e /dev/shm/rawiq_test_up']
+      interval: 1s
+      timeout: 1s
+      retries: 30
+  sink:
+    image: ${SIGNALSINK_IMAGE:?set immutable SignalSink image}
+    platform: ${SINK_PLATFORM:-linux/arm64}
+    ipc: service:sink-sidecar
+    environment:
+      SIGNALSINK_INPUT: '4:1'
+      SIGNALSINK_CAPTURE_ROOT: /captures
+      SIGNALSINK_QUEUE_BYTES: '67108864'
+      SIGNALSINK_MIN_FREE_BYTES: '1073741824'
+      UESTCRADAR_UPSTREAM_SHM_NAME: /rawiq_test_up
+    volumes:
+      - ${RAWIQ_TEST_CAPTURES:?set an isolated capture directory}:/captures
+    depends_on:
+      sink-sidecar: {condition: service_healthy}
+  source-sidecar:
+    image: ${SIDECAR_IMAGE:?set immutable Sidecar image}
+    platform: ${SIDECAR_PLATFORM:-linux/arm64}
+    network_mode: host
+    ipc: shareable
+    shm_size: 32m
+    environment:
+      NODE_ID: raw-iq-test-source
+      TELEMETRY_HOST: 127.0.0.1
+      TELEMETRY_PORT: '44324'
+      PREVIEW_HOST: 127.0.0.1
+      PREVIEW_PORT: '44325'
+      UCX_TLS: tcp,self
+      SIDECAR_UPSTREAM_ROLE: disabled
+      SIDECAR_UPSTREAM_SHM_NAME: /rawiq_source_disabled
+      SIDECAR_DOWNSTREAM_ROLE: connect
+      SIDECAR_DOWNSTREAM_PEER_HOST: 127.0.0.1
+      SIDECAR_DOWNSTREAM_PORT: ${RAWIQ_TEST_PORT:-43637}
+      SIDECAR_DOWNSTREAM_DATA_PATH: functional
+      SIDECAR_DOWNSTREAM_SHM_NAME: /rawiq_test_down
+      SIDECAR_DOWNSTREAM_SLOT_COUNT: '64'
+      SIDECAR_DOWNSTREAM_MAX_PAYLOAD_BYTES: '32792'
+      SIDECAR_DOWNSTREAM_TYPE_ID: '4'
+      SIDECAR_DOWNSTREAM_TYPE_VERSION: '1'
+    healthcheck:
+      test: [CMD-SHELL, 'test -e /dev/shm/rawiq_test_down']
+      interval: 1s
+      timeout: 1s
+      retries: 30
+    depends_on:
+      sink-sidecar: {condition: service_healthy}
+  source:
+    image: ${RAWIQ_SOURCE_IMAGE:?set immutable signalsource-raw-iq image}
+    platform: ${SOURCE_PLATFORM:-linux/arm64}
+    ipc: service:source-sidecar
+    environment:
+      UESTCRADAR_DOWNSTREAM_SHM_NAME: /rawiq_test_down
+    command: [--frames, '64', --samples, '8192', --sample-rate, '819200']
+    depends_on:
+      source-sidecar: {condition: service_healthy}

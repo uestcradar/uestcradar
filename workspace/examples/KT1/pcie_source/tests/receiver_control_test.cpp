@@ -1,5 +1,6 @@
 #include "pcie_receiver.hpp"
 #include "cpi_assembler.hpp"
+#include "raw_assembler.hpp"
 #include <cassert>
 #include <sys/mman.h>
 
@@ -56,7 +57,9 @@ int main() {
         assembler.append(block.samples, [](Cpi) {});
         return block;
     };
-    assert(!feed(true, 100).timestamp_error);
+    const auto first_control = feed(true, 100);
+    assert(!first_control.timestamp_error && first_control.control);
+    assert(first_control.control->tx_start == UINT64_MAX && first_control.control->rx_first == 100);
     assert(!feed(false, 0, 8).samples.empty());
     auto block = feed(true, 100); // Duplicate timestamp doesn't clear the partial CPI.
     assert(block.timestamp_error && !block.gap && block.samples.empty());
@@ -93,4 +96,29 @@ int main() {
         }
     }
     assert(owned.samples[0].i == 42 && owned.samples[32].q == -74);
+    const auto invalid_before = receiver.stats().invalid_packets;
+    descriptor = {2048, 8193 * 8, 15, 0, 0};
+    assert(receiver.poll(0).gap && receiver.stats().invalid_packets == invalid_before + 1);
+    // Exercise real receiver + new frame assembler for each selected channel.
+    for (unsigned channel = 0; channel < 8; ++channel) {
+        constexpr unsigned pipes[]{0, 0, 2, 3, 1, 1, 2, 3};
+        constexpr unsigned lanes[]{0, 1, 0, 0, 0, 1, 1, 1};
+        RawAssembler raw;
+        descriptor = {2048, 24, 15, 0, 1};
+        next_rx = UINT64_C(0xf000000000000000) + channel;
+        const auto control = receiver.poll(channel);
+        assert(control.control);
+        raw.control(*control.control);
+        descriptor.control = 0;
+        descriptor.bytes = 32768;
+        iq_marker = 100;
+        assert(!raw.append(receiver.poll(channel).samples));
+        iq_marker = 10000;
+        const auto frame = raw.append(receiver.poll(channel).samples);
+        assert(frame && frame->metadata.tx_timestamp == UINT64_MAX && frame->metadata.rx_timestamp == next_rx);
+        for (unsigned t = 0; t < 8192; ++t) {
+            const int value = (t < 4096 ? 100 : 10000) + pipes[channel] * 1000 + lanes[channel] * 100 + t % 4096;
+            assert(frame->samples[t].i == value && frame->samples[t].q == -value);
+        }
+    }
 }

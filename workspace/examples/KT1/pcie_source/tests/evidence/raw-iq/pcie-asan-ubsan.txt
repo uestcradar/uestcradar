@@ -1,0 +1,177 @@
+-- The C compiler identification is GNU 11.4.0
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Looking for pthread.h
+-- Looking for pthread.h - found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /tmp/rawiq-pcie-asan
+[  2%] Building C object CMakeFiles/pcie_json.dir/pcie/cJSON.c.o
+[  5%] Building CXX object ringbuf/CMakeFiles/uestcradar_ringbuf.dir/ringbuf.cpp.o
+[  8%] Building C object CMakeFiles/pcie_rx.dir/pcie/xdma_rx.c.o
+[ 11%] Building C object CMakeFiles/pcie_rx.dir/pcie/devmem_io.c.o
+[ 14%] Linking C static library libpcie_rx.a
+[ 14%] Built target pcie_rx
+[ 17%] Linking C static library libpcie_json.a
+[ 17%] Built target pcie_json
+[ 20%] Building CXX object CMakeFiles/iq_decode_test.dir/tests/iq_decode_test.cpp.o
+[ 25%] Building CXX object CMakeFiles/pcie_source.dir/src/main.cpp.o
+[ 25%] Building CXX object CMakeFiles/cpi_templates_test.dir/tests/cpi_templates_test.cpp.o
+[ 28%] Linking CXX static library libuestcradar_ringbuf.a
+[ 28%] Built target uestcradar_ringbuf
+[ 31%] Building CXX object CMakeFiles/cpi_assembler_test.dir/tests/cpi_assembler_test.cpp.o
+[ 34%] Linking CXX executable iq_decode_test
+[ 34%] Built target iq_decode_test
+[ 37%] Building CXX object CMakeFiles/options_test.dir/tests/options_test.cpp.o
+[ 40%] Linking CXX executable cpi_templates_test
+[ 40%] Built target cpi_templates_test
+[ 42%] Building CXX object CMakeFiles/receiver_test.dir/tests/receiver_test.cpp.o
+[ 45%] Linking CXX executable options_test
+[ 45%] Built target options_test
+[ 48%] Linking CXX executable cpi_assembler_test
+[ 51%] Building CXX object CMakeFiles/timestamp_check_test.dir/tests/timestamp_check_test.cpp.o
+[ 51%] Built target cpi_assembler_test
+[ 54%] Building CXX object CMakeFiles/receiver_control_test.dir/tests/receiver_control_test.cpp.o
+[ 57%] Linking CXX executable receiver_test
+[ 57%] Built target receiver_test
+[ 60%] Building CXX object CMakeFiles/pcie_source.dir/src/pcie_receiver.cpp.o
+[ 62%] Building CXX object CMakeFiles/dma_snapshot_test.dir/tests/dma_snapshot_test.cpp.o
+[ 65%] Linking CXX executable timestamp_check_test
+[ 65%] Built target timestamp_check_test
+[ 68%] Building CXX object CMakeFiles/raw_assembler_test.dir/tests/raw_assembler_test.cpp.o
+[ 71%] Linking CXX executable dma_snapshot_test
+[ 71%] Built target dma_snapshot_test
+[ 74%] Building CXX object CMakeFiles/raw_output_test.dir/tests/raw_output_test.cpp.o
+[ 77%] Building CXX object CMakeFiles/receiver_control_test.dir/src/pcie_receiver.cpp.o
+[ 80%] Linking CXX executable pcie_source
+[ 82%] Linking CXX executable raw_assembler_test
+[ 82%] Built target pcie_source
+[ 85%] Building CXX object CMakeFiles/raw-iq-check.dir/tests/raw_iq_check.cpp.o
+[ 85%] Built target raw_assembler_test
+[ 88%] Building CXX object ringbuf/CMakeFiles/ringbuf-test.dir/ringbuf_test.cpp.o
+[ 91%] Linking CXX executable ringbuf-test
+[ 91%] Built target ringbuf-test
+[ 94%] Linking CXX executable raw_output_test
+[ 97%] Linking CXX executable raw-iq-check
+[ 97%] Built target raw_output_test
+[ 97%] Built target raw-iq-check
+[100%] Linking CXX executable receiver_control_test
+[100%] Built target receiver_control_test
+Internal ctest changing into directory: /tmp/rawiq-pcie-asan
+Test project /tmp/rawiq-pcie-asan
+      Start  1: pcie-iq_decode
+ 1/14 Test  #1: pcie-iq_decode ...................   Passed    0.01 sec
+      Start  2: pcie-cpi_templates
+ 2/14 Test  #2: pcie-cpi_templates ...............   Passed    0.02 sec
+      Start  3: pcie-cpi_assembler
+ 3/14 Test  #3: pcie-cpi_assembler ...............   Passed    0.51 sec
+      Start  4: pcie-options
+ 4/14 Test  #4: pcie-options .....................   Passed    0.01 sec
+      Start  5: pcie-receiver
+ 5/14 Test  #5: pcie-receiver ....................   Passed    0.02 sec
+      Start  6: pcie-timestamp_check
+ 6/14 Test  #6: pcie-timestamp_check .............   Passed    0.02 sec
+      Start  7: pcie-receiver_control
+ 7/14 Test  #7: pcie-receiver_control ............   Passed    0.04 sec
+      Start  8: pcie-dma_snapshot
+ 8/14 Test  #8: pcie-dma_snapshot ................   Passed    0.19 sec
+      Start  9: pcie-raw_assembler
+ 9/14 Test  #9: pcie-raw_assembler ...............   Passed    0.01 sec
+      Start 10: pcie-help
+10/14 Test #10: pcie-help ........................   Passed    0.01 sec
+      Start 11: pcie-reject-channel
+11/14 Test #11: pcie-reject-channel ..............   Passed    0.02 sec
+      Start 12: pcie-reject-missing-port
+12/14 Test #12: pcie-reject-missing-port .........   Passed    3.03 sec
+      Start 13: pcie-raw-output
+13/14 Test #13: pcie-raw-output ..................   Passed    5.03 sec
+      Start 14: ringbuf-test
+14/14 Test #14: ringbuf-test .....................   Passed    0.02 sec
+
+100% tests passed, 0 tests failed out of 14
+
+Total Test time (real) =   8.96 sec
+Consolidate compiler generated dependencies of target pcie_json
+Consolidate compiler generated dependencies of target pcie_rx
+Consolidate compiler generated dependencies of target uestcradar_ringbuf
+[  5%] Built target pcie_json
+[ 14%] Built target pcie_rx
+[ 20%] Built target uestcradar_ringbuf
+Consolidate compiler generated dependencies of target pcie_source
+Consolidate compiler generated dependencies of target iq_decode_test
+Consolidate compiler generated dependencies of target cpi_templates_test
+Consolidate compiler generated dependencies of target cpi_assembler_test
+[ 22%] Building CXX object CMakeFiles/pcie_source.dir/src/main.cpp.o
+[ 28%] Built target iq_decode_test
+[ 34%] Built target cpi_assembler_test
+[ 40%] Built target cpi_templates_test
+[ 42%] Building CXX object CMakeFiles/pcie_source.dir/src/pcie_receiver.cpp.o
+Consolidate compiler generated dependencies of target options_test
+Consolidate compiler generated dependencies of target receiver_test
+[ 48%] Built target options_test
+[ 54%] Built target receiver_test
+Consolidate compiler generated dependencies of target timestamp_check_test
+Consolidate compiler generated dependencies of target receiver_control_test
+[ 60%] Built target timestamp_check_test
+[ 62%] Building CXX object CMakeFiles/receiver_control_test.dir/tests/receiver_control_test.cpp.o
+Consolidate compiler generated dependencies of target dma_snapshot_test
+[ 68%] Built target dma_snapshot_test
+[ 71%] Building CXX object CMakeFiles/receiver_control_test.dir/src/pcie_receiver.cpp.o
+Consolidate compiler generated dependencies of target raw_assembler_test
+[ 77%] Built target raw_assembler_test
+Consolidate compiler generated dependencies of target raw_output_test
+[ 82%] Built target raw_output_test
+Consolidate compiler generated dependencies of target raw-iq-check
+[ 88%] Built target raw-iq-check
+Consolidate compiler generated dependencies of target ringbuf-test
+[ 94%] Built target ringbuf-test
+[ 97%] Linking CXX executable receiver_control_test
+[ 97%] Built target receiver_control_test
+[100%] Linking CXX executable pcie_source
+[100%] Built target pcie_source
+Internal ctest changing into directory: /tmp/rawiq-pcie-asan
+Test project /tmp/rawiq-pcie-asan
+      Start  1: pcie-iq_decode
+ 1/14 Test  #1: pcie-iq_decode ...................   Passed    0.01 sec
+      Start  2: pcie-cpi_templates
+ 2/14 Test  #2: pcie-cpi_templates ...............   Passed    0.01 sec
+      Start  3: pcie-cpi_assembler
+ 3/14 Test  #3: pcie-cpi_assembler ...............   Passed    0.50 sec
+      Start  4: pcie-options
+ 4/14 Test  #4: pcie-options .....................   Passed    0.01 sec
+      Start  5: pcie-receiver
+ 5/14 Test  #5: pcie-receiver ....................   Passed    0.02 sec
+      Start  6: pcie-timestamp_check
+ 6/14 Test  #6: pcie-timestamp_check .............   Passed    0.02 sec
+      Start  7: pcie-receiver_control
+ 7/14 Test  #7: pcie-receiver_control ............   Passed    0.03 sec
+      Start  8: pcie-dma_snapshot
+ 8/14 Test  #8: pcie-dma_snapshot ................   Passed    0.19 sec
+      Start  9: pcie-raw_assembler
+ 9/14 Test  #9: pcie-raw_assembler ...............   Passed    0.01 sec
+      Start 10: pcie-help
+10/14 Test #10: pcie-help ........................   Passed    0.01 sec
+      Start 11: pcie-reject-channel
+11/14 Test #11: pcie-reject-channel ..............   Passed    0.01 sec
+      Start 12: pcie-reject-missing-port
+12/14 Test #12: pcie-reject-missing-port .........   Passed    3.02 sec
+      Start 13: pcie-raw-output
+13/14 Test #13: pcie-raw-output ..................   Passed    5.03 sec
+      Start 14: ringbuf-test
+14/14 Test #14: ringbuf-test .....................   Passed    0.02 sec
+
+100% tests passed, 0 tests failed out of 14
+
+Total Test time (real) =   8.90 sec

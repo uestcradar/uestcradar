@@ -20,7 +20,9 @@ Output<DataFrame>::create(metadata, input)
 Output<DataFrame>::write(std::move(output))
 ```
 
-[KT1](./KT1) 包含 `cascade_worker`、`pcie_source`、`signalsink` 和 `signalsource`。
+[KT1](./KT1) 包含 `cascade_worker`、`pcie_source`、`signalsink`、`signalsource` 和 `signalsource_raw_iq`。
+
+[signalsource_raw_iq](./KT1/signalsource_raw_iq) 使用独立 `RawIQFrame 4:1`，用于单通道采集帧到 SignalSink 的裸帧保存验证；不替换下面的旧算法输入。
 
 [signalsource](./KT1/signalsource) 为两条教学流提供确定性测试输入和结果校验程序，算法
 开发者通过各示例的一键开发环境使用它，无需单独配置。

@@ -53,15 +53,27 @@ ReceivedBlock PcieReceiver::poll(unsigned channel) {
             stats_.timestamp_check.previous.reset();
             return {{}, true};
         }
-        std::array<std::byte, 20> prefix{};
-        std::memcpy(prefix.data(), packet.pipes[0].data(), prefix.size());
+        std::array<std::byte, 20> prefix{}, again{};
+        dma_copy_.copy(prefix, again, packet.pipes[0].first(prefix.size()));
+        if (prefix != again) {
+            ++stats_.changed_copies;
+            stats_.timestamp_check.previous.reset();
+            return {{}, true};
+        }
         const auto now = std::chrono::steady_clock::now().time_since_epoch();
         const ControlObservation observation{read_control_timestamps(prefix),
             stats_.control_packets, stats_.descriptors,
             static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count()),
             descriptor.offset, descriptor.bytes, descriptor.mask};
-        // Even anomalous timestamps leave IQ and partial software CPIs untouched.
-        return {{}, false, stats_.timestamp_check.observe(observation)};
+        // Preserve raw values even when passive timestamp diagnostics report an anomaly.
+        return {{}, false, stats_.timestamp_check.observe(observation), observation.timestamps};
+    }
+    // One descriptor cannot span more than one 8192-point hardware frame per
+    // channel (two CS16 channels per pipe). Reject before allocating snapshots.
+    if (descriptor.bytes > 8192U * 8U) {
+        ++stats_.invalid_packets;
+        stats_.timestamp_check.previous.reset();
+        return {{}, true};
     }
     if (channel >= 8) throw std::invalid_argument("channel must be 0..7");
     unsigned selected_pipe = 0;

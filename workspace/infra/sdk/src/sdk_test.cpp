@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -455,6 +456,107 @@ void test_source_generates_trace(const std::string& prefix) {
     }
 }
 
+void test_output_open_timeout(const std::string& prefix) {
+    using namespace std::chrono;
+    ::setenv("UESTCRADAR_DOWNSTREAM_SHM_NAME", (prefix + "_absent").c_str(), 1);
+    const auto start = steady_clock::now();
+    bool rejected = false;
+    try { uestcradar::Output<uestcradar::RawIQFrame> missing(milliseconds(1)); }
+    catch (const std::runtime_error& e) { rejected = std::string(e.what()) == "ring open timed out"; }
+    require(rejected && steady_clock::now() - start < seconds(1), "missing output port waited without a bound");
+    OwnedRing ring(prefix + "_initializing", 4, 1);
+    ::setenv("UESTCRADAR_DOWNSTREAM_SHM_NAME", ring.name().c_str(), 1);
+    const auto magic = ring.get()->header->magic.load();
+    ring.get()->header->magic.store(0);
+    rejected = false;
+    try { uestcradar::Output<uestcradar::RawIQFrame> pending(milliseconds(1)); }
+    catch (const std::runtime_error& e) { rejected = std::string(e.what()) == "ring initialization timed out"; }
+    ring.get()->header->magic.store(magic);
+    require(rejected, "uninitialized output header waited without a bound");
+    uestcradar::Output<uestcradar::RawIQFrame> output(milliseconds(0));
+    ring.get()->header->read_position.store(1);
+    rejected = false;
+    try { static_cast<void>(output.try_create({0,0,1,1})); }
+    catch (const std::runtime_error& e) { rejected = std::string(e.what()) == "output RingBuffer is corrupt"; }
+    ring.get()->header->read_position.store(0);
+    require(rejected, "try_create disguised corruption as would-block");
+}
+
+void test_raw_iq_and_try_create(const std::string& prefix) {
+    using namespace uestcradar;
+    OwnedRing ring(prefix + "_raw_iq", 4, 1);
+    ::setenv("UESTCRADAR_DOWNSTREAM_SHM_NAME", ring.name().c_str(), 1);
+    ::setenv("UESTCRADAR_UPSTREAM_SHM_NAME", ring.name().c_str(), 1);
+    Output<RawIQFrame> output;
+    const RawIQMetadata metadata{UINT64_MAX, UINT64_C(0xfedcba9876543210), 2, 3};
+    const std::array<ComplexInt16, 6> samples{{{1, -1}, {-32768, 32767}, {123, -456},
+                                            {0, 0}, {-789, 456}, {32767, -32768}}};
+    const auto send = [&] {
+        auto frame = output.try_create(metadata);
+        require(frame.has_value(), "RawIQ reservation failed");
+        require(frame->data().rows() == 2 && frame->data().columns() == 3, "RawIQ shape");
+        std::copy(samples.begin(), samples.end(), frame->data().values().begin());
+        bool rejected = false;
+        try { static_cast<void>(output.try_create(metadata)); }
+        catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "try_create accepted a second live lease");
+        output.write(std::move(*frame));
+    };
+    send();
+    send();
+    for (int retry = 0; retry < 100; ++retry)
+        require(!output.try_create(metadata), "full Ring did not return would-block");
+    RingReadLease wire;
+    require(ringbuf_acquire(ring.get(), wire) == RingResult::ok, "RawIQ wire acquire");
+    const unsigned char golden[]{
+        255,255,255,255,255,255,255,255, 0x10,0x32,0x54,0x76,0x98,0xba,0xdc,0xfe,
+        2,0,0,0, 3,0,0,0, 1,0,255,255, 0,128,255,127, 123,0,56,254, 0,0,0,0,
+        235,252,200,1, 255,127,0,128};
+    require(wire.envelope().type_id == 4 && wire.envelope().type_version == 1 &&
+            wire.envelope().frame_id == 1 && wire.payload().size() == sizeof(golden) &&
+            std::memcmp(wire.payload().data(), golden, sizeof(golden)) == 0, "RawIQ golden wire mismatch");
+    require(ringbuf_release(wire) == RingResult::ok, "RawIQ release");
+    send(); // Would-block retries did not allocate sequence numbers.
+    Input<RawIQFrame> input;
+    {
+        auto frame = input.read();
+        require(frame.metadata().tx_timestamp == UINT64_MAX &&
+                frame.metadata().rx_timestamp == metadata.rx_timestamp &&
+                frame.data()[0][2].q == -456 && frame.data()[1][1].i == -789,
+                "RawIQ typed roundtrip");
+    }
+    require(ringbuf_acquire(ring.get(), wire) == RingResult::ok &&
+            wire.envelope().frame_id == 3, "try_create retries skipped sequence numbers");
+    require(ringbuf_release(wire) == RingResult::ok, "RawIQ sequence release");
+    { auto cancelled = output.try_create(metadata); require(cancelled.has_value(), "cancel fixture"); }
+    { auto reused = output.try_create(metadata); require(reused.has_value(), "cancel leaked slot"); }
+    for (const auto shape : {RawIQMetadata{0,0,0,1}, RawIQMetadata{0,0,1,0},
+                            RawIQMetadata{0,0,UINT32_MAX,UINT32_MAX}, RawIQMetadata{0,0,1,4096}}) {
+        bool rejected = false;
+        try { static_cast<void>(output.try_create(shape)); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected, "RawIQ accepted invalid dimensions/oversized payload");
+    }
+    // Shape/length mismatch and truncated metadata must not leak read leases.
+    for (const auto length : {std::uint32_t{23}, std::uint32_t{44}}) {
+        RingWriteLease bad;
+        require(ringbuf_reserve(ring.get(), bad) == RingResult::ok, "malformed RawIQ reserve");
+        bad.envelope() = {.type_id=4, .type_version=1, .payload_length=length};
+        std::fill_n(bad.payload().begin(), length, std::byte{});
+        std::memcpy(bad.payload().data(), golden, std::min<std::size_t>(length, 24));
+        require(ringbuf_commit(bad) == RingResult::ok, "malformed RawIQ commit");
+        bool rejected = false;
+        try { static_cast<void>(input.read()); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected && ringbuf_occupied_slots(ring.get()) == 0, "malformed RawIQ accepted or leaked lease");
+    }
+    ringbuf_shutdown(ring.get());
+    bool rejected = false;
+    try { static_cast<void>(output.try_create(metadata)); }
+    catch (const std::runtime_error& e) { rejected = std::string(e.what()) == "output has been shut down"; }
+    require(rejected, "try_create disguised shutdown as would-block");
+}
+
 void test_contract_rejection(const std::string& prefix) {
     OwnedRing wrong_port{prefix + "_wrong_port", kRDTypeId, kRDVersion};
     ::setenv(
@@ -561,6 +663,8 @@ int main() {
         test_iq_v3_golden_wire(prefix);
         test_operator_inherits_trace(prefix);
         test_source_generates_trace(prefix);
+        test_output_open_timeout(prefix);
+        test_raw_iq_and_try_create(prefix);
         test_contract_rejection(prefix);
         return 0;
     } catch (const std::exception& error) {
