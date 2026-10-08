@@ -1,0 +1,124 @@
+ Container uestcradar-kt3-frontend-sink-1  Creating
+ Container uestcradar-kt3-frontend-rd-1  Creating
+ Container uestcradar-kt3-frontend-source-1  Creating
+ Container uestcradar-kt3-frontend-pulsecompression-1  Creating
+ Container uestcradar-kt3-sidecar-sink-1  Creating
+ Container uestcradar-kt3-frontend-source-1  Created
+ Container uestcradar-kt3-frontend-sink-1  Created
+ Container uestcradar-kt3-frontend-rd-1  Created
+ Container uestcradar-kt3-frontend-pulsecompression-1  Created
+ Container uestcradar-kt3-sidecar-sink-1  Created
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Creating
+ Container uestcradar-kt3-rd-sink-1  Creating
+ Container uestcradar-kt3-rd-sink-1  Created
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Created
+ Container uestcradar-kt3-rd-algorithm-1  Creating
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Creating
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Created
+ Container uestcradar-kt3-pulsecompression-1  Creating
+ Container uestcradar-kt3-sidecar-source-1  Creating
+ Container uestcradar-kt3-rd-algorithm-1  Created
+ Container uestcradar-kt3-pulsecompression-1  Created
+ Container uestcradar-kt3-sidecar-source-1  Created
+ Container uestcradar-kt3-signalsource-1  Creating
+ Container uestcradar-kt3-signalsource-1  Created
+ Container uestcradar-kt3-frontend-sink-1  Starting
+ Container uestcradar-kt3-sidecar-sink-1  Starting
+ Container uestcradar-kt3-frontend-pulsecompression-1  Starting
+ Container uestcradar-kt3-frontend-rd-1  Starting
+ Container uestcradar-kt3-frontend-source-1  Starting
+ Container uestcradar-kt3-frontend-pulsecompression-1  Started
+ Container uestcradar-kt3-frontend-sink-1  Started
+ Container uestcradar-kt3-frontend-rd-1  Started
+ Container uestcradar-kt3-frontend-source-1  Started
+ Container uestcradar-kt3-sidecar-sink-1  Started
+ Container uestcradar-kt3-sidecar-sink-1  Waiting
+ Container uestcradar-kt3-sidecar-sink-1  Waiting
+ Container uestcradar-kt3-sidecar-sink-1  Healthy
+ Container uestcradar-kt3-rd-sink-1  Starting
+ Container uestcradar-kt3-sidecar-sink-1  Healthy
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Starting
+ Container uestcradar-kt3-rd-sink-1  Started
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Started
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Waiting
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Waiting
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Healthy
+ Container uestcradar-kt3-rd-algorithm-1  Starting
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Healthy
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Starting
+ Container uestcradar-kt3-rd-algorithm-1  Started
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Started
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Waiting
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Waiting
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Healthy
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Healthy
+ Container uestcradar-kt3-pulsecompression-1  Starting
+ Container uestcradar-kt3-sidecar-source-1  Starting
+ Container uestcradar-kt3-sidecar-source-1  Started
+ Container uestcradar-kt3-sidecar-source-1  Waiting
+ Container uestcradar-kt3-pulsecompression-1  Started
+ Container uestcradar-kt3-sidecar-source-1  Healthy
+ Container uestcradar-kt3-signalsource-1  Starting
+ Container uestcradar-kt3-signalsource-1  Started
+rd-sink-1  | [PASSED] RDFrame received=1 shape=22196x64 peak_range=10206 peak_doppler=62 magnitude=1.81174e+06 sha256=c7d7465435c2e34d100c8732d3093c2654dc2fdaea44c3a5959c647e92273290
+NAME                                         IMAGE                                                                                                             COMMAND                  SERVICE                     CREATED          STATUS                    PORTS
+uestcradar-kt3-frontend-pulsecompression-1   registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052   "/frontend"              frontend-pulsecompression   14 seconds ago   Up 13 seconds (healthy)
+uestcradar-kt3-frontend-rd-1                 registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052   "/frontend"              frontend-rd                 14 seconds ago   Up 13 seconds (healthy)
+uestcradar-kt3-frontend-sink-1               registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052   "/frontend"              frontend-sink               14 seconds ago   Up 13 seconds (healthy)
+uestcradar-kt3-frontend-source-1             registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052   "/frontend"              frontend-source             14 seconds ago   Up 13 seconds (healthy)
+uestcradar-kt3-pulsecompression-1            registry.chengyistudio.com/cxx/worker@sha256:24e4493e3e8e7cce3b5985b0394c943eee8663e1fd3049e422f718fa1aee8421     "/app/pulsecompressi…"   pulsecompression            13 seconds ago   Up 8 seconds
+uestcradar-kt3-rd-algorithm-1                registry.chengyistudio.com/cxx/worker@sha256:0213dfc739c7ca3ca6f689e03ac02a2a2ad29f6ac74a85a5b38f77bf1d89e00a     "/app/qt5-algorithm"     rd-algorithm                13 seconds ago   Up 9 seconds
+uestcradar-kt3-rd-sink-1                     registry.chengyistudio.com/cxx/worker@sha256:9549a84a6853398de409237ac3b15f704d79364d1b11b35eab96fb3456b52948     "/app/rd-sink --fram…"   rd-sink                     14 seconds ago   Up 11 seconds
+uestcradar-kt3-sidecar-pulsecompression-1    registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c    "/app/sidecar"           sidecar-pulsecompression    13 seconds ago   Up 9 seconds (healthy)
+uestcradar-kt3-sidecar-rd-bridge-1           registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c    "/app/sidecar"           sidecar-rd-bridge           14 seconds ago   Up 11 seconds (healthy)
+uestcradar-kt3-sidecar-sink-1                registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c    "/app/sidecar"           sidecar-sink                14 seconds ago   Up 13 seconds (healthy)
+uestcradar-kt3-sidecar-source-1              registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c    "/app/sidecar"           sidecar-source              13 seconds ago   Up 8 seconds (healthy)
+uestcradar-kt3-signalsource-1                registry.chengyistudio.com/cxx/worker@sha256:9a3faffdcbd186c3aa0c024770f58eba4e3a7c25556e2b5847c3e32e9abb319c     "/app/signalsource -…"   signalsource                13 seconds ago   Up 6 seconds
+ Container uestcradar-kt3-signalsource-1  Stopping
+ Container uestcradar-kt3-rd-algorithm-1  Stopping
+ Container uestcradar-kt3-frontend-pulsecompression-1  Stopping
+ Container uestcradar-kt3-pulsecompression-1  Stopping
+ Container uestcradar-kt3-frontend-source-1  Stopping
+ Container uestcradar-kt3-frontend-sink-1  Stopping
+ Container uestcradar-kt3-frontend-rd-1  Stopping
+ Container uestcradar-kt3-rd-sink-1  Stopping
+ Container uestcradar-kt3-frontend-pulsecompression-1  Stopped
+ Container uestcradar-kt3-frontend-pulsecompression-1  Removing
+ Container uestcradar-kt3-rd-algorithm-1  Stopped
+ Container uestcradar-kt3-rd-algorithm-1  Removing
+ Container uestcradar-kt3-frontend-source-1  Stopped
+ Container uestcradar-kt3-frontend-source-1  Removing
+ Container uestcradar-kt3-frontend-pulsecompression-1  Removed
+ Container uestcradar-kt3-rd-algorithm-1  Removed
+ Container uestcradar-kt3-frontend-sink-1  Stopped
+ Container uestcradar-kt3-frontend-sink-1  Removing
+ Container uestcradar-kt3-frontend-source-1  Removed
+ Container uestcradar-kt3-frontend-sink-1  Removed
+ Container uestcradar-kt3-frontend-rd-1  Stopped
+ Container uestcradar-kt3-frontend-rd-1  Removing
+ Container uestcradar-kt3-frontend-rd-1  Removed
+ Container uestcradar-kt3-signalsource-1  Stopped
+ Container uestcradar-kt3-signalsource-1  Removing
+ Container uestcradar-kt3-rd-sink-1  Stopped
+ Container uestcradar-kt3-rd-sink-1  Removing
+ Container uestcradar-kt3-signalsource-1  Removed
+ Container uestcradar-kt3-sidecar-source-1  Stopping
+ Container uestcradar-kt3-pulsecompression-1  Stopped
+ Container uestcradar-kt3-pulsecompression-1  Removing
+ Container uestcradar-kt3-rd-sink-1  Removed
+ Container uestcradar-kt3-pulsecompression-1  Removed
+ Container uestcradar-kt3-sidecar-source-1  Stopped
+ Container uestcradar-kt3-sidecar-source-1  Removing
+ Container uestcradar-kt3-sidecar-source-1  Removed
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Stopping
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Stopped
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Removing
+ Container uestcradar-kt3-sidecar-pulsecompression-1  Removed
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Stopping
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Stopped
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Removing
+ Container uestcradar-kt3-sidecar-rd-bridge-1  Removed
+ Container uestcradar-kt3-sidecar-sink-1  Stopping
+ Container uestcradar-kt3-sidecar-sink-1  Stopped
+ Container uestcradar-kt3-sidecar-sink-1  Removing
+ Container uestcradar-kt3-sidecar-sink-1  Removed

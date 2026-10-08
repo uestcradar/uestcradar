@@ -1,0 +1,7 @@
+{"disposable_synthetic_capture": "/root/workspace/captures/signalsink-test-mEPM4C/benchmark-11049de21da44faeb0068bb163d291f4/f2c7d4721726f1711f321cea16cad1fd.partial", "validation": {"complete": false, "frames": 384, "raw_bytes": 403497984, "raw_sha256": "0e14a5941c04e3c552d0607e0a664a6b3bd5f7f5938b6674a9d32ce19ede3b08"}}
+{"disposable_synthetic_capture": "/root/workspace/captures/signalsink-test-mEPM4C/benchmark-4eb9b72608924e4d907ea9b1efac024b/8a6492c2779ac8cc64d579add6606547.sink", "validation": {"complete": true, "frames": 2813, "raw_bytes": 2955832888, "raw_sha256": "75f35c29aeb7e4cff6994250bede6823cafcb32e7096037642280ef48c1f75c4", "sample_continuity": "unverified"}}
+{"disposable_synthetic_capture": "/root/workspace/captures/signalsink-test-mEPM4C/benchmark-81bf119fb3ed4e2bbb50f89acabc1552/2a28a190c0c7b18c811b4093841a22a3.sink", "validation": {"complete": true, "frames": 2813, "raw_bytes": 2955832888, "raw_sha256": "5fa0cec4074575ecd2561468236e083cdc0d0ce4bb670e65d77554d0cc1bbc9c", "sample_continuity": "unverified"}}
+{"disposable_synthetic_capture": "/root/workspace/captures/signalsink-test-mEPM4C/benchmark-8e4a8ea2bf924e5aa8965f9d63af7c3d/cc9c8d0bcc7db5d2342175cb1964867e.sink", "validation": {"complete": true, "frames": 14063, "raw_bytes": 14777062888, "raw_sha256": "dcfd3328b1cf496463a2247ebb517176d15e11775e61580710cfa8125afa850e", "sample_continuity": "unverified"}}
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda4        51G   23G   27G  46% /
+uestcradar-web 80a7d24bd023

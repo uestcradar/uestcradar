@@ -1,0 +1,2 @@
+{"direct": false, "bytes": 2147483648, "write_seconds": 0.48879124199993385, "sync_seconds": 14.603012948000014, "total_seconds": 15.091804189999948, "durable_bytes_per_second": 142294693.26291382}
+{"direct": true, "bytes": 2147483648, "write_seconds": 21.253892828000062, "sync_seconds": 0.005742244999964896, "total_seconds": 21.259635073000027, "durable_bytes_per_second": 101012253.53239144}

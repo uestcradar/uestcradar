@@ -1,0 +1,42 @@
+--- a/src/recorder.hpp
++++ b/src/recorder.hpp
+@@ -201,6 +201,7 @@
+             id_ = id;
+             directory_ = directory;
+             head_ = used_ = 0;
++            writeback_offset_ = 0;
+             accepted_ = written_ = bytes_ = 0;
+             started_ = std::chrono::steady_clock::now();
+             elapsed_ms_ = 0;
+@@ -299,12 +300,22 @@
+                 const auto size = payload + 8;
+                 const auto first = std::min(size, capacity_ - head_);
+                 const auto* begin = buffer_.data() + head_;
++                constexpr std::uint64_t batch = 128 * 1024 * 1024;
++                const auto writeback_end = (8 + bytes_ + written_ * 8 + size) / batch * batch;
+                 lock.unlock();
+                 std::string error;
+                 try {
+                     check_space(dir_.get());
+                     write_all(file_.get(), begin, first);
+                     write_all(file_.get(), buffer_.data(), size - first);
++                    if (writeback_end > writeback_offset_) {
++                        // Start writeback during capture, not only at stop. This is NOT durability:
++                        // the final fsync and directory syncs remain mandatory.
++                        while (::sync_file_range(file_.get(), writeback_offset_, writeback_end - writeback_offset_, SYNC_FILE_RANGE_WRITE)) {
++                            if (errno != EINTR) io_error("start capture writeback");
++                        }
++                        writeback_offset_ = writeback_end;
++                    }
+                 } catch (const std::exception& value) { error = value.what(); }
+                 lock.lock();
+                 if (!error.empty()) { state_ = "failed"; error_ = error; }
+@@ -344,7 +355,7 @@
+     std::thread writer_;
+     std::vector<std::byte> buffer_;
+     std::size_t head_{}, used_{};
+-    std::uint64_t accepted_{}, written_{}, bytes_{};
++    std::uint64_t accepted_{}, written_{}, bytes_{}, writeback_offset_{};
+     std::string state_{"idle"}, directory_{"recordings"}, id_, error_;
+     std::chrono::steady_clock::time_point started_{};
+     std::int64_t elapsed_ms_{};

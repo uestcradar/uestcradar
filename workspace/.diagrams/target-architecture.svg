@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="880" viewBox="0 0 1280 880" role="img" aria-labelledby="title desc">
+<title id="title">UESTC Radar 单机与服务器统一目标架构</title>
+<desc id="desc">Web 保留聚合部署与管理职责。每个节点使用独立 Frontend、Sidecar、Worker 容器，Worker 经本机共享内存连接 Sidecar。Sidecar 间使用 UCX 传输与反向 credit，遥测和安全有界抽样送至 Frontend，不回压主链路。单机和服务器共用节点部署单元，仅改变节点位置及环境配置。Frontend 可直接访问，拆分尚未实现。</desc>
+<defs>
+<style>
+text{font-family:'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#203752}.title{font-size:23px;font-weight:700}.head{font-size:16px;font-weight:700}.small{font-size:12px;fill:#5e7591}.body{font-size:13px}.mono{font-family:Consolas,monospace;font-size:11px;fill:#627b96}.section{font-size:13px;font-weight:700;fill:#45617f}.green{fill:#00856b}.blue{fill:#0878b6}.purple{fill:#742ee5}.orange{fill:#be5c1b}.frame{fill:#f8fafc;stroke:#9aafc9;stroke-width:1.2}.plain{fill:white;stroke:#bed0e3}.rxbox{fill:#edfaf5;stroke:#52b696}.txbox{fill:#eef7ff;stroke:#65abdc}.controlbox{fill:#f7f3ff;stroke:#b896f2}.rx{fill:none;stroke:#00856b;stroke-width:1.8;marker-end:url(#g)}.tx{fill:none;stroke:#0878b6;stroke-width:1.8;marker-end:url(#b)}.ctl{fill:none;stroke:#742ee5;stroke-width:1.5;stroke-dasharray:5 4;marker-end:url(#p)}.observe{fill:none;stroke:#cc731c;stroke-width:1.5;stroke-dasharray:2 4;marker-end:url(#o)}.credit{fill:none;stroke:#0878b6;stroke-width:1.3;stroke-dasharray:3 3;marker-end:url(#b)}
+</style>
+<marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#00856b" d="M0 0 10 5 0 10Z"/></marker>
+<marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#0878b6" d="M0 0 10 5 0 10Z"/></marker>
+<marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#742ee5" d="M0 0 10 5 0 10Z"/></marker>
+<marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#cc731c" d="M0 0 10 5 0 10Z"/></marker>
+</defs>
+<rect width="1280" height="880" fill="white"/>
+<text x="24" y="34" class="title">UESTC Radar 单机与服务器统一架构</text>
+<text x="24" y="56" class="small">相同节点部署单元、接口与配置格式 · 单机同址部署 / 多机分布部署 · Worker 与 Sidecar 始终同机</text>
+<text x="1256" y="32" text-anchor="end" class="small">目标设计 · Frontend 拆分尚待实现</text>
+<path class="rx" d="M25 79H61"/><text x="70" y="83" class="small">输入 / 接收</text>
+<path class="tx" d="M191 79H227"/><text x="236" y="83" class="small">输出 / 发送</text>
+<path class="ctl" d="M361 79H397"/><text x="406" y="83" class="small">节点入口 / 接口</text>
+<path class="observe" d="M570 79H606"/><text x="615" y="83" class="small">遥测 / 有界预览</text>
+<path class="credit" d="M810 79H846"/><text x="855" y="83" class="small">反向 credit</text>
+<line x1="24" x2="1256" y1="98" y2="98" stroke="#d8e3ee"/>
+<!-- 聚合管理与节点预览职责分离 -->
+<rect x="375" y="118" width="520" height="100" rx="7" class="controlbox"/>
+<text x="391" y="143" class="head">Web / 聚合部署与管理</text>
+<text x="391" y="165" class="body">全局拓扑 · 链路部署 · 跨节点管理 · 状态汇总</text>
+<text x="391" y="188" class="small">提供 Frontend 链接；需要同源时代理 HTTP / WebSocket</text>
+<text x="391" y="207" class="small">不增加另一套单机预览模式；默认不额外部署 Nginx</text>
+<text x="25" y="143" class="section">节点可独立使用</text>
+<text x="25" y="166" class="small">浏览器可直接访问 Frontend</text>
+<text x="25" y="187" class="small">Web 离线不影响预览和主链路</text>
+<text x="946" y="143" class="section">独立部署与升级</text>
+<text x="946" y="166" class="small">Frontend：页面 + 必要轻量后端</text>
+<text x="946" y="187" class="small">共用镜像，不为每个节点复制代码</text>
+<!-- 相同逻辑节点结构，不将节点绑定为物理主机 -->
+<rect x="24" y="270" width="364" height="517" rx="8" class="frame"/>
+<rect x="456" y="270" width="368" height="517" rx="8" class="frame"/>
+<rect x="892" y="270" width="364" height="517" rx="8" class="frame"/>
+<text x="41" y="295" class="section">SOURCE / 数据源节点</text>
+<text x="473" y="295" class="section">OPERATOR / 算法节点</text>
+<text x="909" y="295" class="section">SINK / 接收节点</text>
+<path class="ctl" d="M455 218V244H300V313"/>
+<path class="ctl" d="M640 218V244H766V313"/>
+<path class="ctl" d="M815 218V244H1170V313"/>
+<rect x="66" y="313" width="280" height="68" rx="6" class="controlbox"/>
+<text x="80" y="338" class="head">Frontend / Source 预览</text><text x="80" y="361" class="small">输出预览 · 节点状态 · 独立 HTTP / WS</text>
+<rect x="488" y="313" width="304" height="68" rx="6" class="controlbox"/>
+<text x="502" y="338" class="head">Frontend / Operator 预览</text><text x="502" y="361" class="small">输入 / 输出预览 · 按类型与版本解码</text>
+<rect x="934" y="313" width="280" height="68" rx="6" class="controlbox"/>
+<text x="948" y="338" class="head">Frontend / Sink 预览</text><text x="948" y="361" class="small">结果预览 · 节点状态 · 独立 HTTP / WS</text>
+<path class="observe" d="M206 425V381"/><path class="observe" d="M640 425V381"/><path class="observe" d="M1074 425V381"/>
+<!-- Sidecar 主传输路径不解析业务载荷 -->
+<rect x="66" y="425" width="280" height="89" rx="6" class="txbox"/>
+<text x="80" y="450" class="head">Sidecar / Egress</text><text x="80" y="472" class="mono">Upstream off / Downstream on</text><text x="80" y="496" class="small">UCX 发送；请求完成后释放 lease</text>
+<rect x="488" y="425" width="304" height="89" rx="6" class="txbox"/>
+<text x="502" y="450" class="head">Sidecar / Ingress + Egress</text><text x="502" y="472" class="mono">independent legs / credit / recovery</text><text x="502" y="496" class="small">两方向独立配置与重连，不绕过 Worker</text>
+<rect x="934" y="425" width="280" height="89" rx="6" class="rxbox"/>
+<text x="948" y="450" class="head">Sidecar / Ingress</text><text x="948" y="472" class="mono">Upstream on / Downstream off</text><text x="948" y="496" class="small">获得可写 Slot 后发放 credit</text>
+<path class="tx" d="M346 465H488"/><text x="417" y="453" text-anchor="middle" class="small blue">UCX / TCP / RDMA</text><path class="credit" d="M488 495H346"/>
+<path class="tx" d="M792 465H934"/><text x="863" y="453" text-anchor="middle" class="small blue">UCX / TCP / RDMA</text><path class="credit" d="M934 495H792"/>
+<!-- Slot 所有权与读写方向 -->
+<path class="tx" d="M206 566V514"/><text x="220" y="545" class="small blue">发送</text>
+<path class="rx" d="M555 514V566"/><text x="541" y="545" text-anchor="end" class="small green">接收</text>
+<path class="tx" d="M725 566V514"/><text x="739" y="545" class="small blue">发送</text>
+<path class="rx" d="M1074 514V566"/><text x="1088" y="545" class="small green">接收</text>
+<rect x="66" y="566" width="280" height="60" rx="6" class="txbox"/><text x="80" y="590" class="head">Output SHM / Ring</text><text x="80" y="611" class="small">显式端口 · 注册 Slot / Payload / lease</text>
+<rect x="488" y="566" width="134" height="60" rx="6" class="rxbox"/><text x="500" y="590" class="head">Input SHM</text><text x="500" y="611" class="small">可写 Slot / credit</text>
+<rect x="658" y="566" width="134" height="60" rx="6" class="txbox"/><text x="670" y="590" class="head">Output SHM</text><text x="670" y="611" class="small">已提交 Slot / lease</text>
+<rect x="934" y="566" width="280" height="60" rx="6" class="rxbox"/><text x="948" y="590" class="head">Input SHM / Ring</text><text x="948" y="611" class="small">显式端口 · 注册 Slot / Payload / lease</text>
+<path class="tx" d="M206 680V626"/><text x="220" y="658" class="small blue">直接构造输出</text>
+<path class="rx" d="M555 626V680"/><text x="541" y="658" text-anchor="end" class="small green">读取</text>
+<path class="tx" d="M725 680V626"/><text x="739" y="658" class="small blue">提交</text>
+<path class="rx" d="M1074 626V680"/><text x="1088" y="658" class="small green">直接读取输入</text>
+<rect x="66" y="680" width="280" height="77" rx="6" class="plain"/><text x="80" y="705" class="head">Worker Source</text><text x="80" y="726" class="mono">Output&lt;Frame&gt;</text><text x="80" y="746" class="small">采集 / 文件回放 / 信号生成</text>
+<rect x="488" y="680" width="304" height="77" rx="6" class="plain"/><text x="502" y="705" class="head">Worker Algorithm</text><text x="502" y="726" class="mono">Input&lt;Frame&gt; → process → Output&lt;Frame&gt;</text><text x="502" y="746" class="small">SDK 契约校验 · 计算与网络解耦</text>
+<rect x="934" y="680" width="280" height="77" rx="6" class="plain"/><text x="948" y="705" class="head">Worker Sink</text><text x="948" y="726" class="mono">Input&lt;Frame&gt;</text><text x="948" y="746" class="small">消费 / 校验；录制由 Worker 能力决定</text>
+<rect x="24" y="807" width="1232" height="57" rx="6" fill="#fffaf1" stroke="#e4b571"/>
+<text x="40" y="830" class="body orange">统一约束</text><text x="139" y="830" class="body">Frame 契约先校验；credit、Slot、lease 对应；安全持有 lease 时抽样，预览拥塞可丢弃，不回压主链。</text>
+<text x="139" y="852" class="small">functional 用于功能联调；strict-RDMA 必须验证实际零拷贝路径。节点位置、地址、安全与资源由环境配置，不由单机 / 多机代码分支决定。</text>
+</svg>

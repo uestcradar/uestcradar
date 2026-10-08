@@ -74,7 +74,7 @@ done
 
 validate_worker_dockerfile() {
     local name=$1
-    [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+    [[ "$name" =~ ^(KT1/)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
         echo "invalid Worker directory name: $name" >&2
         return 1
     }
@@ -134,9 +134,11 @@ select_release_target() {
 
     local -a worker_names=()
     local dockerfile
-    for dockerfile in "$repo_root"/workspace/examples/*/Dockerfile; do
+    for dockerfile in "$repo_root"/workspace/examples/*/Dockerfile \
+        "$repo_root"/workspace/examples/KT1/*/Dockerfile; do
         [[ -f "$dockerfile" ]] || continue
-        worker_names+=("$(basename "$(dirname "$dockerfile")")")
+        local worker_path=${dockerfile#"$repo_root/workspace/examples/"}
+        worker_names+=("${worker_path%/Dockerfile}")
     done
     (( ${#worker_names[@]} > 0 )) || {
         echo "workspace/examples 中没有可选的 Worker Dockerfile" >&2
@@ -172,9 +174,9 @@ run_local() {
 
     local -a scoped_paths=(.agents/skills/docker-release)
     case "$component" in
-        sdk) scoped_paths+=(workspace/sdk workspace/common) ;;
-        sidecar) scoped_paths+=(workspace/sidecar/Dockerfile) ;;
-        web) scoped_paths+=(workspace/web workspace/proto/telemetry.proto) ;;
+        sdk) scoped_paths+=(workspace/infra/sdk workspace/infra/common) ;;
+        sidecar) scoped_paths+=(workspace/infra/sidecar/Dockerfile) ;;
+        web) scoped_paths+=(workspace/infra/web workspace/infra/proto/telemetry.proto) ;;
         worker) scoped_paths+=("workspace/examples/$worker_name") ;;
     esac
     if [[ -n "$(git status --porcelain -- "${scoped_paths[@]}")" ]]; then
@@ -259,12 +261,12 @@ ensure_web_build_base() {
     local destination="$registry/web:build-base"
     log "checking Web build base: $destination"
     pull_remote_tag "$destination" || {
-        echo "Web build-base is unavailable; publish workspace/web/docker/Dockerfile.build-base first" >&2
+        echo "Web build-base is unavailable; publish workspace/infra/web/docker/Dockerfile.build-base first" >&2
         return 1
     }
     docker run --rm --entrypoint /bin/sh "$destination" -c \
         'node --version >/dev/null && npm --version >/dev/null && test -d /opt/web-frontend/node_modules' || {
-        echo "Web build-base lacks Node/npm or cached frontend dependencies; rebuild it from workspace/web/docker" >&2
+        echo "Web build-base lacks Node/npm or cached frontend dependencies; rebuild it from workspace/infra/web/docker" >&2
         return 1
     }
 }
@@ -345,7 +347,8 @@ run_remote() {
     local web_version="$registry/web:sha-${sha12}-arm64"
     local web_latest="$registry/web:latest"
 
-    local worker_tag=${worker_name//_/-}
+    local worker_tag=${worker_name##*/}
+    worker_tag=${worker_tag//_/-}
     worker_tag=${worker_tag,,}
     local worker_version="$registry/worker:${worker_tag:+${worker_tag}-}sha-${sha12}-arm64"
     local worker_latest="$registry/worker:${worker_tag:+${worker_tag}-}latest"
@@ -378,14 +381,14 @@ run_remote() {
         local sdk_base_image=${SDK_BASE_IMAGE:-$registry/ubuntu:24.04}
         log "building SDK Algo Base: $sdk_version"
         docker build --build-arg "BASE_IMAGE=$sdk_base_image" \
-            --target algo-base -f workspace/sdk/Dockerfile \
+            --target algo-base -f workspace/infra/sdk/Dockerfile \
             -t "$sdk_version" .
         log "verifying SDK Algo Base image contract"
         verify_remote_image "$sdk_version" sdk
     fi
     if [[ "$component" == "sidecar" ]]; then
         log "building Sidecar: $sidecar_version"
-        docker build --target runtime -f workspace/sidecar/Dockerfile \
+        docker build --target runtime -f workspace/infra/sidecar/Dockerfile \
             -t "$sidecar_version" .
         log "verifying Sidecar image contract"
         verify_remote_image "$sidecar_version" sidecar
@@ -409,7 +412,7 @@ run_remote() {
         ensure_web_build_base
         log "building Web: $web_version"
         docker build --build-arg GO_BASE="$registry/web:build-base" \
-            -f workspace/web/Dockerfile -t "$web_version" .
+            -f workspace/infra/web/Dockerfile -t "$web_version" .
         log "verifying Web image contract"
         verify_remote_image "$web_version" web
     fi

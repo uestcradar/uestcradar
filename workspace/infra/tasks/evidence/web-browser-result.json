@@ -1,0 +1,14 @@
+{
+  "title": "UESTC Radar Control Plane",
+  "url": "https://192.162.2.64:18443/",
+  "text": "UESTC RADAR\nUESTC Radar · 单页一体化控制台\n重新登录\n一键下发并全速启动数据流\nPHYSICAL NODES\n已发现物理节点池\n探查节点\n当前没有可用节点，请添加自定义 IP。\n添加自定义节点 IP\n添加\n主链运输方式\nstrict-RDMA（默认，不自动降级）\nTCP（显式 functional / tcp,self）\nLIVE CASCADE\n级联数据流拓扑\n单槽最大帧\n1 MiB\n8 MiB\n32 MiB\n64 MiB\n128 MiB\nRing Slots\n4\n6\n8\n16\n32\n64\nSHM 256m\n节点数 1\nGoodput 0.00 GB/s\nSOURCE\n127.0.0.1\n127.0.0.1\n1. Worker 算法\n选择本地算法镜像\n2. RDMA 网卡（严格模式必选）\n选择 RDMA 网卡与 IP\nGoodput\n0.00 GB/s\nOffline\nUpstream 槽位\n未上报\nDownstream 槽位\n未上报\n查看链路与 RingBuffer 详情\nCOMMAND OUTPUT\n实时控制台与执行日志\n清空日志\n21:13:15 system\n探查 1 个节点，任务 ba946c98020dc1341f1ba8260c0fca9e9c0d0b5b98ebc4608439e088186d0c9a 已提交\n\n21:13:15 127.0.0.1 stdout\nbrowser fixture inspection (not real SSH)\n\n21:13:16 system\n探查 1 个节点完成\n\nTELEMETRY DETAIL\n127.0.0.1\n节点状态\nOffline\nGoodput\n0.000 GB/s\n最后心跳\n未上报\n\n当前节点尚无遥测明细。",
+  "iframe": "/api/v1/nodes/127.0.0.1/frontend/",
+  "innerText": "UESTC RADAR · NODE PREVIEW\nsmoke-node\n\nSidecar 预览连接已建立 · 遥测 暂无数据\n\n实例 smoke-node-1791378198713309499\nLOSSY LIVE PREVIEW\n输入 / 输出实时预览\n预览通道已连接\n\n仅在当前页面打开时订阅；双 Leg 合计最高 30 fps。预览资源不足会直接丢帧，不反向阻塞数据面。\n\n输入波形\nType 1:3\n等待 Sidecar 预览帧。\n实际\n0.0 fps\n快照丢弃\n0\n编码丢弃\n0\n网络丢弃\n0\n输出波形\n该角色无此 Leg\n当前 Worker 契约未声明该方向的数据类型。\n实际\n0.0 fps\n快照丢弃\n0\n编码丢弃\n0\n网络丢弃\n0\n链路 / Ring\n\n等待节点遥测；进程就绪不代表已有算法结果。",
+  "innerURL": "https://192.162.2.64:18443/api/v1/nodes/127.0.0.1/frontend/",
+  "errors": [],
+  "websockets": [
+    "wss://192.162.2.64:18443/ws",
+    "wss://192.162.2.64:18443/api/v1/nodes/127.0.0.1/frontend/ws",
+    "wss://192.162.2.64:18443/api/v1/nodes/127.0.0.1/frontend/ws/frames"
+  ]
+}

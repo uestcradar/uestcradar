@@ -5,8 +5,8 @@
 
 | 示例 | 输入 | 输出 | 学习内容 |
 | --- | --- | --- | --- |
-| [pulsecompression](./pulsecompression) | `IQFrame` | `PulseCompressionFrame` | 完整 CPI、精确数据自检和标准 `read/create/write` 流程 |
-| [qt5-algorithm](./qt5-algorithm) | `PulseCompressionFrame` | `RDFrame` | QtCore、跨帧 CPI 和 RD 输出 |
+| [KT2](./KT2) | `IQFrame` | `PulseCompressionFrame` | 完整 CPI、精确数据自检和标准 `read/create/write` 流程 |
+| [KT3](./KT3) | `PulseCompressionFrame` | `RDFrame` | QtCore、跨帧 CPI 和 RD 输出 |
 
 ```text
 Input<DataFrame>::read()
@@ -20,5 +20,7 @@ Output<DataFrame>::create(metadata, input)
 Output<DataFrame>::write(std::move(output))
 ```
 
-[signalsource](./signalsource) 为两条教学流提供确定性测试输入和结果校验程序，算法
+[KT1](./KT1) 包含 `cascade_worker`、`pcie_source`、`signalsink` 和 `signalsource`。
+
+[signalsource](./KT1/signalsource) 为两条教学流提供确定性测试输入和结果校验程序，算法
 开发者通过各示例的一键开发环境使用它，无需单独配置。

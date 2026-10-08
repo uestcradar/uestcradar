@@ -1,0 +1,4 @@
+{"depth": 1, "bytes": 1073741824, "seconds": 3.322267907999958, "durable_bytes_per_second": 323195435.6885097}
+{"depth": 4, "bytes": 1073741824, "seconds": 3.346829109999817, "durable_bytes_per_second": 320823618.03051805}
+{"depth": 8, "bytes": 1073741824, "seconds": 3.294404243999452, "durable_bytes_per_second": 325928982.74574304}
+{"depth": 1, "bytes": 1073741824, "seconds": 3.2775787479995415, "durable_bytes_per_second": 327602143.70298636}

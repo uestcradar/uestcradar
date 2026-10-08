@@ -1,0 +1,3 @@
+{"pattern": "random", "bytes": 536870912, "seconds": 1.7455938789998982, "durable_bytes_per_second": 307557742.07205003}
+{"pattern": "zero", "bytes": 536870912, "seconds": 0.986941626999851, "durable_bytes_per_second": 543974331.7261873}
+{"pattern": "random", "bytes": 536870912, "seconds": 5.150033752999661, "durable_bytes_per_second": 104246095.80224538}

@@ -14,24 +14,18 @@ uestcradar/
 │   ├── radar_gui.m               # 交互式雷达目标回波 GUI 仿真器
 │   ├── lfm_tx.m                  # LFM 发射信号生成仿真
 │   └── parse_bin.m               # 二进制雷达抓取 Cube 数据解析与校准
-├── cpp/                          # C++ Cycore 流图算子插件源码
-│   ├── CMakeLists.txt            # CMake 编译定义
-│   ├── sdk/                      # 依赖的 Cycore 算法 SDK 头文件
-│   ├── pulse_compression/        # 时域滑动互相关匹配滤波算子
-│   ├── fft/                      # FFT (时域 -> 频域离散傅里叶变换)
-│   ├── ifft/                     # IFFT (频域 -> 时域逆离散傅里叶变换)
-│   ├── range_doppler/            # 2D 距离-多普勒积累算子
-│   ├── cfar_plotter/             # 恒虚警（CFAR）目标检测算子
-│   └── kalman_tracker/           # 卡尔曼滤波航迹跟踪器
-├── algorithm_template/           # C++ 新算子开发通用模板脚手架
-│   └── README.md                 # 模板使用与编译自检指南
-├── workspace/                    # 可独立构建的容器迁移示例源码
-│   ├── helloworld/               # 标准 C++ 持续运行示例
-│   └── qt5core/                  # Qt 5.15 + qmake + Qt Core 示例
-├── docker/                       # 跨架构镜像构建与部署入口
-│   ├── helloworld/               # 标准 C++ 的 Compose、脚本与指南
-│   ├── qt5core/                  # Qt 5.15 的 Compose 与指南
-│   └── README.md                 # Docker 示例索引
+├── workspace/                    # Worker 示例与基础设施
+│   ├── examples/
+│   │   ├── KT1/                  # 数据源、采集、级联 Worker 与录制设计
+│   │   │   ├── cascade_worker/
+│   │   │   ├── pcie_source/
+│   │   │   ├── signalsink/
+│   │   │   └── signalsource/
+│   │   ├── KT2/                  # C++ 脉冲压缩算法开发基座
+│   │   └── KT3/                  # Qt5 距离-多普勒算法开发基座
+│   ├── .diagrams/                # 架构与数据路径图（隐藏目录）
+│   ├── infra/                    # common、proto、sdk、sidecar、web
+│   └── TARGET_ARCHITECTURE.md     # 总体架构文档
 └── LICENSE                       # 项目授权协议
 ```
 
@@ -58,50 +52,23 @@ uestcradar/
 
 ---
 
-## C++ 算子插件 (C++ 部分)
+## C++ Worker 与基础设施
 
-C++ 算子插件通过 YAML 流图配置文件进行动态拓扑连接。新算法使用 Cycore SDK
-帧级接口：流图边统一传输 `std::byte`，SDK 负责拆帧、精确长度校验、固定 POD
-或 `header + std::vector payload` 的自动编解码、元数据透传和输出封包，算法
-`work()` 只处理完整的强类型 `InputData` / `OutputData`。算法无需编写 Codec。
-仓库仍保留部分待迁移的旧
-`Reader` / `Writer` 算子。
+当前 C++ 开发入口位于 `workspace/`。Worker 使用 SDK 的 `Input<T>`、`Output<T>`
+帧接口；共享内存、Sidecar、网络传输和 Web 控制面位于 `workspace/infra/`。
+总体设计见 [目标架构](workspace/TARGET_ARCHITECTURE.md)。
 
-### 1. 级联流水线拓扑
+`KT1` 包含以下模块：
 
-以下为标准的级联处理流水线：
+| 模块 | 用途与当前状态 |
+| --- | --- |
+| [cascade_worker](workspace/examples/KT1/cascade_worker/README.md) | 独立级联 Worker 示例，支持 source、operator、sink 角色 |
+| [signalsource](workspace/examples/KT1/signalsource/README.md) | 加载 CPI0–CPI9 离线数据并输出 IQFrame |
+| [pcie_source](workspace/examples/KT1/pcie_source/README.md) | PCIe IQ 采集与时间戳诊断；目前仅支持 capture-only，尚未实现 SDK 下游输出 |
+| [signalsink](workspace/examples/KT1/signalsink/SPEC.md) | 数据录制规格与交互原型，尚非可运行 Worker |
 
-```mermaid
-graph TD
-    A["device_source<br/>(ADC CS16 复数 IQ 信号)"] -->|CS16 Cube| B["pulse_compression<br/>(时域滑动互相关)"]
-    B -->|CS16 Cube| C["fft<br/>(1024点 DFT 变换)"]
-    C -->|CS16 Cube| D["range_doppler<br/>(2D 距离-多普勒积累)"]
-    D -->|Float32 矩阵| E["cfar_plotter<br/>(CFAR 检测与阈值判决)"]
-    E -->|RawBytes| F["kalman_tracker<br/>(多目标航迹跟踪管理)"]
-    F -->|RawBytes| G["sim_sink / device_sink<br/>(航迹坐标输出)"]
-```
-
-> [!NOTE]
-> 流水线中的所有算子均采用多通道交织一维物理连续内存格式传输数据，其跨步步长（Stride）可根据算子配置参数（如 channels, points）动态对齐。
-
-### 2. 支持的算子模块列表
-
-* **`pulse_compression`**：时域滑动互相关匹配滤波算法，在 C++ 层面实现了复数共轭乘加与快速时域归一化幅值包络提取。
-* **`fft` / `ifft`**：高性能时/频域离散傅里叶变换与逆变换算子。
-* **`range_doppler`**：2D 距离-多普勒相干/非相干积累。
-* **`cfar_plotter`**：恒虚警检测（CFAR）滑动窗口背景噪声估计与动态判决。
-* **`kalman_tracker`**：多目标航迹状态卡尔曼滤波与关联管理。
-
-### 3. C++ 新算子开发模板 (algorithm_template)
-
-为了便于开发者快速构建、本地调试及跨平台容器化编译全新的 C++ 雷达流图算子，
-仓库内置了变长帧级模板，并兼容固定 POD。模板携带由 `cpp/sdk/include` 生成的稳定 SDK 快照，支持
-独立编译，算法开发者不应修改该快照。
-副本，并集成完整帧 QA 与 `CYCORE_REGISTER_BENCHMARK` 一键性能基线。
-
-> [!IMPORTANT]
-> 📖 关于如何基于脚手架模板克隆新算法、制定数据格式、执行本地静态自检沙盒测试以及进行 AArch64 容器化交叉编译，请参阅：
-> **[C++ 算子开发模板专属指南 (algorithm_template/README.md)](.agents/skills/develop_cpp_algorithm/algorithm_template/README.md)**
+Dockerfile 和 Compose 配置随各示例或基础设施模块存放，构建与运行请使用对应目录的说明。
+正式镜像发布流程见 [Docker Release](.agents/skills/docker-release/SKILL.md)。
 
 ## 算法开发基座 (单机测试环境)
 
@@ -111,9 +78,9 @@ graph TD
 
 | 算法开发基座 | 适用场景 | 说明文档 (相对路径) |
 | :--- | :--- | :--- |
-| **`pulsecompression`** | C++ 一维匹配滤波 / 脉冲压缩算法开发 | **[脉冲压缩算法开发指南](workspace/examples/pulsecompression/README.md)** |
-| **`qt5-algorithm`** | Qt5 框架下二维距离-多普勒 (RDMap) 算法开发 | **[Qt5 RD 图算法开发指南](workspace/examples/qt5-algorithm/README.md)** |
+| **`KT2`** | C++ 一维匹配滤波 / 脉冲压缩算法开发 | **[脉冲压缩算法开发指南](workspace/examples/KT2/README.md)** |
+| **`KT3`** | Qt5 框架下二维距离-多普勒 (RDMap) 算法开发 | **[Qt5 RD 图算法开发指南](workspace/examples/KT3/README.md)** |
 
 > [!TIP]
-> 📖 关于各种雷达数据帧（IQ 数据、脉脉冲压缩数据、RD 图）的具体字段含义和读取方法，请参阅：
-> **[SDK 数据读写指南](workspace/sdk/README.md)**
+> 📖 关于各种雷达数据帧（IQ 数据、脉冲压缩数据、RD 图）的具体字段含义和读取方法，请参阅：
+> **[SDK 数据读写指南](workspace/infra/sdk/README.md)**

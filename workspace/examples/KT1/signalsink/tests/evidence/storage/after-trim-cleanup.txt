@@ -1,0 +1,5 @@
+{"disposable_synthetic_capture": "/root/workspace/captures/signalsink-test-mEPM4C/benchmark-55c3d12d02c2403aa3ef1e79a25c68ca/391b2061343159d08efb914f9a9b63f8.sink", "validation": {"complete": true, "frames": 2813, "raw_bytes": 2955832888, "raw_sha256": "6c6af67d6ca0ac8164e88d7e60f31cbfddd1594d0c0304f5a776cdc8d8ae3319", "sample_continuity": "unverified"}}
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda4        51G   23G   27G  46% /
+disabled
+uestcradar-web 80a7d24bd023

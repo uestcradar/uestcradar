@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="990" viewBox="0 0 1440 990" role="img" aria-labelledby="title desc">
+<title id="title">单机 Docker 架构</title>
+<desc id="desc">单机默认部署：一台机器运行多个 Worker、Sidecar、Frontend 节点单元，不启动聚合 Web 或 Nginx。浏览器直接访问各节点 Frontend，Sidecar 间使用 UCX functional / tcp,self，Worker 与对应 Sidecar 共享本机 IPC。Frontend 独立接收遥测和有界预览，不回压主数据面。Frontend 拆分尚未实现。</desc>
+<defs>
+<style>
+text{font-family:'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#203752}.title{font-size:24px;font-weight:700}.head{font-size:16px;font-weight:700}.body{font-size:13px}.small{font-size:12px;fill:#5e7591}.mono{font-family:Consolas,monospace;font-size:11px;fill:#627b96}.section{font-size:13px;font-weight:700;fill:#45617f}.green{fill:#00856b}.blue{fill:#0878b6}.purple{fill:#742ee5}.orange{fill:#be5c1b}.frame{fill:#f8fafc;stroke:#9aafc9;stroke-width:1.2}.node{fill:#fff;stroke:#c3d1e3;stroke-dasharray:5 3}.plain{fill:white;stroke:#bed0e3}.rxbox{fill:#edfaf5;stroke:#52b696}.txbox{fill:#eef7ff;stroke:#65abdc}.controlbox{fill:#f7f3ff;stroke:#b896f2}.observebox{fill:#fffaf1;stroke:#e4b571}.rule{stroke:#d8e3ee}.rx{fill:none;stroke:#00856b;stroke-width:1.8;marker-end:url(#g)}.tx{fill:none;stroke:#0878b6;stroke-width:1.8;marker-end:url(#b)}.ctl{fill:none;stroke:#742ee5;stroke-width:1.5;stroke-dasharray:5 4;marker-end:url(#p)}.observe{fill:none;stroke:#cc731c;stroke-width:1.5;stroke-dasharray:2 4;marker-end:url(#o)}.credit{fill:none;stroke:#0878b6;stroke-width:1.3;stroke-dasharray:3 3;marker-end:url(#b)}
+</style>
+<marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#00856b" d="M0 0 10 5 0 10Z"/></marker>
+<marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#0878b6" d="M0 0 10 5 0 10Z"/></marker>
+<marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#742ee5" d="M0 0 10 5 0 10Z"/></marker>
+<marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path fill="#cc731c" d="M0 0 10 5 0 10Z"/></marker>
+</defs>
+<rect width="1440" height="990" fill="white"/>
+<text x="24" y="34" class="title">单机 Docker 架构</text>
+<text x="24" y="56" class="small">默认 UCX TCP · 不启动聚合 Web · 浏览器直连 Frontend · 每节点 Worker + Sidecar + Frontend</text>
+<text x="1416" y="32" text-anchor="end" class="small">目标方案 · Frontend 拆分尚待实现</text>
+<path class="rx" d="M25 80H61"/><text x="70" y="84" class="small">输入 / 接收</text>
+<path class="tx" d="M191 80H227"/><text x="236" y="84" class="small">输出 / 发送</text>
+<path class="ctl" d="M361 80H397"/><text x="406" y="84" class="small">页面 / 接口 / 控制</text>
+<path class="observe" d="M589 80H625"/><text x="634" y="84" class="small">遥测 / 有界预览</text>
+<path class="credit" d="M811 80H847"/><text x="856" y="84" class="small">反向 credit</text>
+<line x1="24" x2="1416" y1="101" y2="101" class="rule"/>
+<!-- 单机默认部署：无聚合 Web，浏览器直接访问节点 Frontend -->
+<rect x="280" y="121" width="1136" height="792" rx="9" class="frame"/>
+<text x="298" y="148" class="section">一台开发机 / Docker Host</text>
+<text x="1397" y="148" text-anchor="end" class="small">本图以 host 网络为例；各监听端口必须唯一</text>
+<rect x="24" y="176" width="220" height="85" rx="6" class="plain"/>
+<text x="39" y="202" class="head">浏览器</text><text x="39" y="225" class="small">直接访问各节点 Frontend</text><text x="39" y="245" class="small">按节点 HTTP 端口打开页面</text>
+<text x="320" y="190" class="small purple">直连节点 · HTTP(S) / WS(S) · 无聚合代理</text>
+<text x="520" y="265" class="small">默认不部署 Web 或 Nginx</text>
+<text x="520" y="286" class="small">预览与录制控制直接连接目标节点</text>
+<!-- 节点边界 -->
+<rect x="310" y="329" width="328" height="566" rx="7" class="node"/>
+<rect x="680" y="329" width="328" height="566" rx="7" class="node"/>
+<rect x="1050" y="329" width="328" height="566" rx="7" class="node"/>
+<text x="325" y="354" class="section">NODE A / Source</text><text x="695" y="354" class="section">NODE B / Operator</text><text x="1065" y="354" class="section">NODE C / Sink</text>
+<path class="ctl" d="M244 215H1214V372"/>
+<path class="ctl" d="M474 215V372"/>
+<path class="ctl" d="M844 215V372"/>
+<!-- 每节点的观测容器 -->
+<rect x="324" y="372" width="300" height="91" rx="6" class="controlbox"/>
+<text x="338" y="397" class="head">Frontend 容器 A</text><text x="338" y="417" class="mono">same image · node-id=A</text><text x="338" y="439" class="small">本节点输出预览、链路及水位</text><text x="338" y="455" class="small">独立 HTTP / 遥测 / 预览监听端口</text>
+<rect x="694" y="372" width="300" height="91" rx="6" class="controlbox"/>
+<text x="708" y="397" class="head">Frontend 容器 B</text><text x="708" y="417" class="mono">same image · node-id=B</text><text x="708" y="439" class="small">本节点输入 / 输出图、链路及水位</text><text x="708" y="455" class="small">独立 HTTP / 遥测 / 预览监听端口</text>
+<rect x="1064" y="372" width="300" height="91" rx="6" class="controlbox"/>
+<text x="1078" y="397" class="head">Frontend 容器 C</text><text x="1078" y="417" class="mono">same image · node-id=C</text><text x="1078" y="439" class="small">输入预览；按 Worker 能力提供录制控制</text><text x="1078" y="455" class="small">独立 HTTP / 遥测 / 预览监听端口</text>
+<!-- 开发者计算容器：位于 SHM 下方 -->
+<g transform="translate(0,270)">
+<rect x="324" y="530" width="300" height="78" rx="6" class="plain"/>
+<text x="338" y="555" class="head">Worker Source 容器</text><text x="338" y="576" class="mono">signalsource / source worker</text><text x="338" y="597" class="small">离线数据回放 · 本机仿真输入</text>
+<rect x="694" y="530" width="300" height="78" rx="6" class="plain"/>
+<text x="708" y="555" class="head">Worker Algorithm 容器</text><text x="708" y="576" class="mono">Input&lt;Frame&gt; → compute → Output&lt;Frame&gt;</text><text x="708" y="597" class="small">C++ / Qt5 / 其他算法进程</text>
+<rect x="1064" y="530" width="300" height="78" rx="6" class="plain"/>
+<text x="1078" y="555" class="head">Worker Sink 容器</text><text x="1078" y="576" class="mono">sink / SignalSink</text><text x="1078" y="597" class="small">消费 / 校验；录制能力由 SignalSink 执行</text>
+</g>
+<!-- 录制控制绕过 Sidecar 和 SHM，直接到达 Sink Worker -->
+<path class="ctl" d="M1350 463V483H1388V839H1364"/><text x="1383" y="659" transform="rotate(90 1383 659)" class="small purple">独立录制控制</text>
+<!-- SHM不是单独容器 -->
+<rect x="324" y="652" width="300" height="68" rx="6" class="txbox"/>
+<text x="338" y="678" class="head">Output SHM / Ring A</text><text x="338" y="700" class="small">Sidecar 创建；Worker 共享对应 IPC</text>
+<rect x="694" y="652" width="142" height="68" rx="6" class="rxbox"/>
+<text x="706" y="678" class="head">Input SHM B</text><text x="706" y="700" class="small">Slot / lease</text>
+<rect x="852" y="652" width="142" height="68" rx="6" class="txbox"/>
+<text x="864" y="678" class="head">Output SHM B</text><text x="864" y="700" class="small">Slot / lease</text>
+<rect x="1064" y="652" width="300" height="68" rx="6" class="rxbox"/>
+<text x="1078" y="678" class="head">Input SHM / Ring C</text><text x="1078" y="700" class="small">Sidecar 创建；Worker 共享对应 IPC</text>
+<path class="tx" d="M474 800V720"/><text x="488" y="765" class="small blue">SDK 输出</text>
+<path class="rx" d="M765 720V800"/><text x="751" y="765" text-anchor="end" class="small green">读取</text>
+<path class="tx" d="M923 800V720"/><text x="936" y="765" class="small blue">提交</text>
+<path class="rx" d="M1214 720V800"/><text x="1228" y="765" class="small green">SDK 输入</text>
+<!-- 数据传输容器：位于 Frontend 与 SHM 之间 -->
+<g transform="translate(0,-266)">
+<rect x="324" y="776" width="300" height="102" rx="6" class="txbox"/>
+<text x="338" y="802" class="head">Sidecar 容器 A</text><text x="338" y="823" class="mono">Upstream off / Egress on</text><text x="338" y="850" class="small">本节点 SHM 与网络传输</text><text x="338" y="868" class="small">独立端口、SHM 名称和节点身份</text>
+<rect x="694" y="776" width="300" height="102" rx="6" class="txbox"/>
+<text x="708" y="802" class="head">Sidecar 容器 B</text><text x="708" y="823" class="mono">Ingress on / Egress on</text><text x="708" y="850" class="small">双 Leg 独立 · 数据必须经过 Worker</text><text x="708" y="868" class="small">独立端口、SHM 名称和节点身份</text>
+<rect x="1064" y="776" width="300" height="102" rx="6" class="rxbox"/>
+<text x="1078" y="802" class="head">Sidecar 容器 C</text><text x="1078" y="823" class="mono">Ingress on / Downstream off</text><text x="1078" y="850" class="small">接收上游完整帧，交给本地 Worker</text><text x="1078" y="868" class="small">独立端口、SHM 名称和节点身份</text>
+</g>
+<path class="tx" d="M474 652V612"/><text x="488" y="637" class="small blue">发送</text>
+<path class="rx" d="M765 612V652"/><text x="751" y="637" text-anchor="end" class="small green">接收</text>
+<path class="tx" d="M923 652V612"/><text x="936" y="637" class="small blue">发送</text>
+<path class="rx" d="M1214 612V652"/><text x="1228" y="637" class="small green">接收</text>
+<g transform="translate(0,-266)">
+<path class="tx" d="M624 831H694"/><text x="659" y="819" text-anchor="middle" class="small blue">UCX TCP</text>
+<path class="credit" d="M694 854H624"/>
+<path class="tx" d="M994 831H1064"/><text x="1029" y="819" text-anchor="middle" class="small blue">UCX TCP</text>
+<path class="credit" d="M1064 854H994"/>
+</g>
+<!-- Sidecar 向 Frontend 推送有界遥测/预览，不经过第二个 Ring 消费者 -->
+<path class="observe" d="M474 510V463"/>
+<path class="observe" d="M844 510V463"/>
+<path class="observe" d="M1214 510V463"/>
+<!-- 左侧说明 -->
+<rect x="24" y="335" width="220" height="144" rx="6" class="observebox"/>
+<text x="39" y="361" class="head">观测与录制边界</text><text x="39" y="386" class="small">橙色线：遥测与有界预览</text><text x="39" y="407" class="small">Frontend 不直接消费数据 Ring</text><text x="39" y="428" class="small">Frontend 重启不停止主链传输</text><text x="39" y="449" class="small">独立资源限额，避免争抢数据面</text>
+<rect x="24" y="532" width="220" height="166" rx="6" class="plain"/>
+<text x="39" y="558" class="head">单机 → 多机</text><text x="39" y="585" class="small">保留 Worker / SDK / Sidecar</text><text x="39" y="606" class="small">保留同一 Frontend 镜像与接口</text><text x="39" y="627" class="small">节点整体迁移，只改环境配置</text><text x="39" y="648" class="small">多机默认增加聚合 Web</text><text x="39" y="679" class="small">统一 ARM64；x86 本机模拟运行</text>
+<rect x="24" y="751" width="220" height="127" rx="6" class="controlbox"/>
+<text x="39" y="778" class="head">容器不等于节点</text><text x="39" y="803" class="small">虚线框：一个逻辑节点</text><text x="39" y="824" class="small">SHM：共享内存，不是独立容器</text><text x="39" y="845" class="small">infra 与开发者 Worker 可分开启动</text><text x="39" y="866" class="small">Worker 只加入对应 Sidecar 的 IPC</text>
+<text x="24" y="945" class="body">本机链路使用 functional / tcp,self；多机可切换 strict-RDMA。单机功能通过不等于真实 RDMA 性能通过。</text>
+<text x="24" y="970" class="small">Worker 与对应 Sidecar 始终同机；Frontend 独立升级。HTTP、遥测与预览端口按实例配置，各节点直接访问入口均需鉴权。</text>
+</svg>

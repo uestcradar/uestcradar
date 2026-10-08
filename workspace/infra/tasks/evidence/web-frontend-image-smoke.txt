@@ -1,0 +1,13 @@
+Certificate request self-signature ok
+subject=CN = G01-test-frontend
+sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052: Pulling from cxx/frontend
+Digest: sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052
+Status: Image is up to date for registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052
+registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052
+0b594f9fbbb0b90654eb9eb5bc89dee2c4b011231e5f5e88d1b24b82afb088a4
+sha256:2ef9656510c7c0636e568785d6588e086fe4ad1c61c990ab8bd4d4257a8f8870 65532:65532
+=== RUN   TestPinnedFrontendImageHTTPS
+--- PASS: TestPinnedFrontendImageHTTPS (0.02s)
+PASS
+ok  	uestcradar/telemetry/internal/orchestration	0.026s
+PINNED-FRONTEND-TLS-HEALTH-ASSETS-API-WSS-PASS

@@ -1,0 +1,2 @@
+{"mode": "preallocated-first-write", "allocation_seconds": 0.0005600909998975112, "bytes": 1073741824, "seconds": 3.4484121530003904, "durable_bytes_per_second": 311372822.1453343}
+{"mode": "overwrite-test-file", "allocation_seconds": 0.0005600909998975112, "bytes": 1073741824, "seconds": 3.285563375000038, "durable_bytes_per_second": 326805999.89948076}

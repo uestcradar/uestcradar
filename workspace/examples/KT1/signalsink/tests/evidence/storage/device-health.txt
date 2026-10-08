@@ -1,0 +1,17 @@
+Device Model:     HQ SSD 64GB
+Firmware Version: SBFM01.3
+SATA Version is:  SATA 3.2, 6.0 Gb/s (current: 6.0 Gb/s)
+SMART overall-health self-assessment test result: PASSED
+  1 Raw_Read_Error_Rate     0x000b   100   100   050    Pre-fail  Always       -       0
+  9 Power_On_Hours          0x0012   100   100   000    Old_age   Always       -       303
+ 12 Power_Cycle_Count       0x0012   100   100   000    Old_age   Always       -       380
+168 Unknown_Attribute       0x0012   100   100   000    Old_age   Always       -       0
+170 Unknown_Attribute       0x0003   100   100   010    Pre-fail  Always       -       62
+173 Unknown_Attribute       0x0012   100   100   000    Old_age   Always       -       196614
+192 Power-Off_Retract_Count 0x0012   100   100   000    Old_age   Always       -       370
+194 Temperature_Celsius     0x0023   067   067   000    Pre-fail  Always       -       33 (Min/Max 33/33)
+218 Unknown_Attribute       0x000b   100   100   050    Pre-fail  Always       -       0
+231 Temperature_Celsius     0x0013   100   100   000    Pre-fail  Always       -       99
+241 Total_LBAs_Written      0x0012   100   100   000    Old_age   Always       -       141
+/sys/fs/cgroup/blkio/user.slice/blkio.throttle.write_bps_device
+/sys/fs/cgroup/blkio/user.slice/blkio.throttle.write_iops_device

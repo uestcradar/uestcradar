@@ -1,0 +1,23 @@
+[sink] waiting for PulseCompressionFrame v2 frames=640 target_range=20480 half_width=8 min_snr_db=10 pulses_per_cpi=64 workers=4 queue_depth=8 strict=yes
+[sink] received=1 shape=1x22196 pulse_index=0 global_peak_bin=20483 target_peak_bin=20483 target_snr_db=38.3976 target_detected=yes
+[sink] received=64 shape=1x22196 pulse_index=63 global_peak_bin=20483 target_peak_bin=20483 target_snr_db=38.4152 target_detected=yes
+[sink] target_summary cpi=0 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=24.1346 threshold_snr_db=10 status=PASS
+[sink] received=128 shape=1x22196 pulse_index=63 global_peak_bin=20484 target_peak_bin=20484 target_snr_db=38.4861 target_detected=yes
+[sink] target_summary cpi=1 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=26.8283 threshold_snr_db=10 status=PASS
+[sink] received=192 shape=1x22196 pulse_index=63 global_peak_bin=20484 target_peak_bin=20484 target_snr_db=38.3789 target_detected=yes
+[sink] target_summary cpi=2 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=24.0378 threshold_snr_db=10 status=PASS
+[sink] received=256 shape=1x22196 pulse_index=63 global_peak_bin=20480 target_peak_bin=20480 target_snr_db=38.3226 target_detected=yes
+[sink] target_summary cpi=3 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=24.1114 threshold_snr_db=10 status=PASS
+[sink] received=320 shape=1x22196 pulse_index=63 global_peak_bin=20481 target_peak_bin=20481 target_snr_db=38.3373 target_detected=yes
+[sink] target_summary cpi=4 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=24.0697 threshold_snr_db=10 status=PASS
+[sink] received=384 shape=1x22196 pulse_index=63 global_peak_bin=20481 target_peak_bin=20481 target_snr_db=38.3326 target_detected=yes
+[sink] target_summary cpi=5 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=26.844 threshold_snr_db=10 status=PASS
+[sink] received=448 shape=1x22196 pulse_index=63 global_peak_bin=9732 target_peak_bin=20482 target_snr_db=26.9772 target_detected=yes
+[sink] target_summary cpi=6 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=23.9918 threshold_snr_db=10 status=PASS
+[sink] received=512 shape=1x22196 pulse_index=63 global_peak_bin=14378 target_peak_bin=20482 target_snr_db=26.9674 target_detected=yes
+[sink] target_summary cpi=7 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=24.0667 threshold_snr_db=10 status=PASS
+[sink] received=576 shape=1x22196 pulse_index=63 global_peak_bin=20482 target_peak_bin=20482 target_snr_db=38.3996 target_detected=yes
+[sink] target_summary cpi=8 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=23.9917 threshold_snr_db=10 status=PASS
+[sink] received=640 shape=1x22196 pulse_index=63 global_peak_bin=20483 target_peak_bin=20483 target_snr_db=38.4795 target_detected=yes
+[sink] target_summary cpi=9 pulses=64 detected=64 missed=0 expected_range=20480 half_width=8 min_snr_db=24.024 threshold_snr_db=10 status=PASS
+[sink] target_total pulses=640 detected=640 missed=0 status=PASS
