@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "state": "recording",
+  "recording_id": "3e73f4056841b662fefbfd73a8ba3abc",
+  "directory": "pcie-cpu-full-session-20261009T015447Z/capture",
+  "error": "",
+  "accepted_frames": "234078",
+  "written_frames": "234078",
+  "written_bytes": "7690866768",
+  "queue_used_bytes": "0",
+  "queue_capacity_bytes": "536870912",
+  "elapsed_ms": "65109",
+  "sample_continuity": "unverified",
+  "disk_total_bytes": "54715047936",
+  "disk_used_bytes": "43454435328",
+  "disk_available_bytes": "8448020480"
+}

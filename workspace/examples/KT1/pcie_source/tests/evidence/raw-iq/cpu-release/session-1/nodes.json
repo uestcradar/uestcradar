@@ -1,0 +1,471 @@
+[
+  {
+    "ip": "192.162.2.64",
+    "reachable": true,
+    "hostname": "node4-1",
+    "architecture": "aarch64",
+    "docker_version": "19.03.15",
+    "compose_cli": "v1",
+    "cpus": "32",
+    "memory_bytes": "64767197184",
+    "docker_disk": "14597193728",
+    "rdma": [
+      {
+        "device": "hns_0",
+        "port": "1",
+        "netdev": "enp125s0f0",
+        "ipv4": "192.180.2.64",
+        "state": "DOWN",
+        "physical_state": "DISABLED"
+      },
+      {
+        "device": "hns_1",
+        "port": "1",
+        "netdev": "enp125s0f1",
+        "ipv4": "192.170.2.64",
+        "state": "ACTIVE",
+        "physical_state": "LINK_UP"
+      }
+    ],
+    "sidecar_image_id": "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240",
+    "sidecar_contract": "sidecar/v2",
+    "sidecar_digest": "registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c",
+    "workers": [
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:d0d64e85ec5fc451e61cbd14ba307d627983481d4c5a44539d3a8e569e1bb7e7",
+        "reference": "registry.chengyistudio.com/cxx/worker:algorithm-latest",
+        "id": "sha256:094cafed98dca073803c6a0b84ac6b277bc0538a861b7519180f2ae44018ed79",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/algorithm"
+        ],
+        "contract": {
+          "roles": [
+            "operator"
+          ],
+          "input": "1:3",
+          "output": "2:2"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:d0d64e85ec5fc451e61cbd14ba307d627983481d4c5a44539d3a8e569e1bb7e7",
+        "reference": "registry.chengyistudio.com/cxx/worker:algorithm-sha-dfca4dba0171-arm64",
+        "id": "sha256:094cafed98dca073803c6a0b84ac6b277bc0538a861b7519180f2ae44018ed79",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/algorithm"
+        ],
+        "contract": {
+          "roles": [
+            "operator"
+          ],
+          "input": "1:3",
+          "output": "2:2"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:70060095bd76a60cec594c0f493e3def3b2c59b323580ac393029434c6080424",
+        "reference": "registry.chengyistudio.com/cxx/worker:cascade-worker-latest",
+        "id": "sha256:4914f5d800dec3a6679c0194055e1feba006c2c76c42e403de88ecdd4e405745",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/cascade-worker"
+        ],
+        "command": [
+          "--test",
+          "benchmark",
+          "--payload-bytes",
+          "134217728",
+          "--duration-seconds",
+          "86400"
+        ],
+        "contract": {
+          "roles": [
+            "operator",
+            "sink",
+            "source"
+          ],
+          "input": "1:2",
+          "output": "1:2"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59",
+        "reference": "registry.chengyistudio.com/cxx/worker:pcie-source-latest",
+        "id": "sha256:037a74f95d83a440e07388afac4b4456123e6d1903bd0702cb4d8adf05eb7fe5",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/pcie_source"
+        ],
+        "contract": {
+          "roles": [
+            "source"
+          ],
+          "input": "none",
+          "output": "4:1"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59",
+        "reference": "registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64",
+        "id": "sha256:037a74f95d83a440e07388afac4b4456123e6d1903bd0702cb4d8adf05eb7fe5",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/pcie_source"
+        ],
+        "contract": {
+          "roles": [
+            "source"
+          ],
+          "input": "none",
+          "output": "4:1"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:5cf489a8efd621ee1a1ce5f54a6e33ee8a16d0eca114e40c49d90a00fc1a330b",
+        "reference": "registry.chengyistudio.com/cxx/worker:pcie-source-sha-fdb78ccbef00-arm64",
+        "id": "sha256:2d8b7595cb496f3e787e67a48b3c721f5c820ad310ec2bee229384bf9d5d43b9",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/pcie_source"
+        ],
+        "contract": {
+          "roles": [
+            "source"
+          ],
+          "input": "none",
+          "output": "4:1"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:24e4493e3e8e7cce3b5985b0394c943eee8663e1fd3049e422f718fa1aee8421",
+        "reference": "registry.chengyistudio.com/cxx/worker:pulsecompression-v1.0.0",
+        "id": "sha256:680dca823eed91a92cde40807b59b2a24cb451650f57c13f8a3d18db2fe61469",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/pulsecompression"
+        ],
+        "contract": {
+          "roles": [
+            "operator"
+          ],
+          "input": "1:3",
+          "output": "2:2"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:9549a84a6853398de409237ac3b15f704d79364d1b11b35eab96fb3456b52948",
+        "reference": "registry.chengyistudio.com/cxx/worker:rd-sink-sha-d06d1d28f318-arm64",
+        "id": "sha256:0eb018a7e166ce666287463b6083d95722c9aedc93ac2664b5a144f82dd2f5ee",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/rd-sink"
+        ],
+        "contract": {
+          "roles": [
+            "sink"
+          ],
+          "input": "3:2",
+          "output": "3:2"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsink-latest",
+        "id": "sha256:8290e0bb3fecf9160afa9a27ba6ac9b0320a9341ea31f73dee58490806b7e144",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/signalsink"
+        ],
+        "contract": {
+          "component": "signalsink",
+          "roles": [
+            "sink"
+          ],
+          "input": "any",
+          "output": "none"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsink-sha-fdb78ccbef00-arm64",
+        "id": "sha256:8290e0bb3fecf9160afa9a27ba6ac9b0320a9341ea31f73dee58490806b7e144",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/signalsink"
+        ],
+        "contract": {
+          "component": "signalsink",
+          "roles": [
+            "sink"
+          ],
+          "input": "any",
+          "output": "none"
+        }
+      },
+      {
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsource-cpi0-cpi9-20260802",
+        "id": "sha256:88f4d61bfa31f7d87947ababb043ab17ae4432ef684a85511e17e34145d406f0",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/entrypoint.sh"
+        ],
+        "contract": {
+          "roles": [
+            "sink",
+            "source"
+          ],
+          "input": "2:2",
+          "output": "1:3"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:138dcd6f43431f67ce2206f9eaef1783c84be7ba8aa205546db58edd636a3d43",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsource-latest",
+        "id": "sha256:c77ede14af925c498fad9de809efe5495d1f1fe94b02d6517ee199d58a4d714b",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/entrypoint.sh"
+        ],
+        "contract": {
+          "roles": [
+            "sink",
+            "source"
+          ],
+          "input": "2:2",
+          "output": "1:3"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:b6e1a0505bb2579aa8ad8e4f438cd7738979bbe38d98ad34fa895801a1ea23c1",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-latest",
+        "id": "sha256:0bf09c1b9517a48e669e92c00ae93f5bf1919b9af48ac904fcc38ba57e7302a4",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/signalsource-raw-iq"
+        ],
+        "contract": {
+          "roles": [
+            "source"
+          ],
+          "input": "none",
+          "output": "4:1"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:b6e1a0505bb2579aa8ad8e4f438cd7738979bbe38d98ad34fa895801a1ea23c1",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsource-raw-iq-sha-fdb78ccbef00-arm64",
+        "id": "sha256:0bf09c1b9517a48e669e92c00ae93f5bf1919b9af48ac904fcc38ba57e7302a4",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/signalsource-raw-iq"
+        ],
+        "contract": {
+          "roles": [
+            "source"
+          ],
+          "input": "none",
+          "output": "4:1"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:138dcd6f43431f67ce2206f9eaef1783c84be7ba8aa205546db58edd636a3d43",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsource-sha-d2c8a5f51d14-arm64",
+        "id": "sha256:c77ede14af925c498fad9de809efe5495d1f1fe94b02d6517ee199d58a4d714b",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/entrypoint.sh"
+        ],
+        "contract": {
+          "roles": [
+            "sink",
+            "source"
+          ],
+          "input": "2:2",
+          "output": "1:3"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:ff33627d837f4984a5f87271cc534af722fe9ad7af958e30a765f4232565ca0c",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsource-sha-dfca4dba0171-arm64",
+        "id": "sha256:325c94fd99c986c9e865f6c6ea3681d1bec7f77679d2dbb44184c9d4ff11d08e",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/entrypoint.sh"
+        ],
+        "contract": {
+          "roles": [
+            "sink",
+            "source"
+          ],
+          "input": "2:2",
+          "output": "1:3"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:7a9d2bafb29eb809b52efe52fc883c79d0adc126c0de5e74636d522e93a43f83",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsource-sha-f03e0d409e12-arm64",
+        "id": "sha256:e3bd6de9a1cc083d2a7706ae29114690f116fd74d5f3ac779801311e199af50a",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/signalsource"
+        ],
+        "contract": {
+          "roles": [
+            "source"
+          ],
+          "input": "none",
+          "output": "1:2"
+        }
+      }
+    ],
+    "existing_deployment": false,
+    "deployment_state": "absent",
+    "inspected_at": "2026-10-09T01:50:26.029256813Z"
+  },
+  {
+    "ip": "192.162.2.80",
+    "reachable": true,
+    "hostname": "node5-1",
+    "architecture": "aarch64",
+    "docker_version": "19.03.15",
+    "compose_cli": "v1",
+    "cpus": "32",
+    "memory_bytes": "64767197184",
+    "docker_disk": "24494284800",
+    "rdma": [
+      {
+        "device": "hns_0",
+        "port": "1",
+        "netdev": "enp125s0f0",
+        "ipv4": "192.180.2.80",
+        "state": "DOWN",
+        "physical_state": "DISABLED"
+      },
+      {
+        "device": "hns_1",
+        "port": "1",
+        "netdev": "enp125s0f1",
+        "ipv4": "192.170.2.80",
+        "state": "ACTIVE",
+        "physical_state": "LINK_UP"
+      }
+    ],
+    "sidecar_image_id": "sha256:0fbb265fe4c176a2ff0ea1f0c79ad7c4b6e3b4fc071b3e39457f0d01bb6a7240",
+    "sidecar_contract": "sidecar/v2",
+    "sidecar_digest": "registry.chengyistudio.com/cxx/sidecar@sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c",
+    "workers": [
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:70060095bd76a60cec594c0f493e3def3b2c59b323580ac393029434c6080424",
+        "reference": "registry.chengyistudio.com/cxx/worker:cascade-worker-latest",
+        "id": "sha256:4914f5d800dec3a6679c0194055e1feba006c2c76c42e403de88ecdd4e405745",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/cascade-worker"
+        ],
+        "command": [
+          "--test",
+          "benchmark",
+          "--payload-bytes",
+          "134217728",
+          "--duration-seconds",
+          "86400"
+        ],
+        "contract": {
+          "roles": [
+            "operator",
+            "sink",
+            "source"
+          ],
+          "input": "1:2",
+          "output": "1:2"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233",
+        "reference": "registry.chengyistudio.com/cxx/worker:pcsink-d23de312b96c",
+        "id": "sha256:d23de312b96cd40003f1792381ee38e50a93b3fd611c9e6bd7dc755212e906fd",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/signalsink"
+        ],
+        "contract": {
+          "roles": [
+            "sink"
+          ],
+          "input": "2:2",
+          "output": "none"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:6977129d5efb1b313c54f6fc1938d4c99f5764fdd710ef2db28f3685b9ca6233",
+        "reference": "registry.chengyistudio.com/cxx/worker:pcsink-latest",
+        "id": "sha256:d23de312b96cd40003f1792381ee38e50a93b3fd611c9e6bd7dc755212e906fd",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/signalsink"
+        ],
+        "contract": {
+          "roles": [
+            "sink"
+          ],
+          "input": "2:2",
+          "output": "none"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:0213dfc739c7ca3ca6f689e03ac02a2a2ad29f6ac74a85a5b38f77bf1d89e00a",
+        "reference": "registry.chengyistudio.com/cxx/worker:rd-algorithm-v1.0.0",
+        "id": "sha256:109123e5c1da63b7d1a015ed13fc2a86e82d0f334abd4d947a920bc8680b9d20",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/qt5-algorithm"
+        ],
+        "contract": {
+          "roles": [
+            "operator"
+          ],
+          "input": "2:2",
+          "output": "3:2"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:ecde0bd4d3763852cdc4a140f12197c2736e5348e579f779327391e96e786c46",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsink-latest",
+        "id": "sha256:8290e0bb3fecf9160afa9a27ba6ac9b0320a9341ea31f73dee58490806b7e144",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/signalsink"
+        ],
+        "contract": {
+          "component": "signalsink",
+          "roles": [
+            "sink"
+          ],
+          "input": "any",
+          "output": "none"
+        }
+      },
+      {
+        "digest_reference": "registry.chengyistudio.com/cxx/worker@sha256:c6833658a15367f4c4b115fa6391f563af26c7a04853519379f424da72c5feb9",
+        "reference": "registry.chengyistudio.com/cxx/worker:signalsource-latest",
+        "id": "sha256:88f4d61bfa31f7d87947ababb043ab17ae4432ef684a85511e17e34145d406f0",
+        "architecture": "arm64",
+        "entrypoint": [
+          "/app/entrypoint.sh"
+        ],
+        "contract": {
+          "roles": [
+            "sink",
+            "source"
+          ],
+          "input": "2:2",
+          "output": "1:3"
+        }
+      }
+    ],
+    "existing_deployment": false,
+    "deployment_state": "absent",
+    "inspected_at": "2026-10-09T01:50:26.029204933Z"
+  }
+]

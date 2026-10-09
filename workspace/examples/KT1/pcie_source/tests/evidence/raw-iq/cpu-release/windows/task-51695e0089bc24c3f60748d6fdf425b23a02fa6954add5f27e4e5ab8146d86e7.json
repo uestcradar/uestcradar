@@ -1,0 +1,161 @@
+{
+  "id": "51695e0089bc24c3f60748d6fdf425b23a02fa6954add5f27e4e5ab8146d86e7",
+  "kind": "deployment-stop",
+  "status": "completed",
+  "message": "data stream stopped",
+  "completed": [
+    "192.162.2.64",
+    "192.162.2.80"
+  ],
+  "created_at": "2026-10-09T01:46:02.538293622Z",
+  "updated_at": "2026-10-09T01:46:05.524111165Z",
+  "output": [
+    {
+      "sequence": 1,
+      "at": "2026-10-09T01:46:02.625054354Z",
+      "ip": "192.162.2.64",
+      "stream": "system",
+      "text": "$ cd '/root/workspace/docker' && if docker-compose version --short >/dev/null 2>&1; then docker-compose --env-file '/root/workspace/docker/node.env' -p uestcradar-cascade -f '/root/workspace/docker/compose.cascade.distributed.yaml' down --remove-orphans; elif docker compose version --short >/dev/null 2>&1; then docker compose --env-file '/root/workspace/docker/node.env' -p uestcradar-cascade -f '/root/workspace/docker/compose.cascade.distributed.yaml' down --remove-orphans; else echo 'Docker Compose is unavailable' >&2; exit 127; fi\n"
+    },
+    {
+      "sequence": 2,
+      "at": "2026-10-09T01:46:03.567068075Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "/usr/lib/python3.7/site-packages/requests/__init__.py:91: RequestsDependencyWarning: urllib3 (2.0.7) or chardet (3.0.4) doesn't match a supported version!\n  RequestsDependencyWarning)\n/usr/local/lib/python3.7/site-packages/paramiko/transport.py:32: CryptographyDeprecationWarning: Python 3.7 is no longer supported by the Python core team and support for it is deprecated in cryptography. The next release of cryptography will remove support for Python 3.7.\n  from cryptography.hazmat.backends import default_backend\nStopping uestcradar-cascade_worker-node_1   ... \r\nStopping uestcradar-cascade_sidecar-node_1  ... \r\n"
+    },
+    {
+      "sequence": 3,
+      "at": "2026-10-09T01:46:03.567073495Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "Stopping uestcradar-cascade_frontend-node_1 ... \r\n"
+    },
+    {
+      "sequence": 4,
+      "at": "2026-10-09T01:46:03.648133975Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "Stopping uestcradar-cascade_worker-node_1   ... done\r\n"
+    },
+    {
+      "sequence": 5,
+      "at": "2026-10-09T01:46:03.762684493Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "Stopping uestcradar-cascade_frontend-node_1 ... done\r\n"
+    },
+    {
+      "sequence": 6,
+      "at": "2026-10-09T01:46:03.932068144Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "Stopping uestcradar-cascade_sidecar-node_1  ... done\r\n"
+    },
+    {
+      "sequence": 7,
+      "at": "2026-10-09T01:46:03.956817Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_worker-node_1   ... \r\nRemoving uestcradar-cascade_sidecar-node_1  ... \r\nRemoving uestcradar-cascade_frontend-node_1 ... \r\n"
+    },
+    {
+      "sequence": 8,
+      "at": "2026-10-09T01:46:03.972382044Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_frontend-node_1 ... done\r\n"
+    },
+    {
+      "sequence": 9,
+      "at": "2026-10-09T01:46:03.974566495Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_sidecar-node_1  ... done\r\n"
+    },
+    {
+      "sequence": 10,
+      "at": "2026-10-09T01:46:03.975226235Z",
+      "ip": "192.162.2.64",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_worker-node_1   ... done\r\n"
+    },
+    {
+      "sequence": 11,
+      "at": "2026-10-09T01:46:04.125053942Z",
+      "ip": "192.162.2.80",
+      "stream": "system",
+      "text": "$ cd '/root/workspace/docker' && if docker-compose version --short >/dev/null 2>&1; then docker-compose --env-file '/root/workspace/docker/node.env' -p uestcradar-cascade -f '/root/workspace/docker/compose.cascade.distributed.yaml' down --remove-orphans; elif docker compose version --short >/dev/null 2>&1; then docker compose --env-file '/root/workspace/docker/node.env' -p uestcradar-cascade -f '/root/workspace/docker/compose.cascade.distributed.yaml' down --remove-orphans; else echo 'Docker Compose is unavailable' >&2; exit 127; fi\n"
+    },
+    {
+      "sequence": 12,
+      "at": "2026-10-09T01:46:05.046133168Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "/usr/local/lib/python3.7/site-packages/paramiko/transport.py:32: CryptographyDeprecationWarning: Python 3.7 is no longer supported by the Python core team and support for it is deprecated in cryptography. The next release of cryptography will remove support for Python 3.7.\n  from cryptography.hazmat.backends import default_backend\nStopping uestcradar-cascade_worker-node_1   ... \r\nStopping uestcradar-cascade_sidecar-node_1  ... \r\n"
+    },
+    {
+      "sequence": 13,
+      "at": "2026-10-09T01:46:05.046272708Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Stopping uestcradar-cascade_frontend-node_1 ... \r\n"
+    },
+    {
+      "sequence": 14,
+      "at": "2026-10-09T01:46:05.182053841Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Stopping uestcradar-cascade_worker-node_1   ... done\r\n"
+    },
+    {
+      "sequence": 15,
+      "at": "2026-10-09T01:46:05.267278362Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Stopping uestcradar-cascade_frontend-node_1 ... done\r\n"
+    },
+    {
+      "sequence": 16,
+      "at": "2026-10-09T01:46:05.42413984Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Stopping uestcradar-cascade_sidecar-node_1  ... done\r\n"
+    },
+    {
+      "sequence": 17,
+      "at": "2026-10-09T01:46:05.446636756Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_worker-node_1   ... \r\n"
+    },
+    {
+      "sequence": 18,
+      "at": "2026-10-09T01:46:05.446779406Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_sidecar-node_1  ... \r\nRemoving uestcradar-cascade_frontend-node_1 ... \r\n"
+    },
+    {
+      "sequence": 19,
+      "at": "2026-10-09T01:46:05.46311912Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_worker-node_1   ... done\r\n"
+    },
+    {
+      "sequence": 20,
+      "at": "2026-10-09T01:46:05.468798611Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_frontend-node_1 ... done\r\n"
+    },
+    {
+      "sequence": 21,
+      "at": "2026-10-09T01:46:05.469399611Z",
+      "ip": "192.162.2.80",
+      "stream": "stderr",
+      "text": "Removing uestcradar-cascade_sidecar-node_1  ... done\r\n"
+    }
+  ]
+}

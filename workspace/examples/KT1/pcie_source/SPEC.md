@@ -42,6 +42,8 @@ PCIe Source 使用 `--channel 0..7`，默认 0，每帧 channel_count 必须为 
 - 保留双快照、原始时间戳、RawIQ 4:1、队列和缺口失败策略。不修改 SignalSink/SDK/Sidecar，不使用全局隔离、实时调度或新特权。
 - 计划：先补解析/绑定/失败清理测试；实现角色绑定；本地与 ARM 回归；发布新 Source 并更新 Web 批准 digest；正常双机 strict-RDMA 做 10s/60s 及重复测试。Affinity 不代表 CPU 独占，不预先宣称长期无损。
 
+本次正式发布与有限时长双机验证已完成，见 [CPU 修复发布结果](tests/cpu-release-results.md)：10 秒窗口、60 秒窗口及两次整段会话通过；整段 Source/文件计数与业务摘要一致。长期无损、冷启动异常及持续存储能力仍按报告保留边界。
+
 ## 验证与成功条件
 
 1. SDK 黄金字节、双时间戳、动态矩阵、非法长度/溢出、try_create 满/空/故障/租约测试，以及旧契约回归通过。

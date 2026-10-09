@@ -1,6 +1,6 @@
 # CPU 角色绑定修复：候选验证
 
-状态：Source 代码已修复；用户已授权正式发布和数据流测试。本报告保留发布前候选验证，正式发布与双机结果另行记录。
+状态：Source 代码已修复；用户已授权正式发布和数据流测试。本报告保留发布前候选验证；正式发布与双机验证已完成，见 [cpu-release-results.md](cpu-release-results.md)。
 
 ## 修改
 
@@ -48,7 +48,7 @@ changed_copies=0，invalid_packets=1。这不是此前的“上一帧未完整�
 
 三轮均 invalid_packets=0、changed_copies=0、timestamp_errors=0，未重现之前配对错误。启动丢弃的未对齐样本、停止时残帧继续单独报告，不拼接保存。
 
-## 尚未完成
+## 候选阶段尚未完成的事项（正式验证另见上述报告）
 
 - 正式 Git 提交/同步、原生 Harbor 发布、新 digest 的 Web 批准更新。
 - 固定发布镜像的正常 Web 双机 strict-RDMA 10 秒/60 秒录制，以及源/文件摘要、最终同步等验收。

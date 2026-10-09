@@ -1,0 +1,97 @@
+{
+  "generated_at": "2026-10-09T01:51:46.403128185Z",
+  "nodes": [
+    {
+      "node_id": "node-1",
+      "instance_id": "node-1-1-1791510637511933344",
+      "status": "normal",
+      "last_seen": "2026-10-09T01:51:46.359145334Z",
+      "goodput_gbps": 0.12322994636158695,
+      "watermark_pct": 3.125,
+      "links": [
+        {
+          "link_id": "downstream",
+          "peer_node_id": "node-2",
+          "direction": "egress",
+          "status": "connected",
+          "transport": "rdma",
+          "payload_bytes_total": 8198688632,
+          "goodput_gbps": 0.12322994636158695,
+          "ring": {
+            "capacity_slots": 64,
+            "used_slots": 2,
+            "write_position": 250023,
+            "read_position": 250021,
+            "watermark_pct": 3.125,
+            "shutdown": false
+          },
+          "stale": false
+        },
+        {
+          "link_id": "upstream",
+          "peer_node_id": "",
+          "direction": "ingress",
+          "status": "disabled",
+          "transport": "rdma",
+          "payload_bytes_total": 0,
+          "goodput_gbps": 0,
+          "ring": {
+            "capacity_slots": 64,
+            "used_slots": 0,
+            "write_position": 0,
+            "read_position": 0,
+            "watermark_pct": 0,
+            "shutdown": false
+          },
+          "stale": false
+        }
+      ]
+    },
+    {
+      "node_id": "node-2",
+      "instance_id": "node-2-1-1791510634988794560",
+      "status": "normal",
+      "last_seen": "2026-10-09T01:51:46.341653424Z",
+      "goodput_gbps": 0.1228867196700796,
+      "watermark_pct": 0,
+      "links": [
+        {
+          "link_id": "downstream",
+          "peer_node_id": "",
+          "direction": "egress",
+          "status": "disabled",
+          "transport": "rdma",
+          "payload_bytes_total": 0,
+          "goodput_gbps": 0,
+          "ring": {
+            "capacity_slots": 64,
+            "used_slots": 0,
+            "write_position": 0,
+            "read_position": 0,
+            "watermark_pct": 0,
+            "shutdown": false
+          },
+          "stale": false
+        },
+        {
+          "link_id": "upstream",
+          "peer_node_id": "node-1",
+          "direction": "ingress",
+          "status": "connected",
+          "transport": "rdma",
+          "payload_bytes_total": 8196589944,
+          "goodput_gbps": 0.1228867196700796,
+          "ring": {
+            "capacity_slots": 64,
+            "used_slots": 0,
+            "write_position": 249957,
+            "read_position": 249957,
+            "watermark_pct": 0,
+            "shutdown": false
+          },
+          "stale": false
+        }
+      ]
+    }
+  ]
+}
