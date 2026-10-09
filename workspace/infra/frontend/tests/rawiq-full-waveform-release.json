@@ -42,6 +42,7 @@
   "limits": [
     "Full within-frame resolution does not mean delivering every acquisition frame to the browser.",
     "Eight-channel encoding/decoding was tested with fixtures, not an eight-channel hardware source.",
-    "This display change does not fix or certify the previously observed long-run PCIe acquisition error or sustained disk performance."
+    "This display change does not fix or certify the previously observed long-run PCIe acquisition error or sustained disk performance.",
+    "Post-deployment Source logs first reported timestamp_errors=1 at elapsed_s=16.000727777; the counter remained 1 at 168 seconds while Source was running. invalid_packets and changed_copies were zero. This acquisition anomaly is unresolved and is not a failure of the per-frame full-resolution display checks."
   ]
 }
