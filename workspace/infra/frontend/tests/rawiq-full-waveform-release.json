@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-09",
+  "branch": "fix/rawiq-full-waveform",
+  "implementation_commit": "90284a015d855c3cb49402da713868ee4fd880fe",
+  "web_pin_commit": "22763e2",
+  "images": {
+    "sidecar": "registry.chengyistudio.com/cxx/sidecar@sha256:222ccd930992999ac6762419ddca1381eb447c9b5b2b910ce8a0cc469f320646",
+    "frontend": "registry.chengyistudio.com/cxx/frontend@sha256:ef594d73a5e4b437e69c8869a26efa68cbc2916293ab4d398b57d0ed34198655",
+    "web": "registry.chengyistudio.com/cxx/web@sha256:50a696ba775066fe7756f910f88833b9dac9c6a66c0a3d585a82d998ebe36ee8"
+  },
+  "contract": {
+    "raw_type": "4:1",
+    "preview_encoding": "ComplexInt16 (5), little-endian I/Q",
+    "frame_samples": "All samples, no pooling or quantization",
+    "display": "Magnitude |I+jQ|, one selected channel, up to 30 displayed frames/second",
+    "other_contracts": "Existing IQ/PC/RD preview behavior retained",
+    "source_sdk_sink_recording_format": "Unchanged"
+  },
+  "tests": {
+    "red_before_green": "New frontend tests failed 8/8 before implementation; native sidecar preview-test failed before implementation",
+    "frontend_ui": "20/20, including full signed I/Q equality for 1 and 8 channels and malformed frame rejection",
+    "native_sidecar": "5/5 (hardware ucx-transport-test excluded by existing Dockerfile)",
+    "native_sdk": "4/4",
+    "native_frontend": "Go tests and vet passed, native UI tests passed",
+    "native_web": "Go tests, vet and orchestration race tests passed",
+    "generated_bindings": "FlatBuffers 1.12.0 for checked-in Go/TS/C++; native Sidecar rebuilds C++ using its installed 2.0.8 toolchain"
+  },
+  "live_browser": {
+    "path": "Authenticated Web HTTPS/WSS proxy to both real node pages",
+    "source_node": {"ip": "192.162.2.64", "frames_checked": 88, "first_id": "123557", "last_id": "134479", "display_fps": 30, "blue_wave_pixels": 24022},
+    "sink_node": {"ip": "192.162.2.80", "frames_checked": 94, "first_id": "134604", "last_id": "146422", "display_fps": 30, "blue_wave_pixels": 19881},
+    "validation": "Every checked frame: type 4:1, one channel, 8192 full points, empty extrema series, signed int16 I/Q, sequential x=0..8191, finite magnitudes; actual canvas displayed complete-frame caption and sample-index axis; frame IDs advanced and remained fresh",
+    "javascript_errors": 0,
+    "transport": "strict-RDMA connected, approximately 0.123 GB/s payload",
+    "hardware_channels_tested": 1
+  },
+  "deployment": {
+    "before": "Both managed deployments absent; no running recording was interrupted",
+    "after": "Both nodes running; SignalSink idle; no recording started or user files deleted",
+    "web_rollback_container": "uestcradar-web-rollback-22763e2"
+  },
+  "limits": [
+    "Full within-frame resolution does not mean delivering every acquisition frame to the browser.",
+    "Eight-channel encoding/decoding was tested with fixtures, not an eight-channel hardware source.",
+    "This display change does not fix or certify the previously observed long-run PCIe acquisition error or sustained disk performance."
+  ]
+}
