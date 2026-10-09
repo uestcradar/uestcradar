@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-09",
+  "branch": "fix/rawiq-preview",
+  "frontend_source_commit": "e2fe97e58b82dbb5a155b0413ac49fef0b4899ca",
+  "web_pin_commit": "e8fef11279cc",
+  "images": {
+    "frontend": "registry.chengyistudio.com/cxx/frontend@sha256:5ed698e8f16f0320349eb1bbfad5ec296e7ac2bc50512abfc66900f769e364ad",
+    "sidecar": "registry.chengyistudio.com/cxx/sidecar@sha256:fc439b12da09b88d59a88d178c826185706ee93fcea58527397a45470dafb8da",
+    "web": "registry.chengyistudio.com/cxx/web@sha256:f1177dbb7836760e7f4b486ac36bc3f6320201076a1d67d2d7627caac0a2c9bc"
+  },
+  "changes": {
+    "frontend": "RawIQ sample-index axis label and parameterized waveform decoder regression",
+    "sidecar": "Rebuilt existing production code against current contract catalog; no source or preview protocol changes",
+    "web": "Only pinned Frontend image reference changed",
+    "source_and_sink": "Unchanged published images"
+  },
+  "checks": {
+    "frontend_tests": 12,
+    "web_ui_tests": 29,
+    "native_sidecar_ctest": "5/5; Dockerfile excludes hardware ucx-transport-test",
+    "native_sdk_ctest": "4/4",
+    "native_web": "go test ./..., go vet ./..., go test -race ./internal/orchestration passed",
+    "browser": "Real HTTPS/WSS Web proxy, authenticated session, both node pages; advancing fresh frame IDs, sample-index canvas label, nonempty blue waveform strokes, no JavaScript exceptions",
+    "source_preview": {"decoded_frames": 65, "first_frame": "465753", "last_frame": "473917", "display_fps": 30, "blue_pixels": 1366},
+    "sink_preview": {"decoded_frames": 69, "first_frame": "474042", "last_frame": "482735", "display_fps": 29, "blue_pixels": 1299},
+    "contract": "4:1",
+    "channels": 1,
+    "original_samples_per_frame": 8192,
+    "preview_buckets": 64,
+    "transport": "strict-rdma, connected; observed payload throughput about 0.123 GB/s",
+    "post_update_source": "Still running at 216 seconds; invalid_packets, changed_copies, timestamp_errors all zero",
+    "recording": "Idle before update; no recording started by these checks; existing files not deleted"
+  },
+  "failures_and_limits": [
+    "Before this update, existing Source had exited at 1625.046678946 seconds with IQ arrived without a new control table. This acquisition issue is not fixed by the preview update.",
+    "Initial replacement encountered RDMA bootstrap port 13337 address-in-use retries. Sink exited with input has been shut down; Source exited with output queue overflow. Managed deployments were stopped through Web, the port was observed drained, and a fresh Web deployment passed browser checks. No TCP fallback or integrity-check relaxation.",
+    "Local Go/protoc commands unavailable; native container tests used instead. First native test attempt hit proxy.golang.org timeout; rerun with the existing project GOPROXY setting passed.",
+    "First rollout preflight correctly rejected mismatched Sidecar digests: Worker image sync does not update Sidecar. Explicit Web Sidecar sync was then used on both nodes.",
+    "Preview remains lossy: 128-sample min/max buckets and scaled int8 complex values, rendered as magnitude. This is not full-resolution I/Q display or a losslessness/storage acceptance test."
+  ],
+  "rollback_web_container": "uestcradar-web-rollback-e8fef11",
+  "left_running": true
+}
