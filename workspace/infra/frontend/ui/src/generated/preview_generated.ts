@@ -20,7 +20,8 @@ export enum ValueEncoding{
   ComplexInt8= 1,
   ComplexFloat16= 2,
   Float16= 3,
-  Float32= 4
+  Float32= 4,
+  ComplexInt16= 5
 }};
 
 /**

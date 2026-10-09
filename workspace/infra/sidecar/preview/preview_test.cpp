@@ -85,6 +85,44 @@ std::vector<std::byte> iq_frame() {
     return frame;
 }
 
+bool verify_full_raw_iq() {
+    for (const std::uint32_t channels : {1U, 8U}) {
+        constexpr std::uint32_t samples = 8192;
+        const std::uint32_t payload = 24 + channels * samples * 4;
+        std::vector<std::byte> frame(sizeof(uestcradar::Envelope) + payload);
+        const uestcradar::Envelope envelope{.frame_id = 123, .timestamp = 456,
+            .type_id = 4, .type_version = 1, .payload_length = payload};
+        std::memcpy(frame.data(), &envelope, sizeof(envelope));
+        auto* metadata = frame.data() + sizeof(envelope);
+        std::memcpy(metadata + 16, &channels, 4);
+        std::memcpy(metadata + 20, &samples, 4);
+        auto* values = reinterpret_cast<ComplexI16*>(metadata + 24);
+        for (std::size_t i = 0; i < channels * samples; ++i) {
+            values[i] = {static_cast<std::int16_t>((i * 73) % 65536 - 32768),
+                         static_cast<std::int16_t>(32767 - (i * 31) % 65536)};
+        }
+        const auto encoded = sidecar::preview::encode_frame_for_test(frame, sidecar::preview::Leg::output);
+        flatbuffers::Verifier verifier{encoded.data(), encoded.size()};
+        if (!fb::VerifyPreviewMessageBuffer(verifier)) return false;
+        const auto* result = fb::GetPreviewMessage(encoded.data())->payload_as_PreviewFrame();
+        const auto* body = result->body_as_WaveformPreview();
+        if (!body || result->encoding() != fb::ValueEncoding::ComplexInt16 ||
+            result->pool_rows() != channels || result->pool_columns() != samples ||
+            body->channels()->size() != channels || result->frame_id() != 123 ||
+            result->metadata()->size() != 24 ||
+            std::memcmp(result->metadata()->data(), metadata, 24) != 0) return false;
+        for (std::uint32_t channel = 0; channel < channels; ++channel) {
+            const auto* row = body->channels()->Get(channel);
+            if (row->channel_index() != channel || row->bucket_count() != samples ||
+                row->scale() != 1 || (row->min_offsets() && row->min_offsets()->size()) ||
+                (row->max_offsets() && row->max_offsets()->size()) ||
+                row->values()->size() != samples * 4 ||
+                std::memcmp(row->values()->data(), values + channel * samples, samples * 4) != 0) return false;
+        }
+    }
+    return true;
+}
+
 bool verify_iq() {
     const auto frame = iq_frame();
     const auto encoded = sidecar::preview::encode_frame_for_test(
@@ -274,7 +312,7 @@ bool verify_dynamic_rd_sizes() {
 }
 
 int main() {
-    if (!verify_iq() || !verify_large_multichannel_iq_compression() ||
+    if (!verify_full_raw_iq() || !verify_iq() || !verify_large_multichannel_iq_compression() ||
         !verify_pulse_channels() ||
         !verify_rd_channel_and_pooling() || !verify_dynamic_rd_sizes() || !rejects_truncated_frame()) {
         std::cerr << "preview-test: failed\n";

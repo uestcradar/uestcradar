@@ -43,6 +43,7 @@ const (
 	ValueEncodingComplexFloat16 ValueEncoding = 2
 	ValueEncodingFloat16        ValueEncoding = 3
 	ValueEncodingFloat32        ValueEncoding = 4
+	ValueEncodingComplexInt16   ValueEncoding = 5
 )
 
 var EnumNamesValueEncoding = map[ValueEncoding]string{
@@ -51,6 +52,7 @@ var EnumNamesValueEncoding = map[ValueEncoding]string{
 	ValueEncodingComplexFloat16: "ComplexFloat16",
 	ValueEncodingFloat16:        "Float16",
 	ValueEncodingFloat32:        "Float32",
+	ValueEncodingComplexInt16:   "ComplexInt16",
 }
 
 var EnumValuesValueEncoding = map[string]ValueEncoding{
@@ -59,6 +61,7 @@ var EnumValuesValueEncoding = map[string]ValueEncoding{
 	"ComplexFloat16": ValueEncodingComplexFloat16,
 	"Float16":        ValueEncodingFloat16,
 	"Float32":        ValueEncodingFloat32,
+	"ComplexInt16":   ValueEncodingComplexInt16,
 }
 
 func (v ValueEncoding) String() string {

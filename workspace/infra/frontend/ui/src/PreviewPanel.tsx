@@ -90,10 +90,10 @@ export function PreviewPanel({nodeId, instanceId, input, output}: PreviewPanelPr
 
   return <section className="preview-section">
     <div className="preview-heading">
-      <div><span className="section-kicker">LOSSY LIVE PREVIEW</span><h3>输入 / 输出实时预览</h3></div>
+      <div><span className="section-kicker">LIVE FRAME VIEW</span><h3>输入 / 输出实时预览</h3></div>
       <span className={`preview-connection ${connection}`}>{connectionLabel(connection)}</span>
     </div>
-    <p className="preview-note">仅在当前页面打开时订阅；双 Leg 合计最高 30 fps。预览资源不足会直接丢帧，不反向阻塞数据面。</p>
+    <p className="preview-note">RawIQ 保留完整帧内采样，其他类型沿用压缩预览。仅在页面打开时订阅；双 Leg 合计最高 30 fps，忙时跳过展示帧，不影响原始录制。</p>
     <PreviewCard title="输入波形" leg="input" contract={input} frame={frames.input} status={statuses.input} now={now} />
     <PreviewCard title="输出波形" leg="output" contract={output} frame={frames.output} status={statuses.output} now={now} />
   </section>;
@@ -112,7 +112,7 @@ function PreviewCard({title, leg, contract, frame, status, now}: {title: string;
     </div>
     {!contract ? <div className="preview-empty">当前 Worker 契约未声明该方向的数据类型。</div> : !frame ? <div className="preview-empty">等待 Sidecar 预览帧。</div> : frame.kind === 'waveform' ? <WaveformCanvas channel={channels.find(item => item.channelIndex === channel) || channels[0]} originalColumns={frame.originalColumns} xAxisLabel={waveformXAxisLabel(frame.typeId)} /> : <HeatmapCanvas frame={frame} />}
     {frame && <div className="frame-identity" data-leg={leg} data-frame-id={frame.frameId} data-instance-id={frame.instanceId} data-fresh={frameIsFresh(frame, now)}>
-      帧 {frame.frameId} · {frameIsFresh(frame, now) ? '实时' : '已过期，非实时'} · 距接收 {Math.max(0, (now - (frame.receivedAt || now)) / 1000).toFixed(1)} 秒
+      {frame.fullResolution && <>完整帧 · {frame.originalColumns} 点/通道 · </>}帧 {frame.frameId} · {frameIsFresh(frame, now) ? '实时' : '已过期，非实时'} · 距接收 {Math.max(0, (now - (frame.receivedAt || now)) / 1000).toFixed(1)} 秒
     </div>}
     <div className="preview-stats">
       <span>实际 <strong>{status?.actualFps.toFixed(1) || '0.0'} fps</strong></span>

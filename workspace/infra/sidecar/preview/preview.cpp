@@ -158,6 +158,30 @@ struct EncodedBody {
     std::uint32_t pool_columns{0};
 };
 
+EncodedBody encode_raw_iq_waveform(
+    flatbuffers::FlatBufferBuilder& builder,
+    std::span<const std::byte> matrix,
+    std::uint32_t channels,
+    std::uint32_t columns) {
+    if (channels > 4096 || matrix.size() > kMaxWireBytes - 65536 ||
+        matrix.size() + channels * 64ULL + 65536 > kMaxWireBytes) {
+        throw std::invalid_argument("RawIQ waveform exceeds wire capacity");
+    }
+    std::vector<flatbuffers::Offset<fb::WaveformChannel>> rows;
+    rows.reserve(channels);
+    const auto bytes_per_row = static_cast<std::size_t>(columns) * 4;
+    for (std::uint32_t channel = 0; channel < channels; ++channel) {
+        const auto values = builder.CreateVector(
+            reinterpret_cast<const std::uint8_t*>(matrix.data()) + channel * bytes_per_row,
+            bytes_per_row);
+        rows.push_back(fb::CreateWaveformChannel(
+            builder, channel, columns, 1.0f, 0, 0, values));
+    }
+    const auto waveform = fb::CreateWaveformPreviewDirect(builder, &rows);
+    return {fb::PreviewBody::WaveformPreview, waveform.Union(),
+            fb::ValueEncoding::ComplexInt16, channels, columns};
+}
+
 EncodedBody encode_iq_waveform(
     flatbuffers::FlatBufferBuilder& builder,
     std::span<const std::byte> matrix,
@@ -377,7 +401,9 @@ std::vector<std::uint8_t> encode_frame(
 
     flatbuffers::FlatBufferBuilder builder{1024};
     EncodedBody body;
-    if (contract->visualization == contracts::Visualization::waveform &&
+    if (envelope.type_id == 4 && envelope.type_version == 1) {
+        body = encode_raw_iq_waveform(builder, matrix, rows, columns);
+    } else if (contract->visualization == contracts::Visualization::waveform &&
         contract->element == contracts::Element::complex_int16) {
         body = encode_iq_waveform(builder, matrix, rows, columns);
     } else if (

@@ -11,7 +11,8 @@ enum ValueEncoding : ubyte {
   ComplexInt8 = 1,
   ComplexFloat16 = 2,
   Float16 = 3,
-  Float32 = 4
+  Float32 = 4,
+  ComplexInt16 = 5
 }
 
 table StreamDescriptor {
@@ -42,6 +43,7 @@ table SubscriptionUpdate {
 
 table WaveformChannel {
   channel_index:uint;
+  // ComplexInt16: full sample count, scale=1, offsets empty, LE int16 I/Q.
   bucket_count:uint;
   scale:float = 1.0;
   min_offsets:[ubyte];

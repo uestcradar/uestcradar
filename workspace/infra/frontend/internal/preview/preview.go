@@ -592,20 +592,33 @@ func validatePreviewFrame(
 			waveform.ChannelsLength() > 4096 {
 			return routeKey{}, false
 		}
+		full := frame.Encoding() == fb.ValueEncodingComplexInt16
+		if full && (key.typeID != 4 || key.typeVersion != 1 ||
+			frame.PoolRows() != frame.OriginalRows() || frame.PoolColumns() != frame.OriginalColumns()) {
+			return routeKey{}, false
+		}
 		seen := make(map[uint32]bool, waveform.ChannelsLength())
 		for index := 0; index < waveform.ChannelsLength(); index++ {
 			var channel fb.WaveformChannel
 			if !waveform.Channels(&channel, index) ||
 				seen[channel.ChannelIndex()] ||
 				channel.ChannelIndex() >= frame.OriginalRows() ||
-				channel.BucketCount() != frame.PoolColumns() ||
-				channel.MinOffsetsLength() != int(channel.BucketCount()) ||
-				channel.MaxOffsetsLength() != int(channel.BucketCount()) {
+				channel.BucketCount() != frame.PoolColumns() {
+				return routeKey{}, false
+			}
+			offsets := int(channel.BucketCount())
+			if full {
+				offsets = 0
+				if channel.Scale() != 1 {
+					return routeKey{}, false
+				}
+			}
+			if channel.MinOffsetsLength() != offsets || channel.MaxOffsetsLength() != offsets {
 				return routeKey{}, false
 			}
 			bytesPerBucket := 0
 			switch frame.Encoding() {
-			case fb.ValueEncodingComplexInt8:
+			case fb.ValueEncodingComplexInt8, fb.ValueEncodingComplexInt16:
 				bytesPerBucket = 4
 			case fb.ValueEncodingComplexFloat16:
 				bytesPerBucket = 8

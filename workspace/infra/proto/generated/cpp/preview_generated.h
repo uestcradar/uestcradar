@@ -78,35 +78,38 @@ enum class ValueEncoding : uint8_t {
   ComplexFloat16 = 2,
   Float16 = 3,
   Float32 = 4,
+  ComplexInt16 = 5,
   MIN = Unknown,
-  MAX = Float32
+  MAX = ComplexInt16
 };
 
-inline const ValueEncoding (&EnumValuesValueEncoding())[5] {
+inline const ValueEncoding (&EnumValuesValueEncoding())[6] {
   static const ValueEncoding values[] = {
     ValueEncoding::Unknown,
     ValueEncoding::ComplexInt8,
     ValueEncoding::ComplexFloat16,
     ValueEncoding::Float16,
-    ValueEncoding::Float32
+    ValueEncoding::Float32,
+    ValueEncoding::ComplexInt16
   };
   return values;
 }
 
 inline const char * const *EnumNamesValueEncoding() {
-  static const char * const names[6] = {
+  static const char * const names[7] = {
     "Unknown",
     "ComplexInt8",
     "ComplexFloat16",
     "Float16",
     "Float32",
+    "ComplexInt16",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameValueEncoding(ValueEncoding e) {
-  if (flatbuffers::IsOutRange(e, ValueEncoding::Unknown, ValueEncoding::Float32)) return "";
+  if (flatbuffers::IsOutRange(e, ValueEncoding::Unknown, ValueEncoding::ComplexInt16)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesValueEncoding()[index];
 }

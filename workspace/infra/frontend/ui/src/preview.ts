@@ -58,6 +58,7 @@ export interface PreviewFrameData {
   originalColumns: number;
   poolRows: number;
   poolColumns: number;
+  fullResolution?: boolean;
   channels?: WaveformChannelData[];
   heatmap?: { channelIndex: number; values: Float32Array; rangeStride: number; legacy: boolean };
 }
@@ -169,6 +170,34 @@ function waveformPoint(
 function decodeWaveform(frame: uestcradar.preview.PreviewFrame): WaveformChannelData[] {
   const body = frame.body(new fb.WaveformPreview());
   if (!body) throw new Error('Preview waveform body is missing');
+  if (frame.encoding() === fb.ValueEncoding.ComplexInt16) {
+    const columns = frame.originalColumns(), rows = frame.originalRows();
+    if (longToString(frame.frameTypeId()) !== '4' || frame.frameTypeVersion() !== 1 ||
+        !columns || !rows || rows > 4096 || frame.poolRows() !== rows ||
+        frame.poolColumns() !== columns || body.channelsLength() !== rows) {
+      throw new Error('Invalid full RawIQ dimensions or contract');
+    }
+    const channels: WaveformChannelData[] = [];
+    const seen = new Set<number>();
+    for (let index = 0; index < rows; index++) {
+      const channel = body.channels(index), values = channel?.valuesArray();
+      if (!channel || !values || values.length !== columns * 4 ||
+          channel.bucketCount() !== columns || channel.scale() !== 1 ||
+          channel.minOffsetsLength() !== 0 || channel.maxOffsetsLength() !== 0 ||
+          channel.channelIndex() >= rows || seen.has(channel.channelIndex())) {
+        throw new Error('Invalid full RawIQ channel');
+      }
+      seen.add(channel.channelIndex());
+      const view = new DataView(values.buffer, values.byteOffset, values.byteLength);
+      const points: ComplexPoint[] = [];
+      for (let x = 0; x < columns; x++) {
+        const i = view.getInt16(x * 4, true), q = view.getInt16(x * 4 + 2, true);
+        points.push({x, i, q, magnitude: Math.hypot(i, q)});
+      }
+      channels.push({channelIndex: channel.channelIndex(), minimum: [], maximum: points});
+    }
+    return channels;
+  }
   const bytesPerPoint = frame.encoding() === fb.ValueEncoding.ComplexInt8 ? 2 : 4;
   const channels: WaveformChannelData[] = [];
   for (let index = 0; index < body.channelsLength(); index += 1) {
@@ -221,6 +250,7 @@ function decodeHeatmap(frame: uestcradar.preview.PreviewFrame) {
 
 export function decodePreviewMessage(data: ArrayBuffer | Uint8Array): PreviewData {
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  if (bytes.length > 8 * 1024 * 1024) throw new Error('Preview exceeds wire capacity');
   const buffer = new flatbuffers.ByteBuffer(bytes);
   if (!fb.PreviewMessage.bufferHasIdentifier(buffer)) throw new Error('Invalid preview identifier');
   const message = fb.PreviewMessage.getRootAsPreviewMessage(buffer);
@@ -257,7 +287,7 @@ export function decodePreviewMessage(data: ArrayBuffer | Uint8Array): PreviewDat
     poolColumns: frame.poolColumns(),
   };
   if (frame.bodyType() === fb.PreviewBody.WaveformPreview) {
-    return {kind: 'waveform', ...common, channels: decodeWaveform(frame)};
+    return {kind: 'waveform', ...common, fullResolution: frame.encoding() === fb.ValueEncoding.ComplexInt16, channels: decodeWaveform(frame)};
   }
   if (frame.bodyType() === fb.PreviewBody.HeatmapPreview) {
     return {kind: 'heatmap', ...common, heatmap: decodeHeatmap(frame)};
