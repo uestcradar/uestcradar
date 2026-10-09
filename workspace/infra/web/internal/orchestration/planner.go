@@ -9,7 +9,7 @@ import (
 )
 
 // Hardware access is an explicit release approval, not a tag/Entrypoint claim.
-const pcieSourceReference = "registry.chengyistudio.com/cxx/worker@sha256:5cf489a8efd621ee1a1ce5f54a6e33ee8a16d0eca114e40c49d90a00fc1a330b"
+const pcieSourceReference = "registry.chengyistudio.com/cxx/worker@sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59"
 
 const frontendReference = "registry.chengyistudio.com/cxx/frontend@sha256:7784fe19bc47d1509705d347595d9e92254b59e2efb2c1b446bc63281ee28052"
 

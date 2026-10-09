@@ -7,7 +7,7 @@
 通过现有 Web 登录、SSH 指纹确认、镜像探查和计划部署，在采集节点自动给 PCIe Source 提供硬件访问；用户无需手工改 Docker。保存节点只运行普通 SignalSink，不获得 PCIe 权限。保持 strict-RDMA，不自动回退 TCP。
 
 - 只授予已批准的 Harbor 不可变 PCIe Worker digest，并核对 ARM64、唯一 `/app/pcie_source` Entrypoint、无覆盖 Command、source/none→4:1 契约。不能仅凭镜像名称或 Entrypoint 授权。
-- 当前批准 digest：`sha256:5cf489a8efd621ee1a1ce5f54a6e33ee8a16d0eca114e40c49d90a00fc1a330b`。未来 Worker 版本必须审查后更新 Web 的批准引用。
+- 当前批准 digest：`sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59`（Source CPU 角色绑定修复，提交 f674cc2）。未来 Worker 版本必须审查后更新 Web 的批准引用。
 - 仅 worker-node 增加 `/dev/mem:/dev/mem:rw` 和 `SYS_RAWIO`，不使用 privileged、不扩展到 Sidecar/Frontend/SignalSink。PCIe Worker 异常后不自动重启，避免反复初始化硬件及混合录制会话。
 - 部署前只读检查 `/dev/mem` 可访问、已知板卡 vendor/device/BAR；不自动 chmod、安装驱动、修改固件、寄存器配置或系统参数。
 - 不修改 PCIe Source、SignalSink、SDK、Sidecar；不实施 CPU 绑定，不更改已有录制格式或通用 Worker 参数规则。

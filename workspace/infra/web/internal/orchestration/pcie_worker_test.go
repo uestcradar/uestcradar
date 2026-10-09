@@ -11,7 +11,7 @@ import (
 
 // Literal release identity: changing an allowlist must not silently change this fixture.
 func approvedPCIeFixture() ImageInfo {
-	return ImageInfo{Reference: workerRepository + "pcie-source-latest", DigestReference: "registry.chengyistudio.com/cxx/worker@sha256:5cf489a8efd621ee1a1ce5f54a6e33ee8a16d0eca114e40c49d90a00fc1a330b", ID: "sha256:pcie", Architecture: "arm64", Entrypoint: []string{"/app/pcie_source"}, Contract: WorkerContract{Roles: []string{"source"}, Input: "none", Output: "4:1"}}
+	return ImageInfo{Reference: workerRepository + "pcie-source-latest", DigestReference: "registry.chengyistudio.com/cxx/worker@sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59", ID: "sha256:pcie", Architecture: "arm64", Entrypoint: []string{"/app/pcie_source"}, Contract: WorkerContract{Roles: []string{"source"}, Input: "none", Output: "4:1"}}
 }
 
 func pciePlan(worker ImageInfo, transport string) (DeploymentPlan, error) {
