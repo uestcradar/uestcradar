@@ -10,10 +10,12 @@ PcieDescriptor descriptor{};
 std::uint64_t next_rx{};
 int next_status{};
 int iq_marker{};
+int hardware_opens{};
 }
 extern "C" {
 int pcie_read_config(const char*, PcieConfig*) { return 0; }
 int pcie_rx_open(PcieRx* rx, const PcieConfig*, const PcieConfig*) {
+    ++hardware_opens;
     rx->rx = mmap(nullptr, PCIE_RX_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return rx->rx == MAP_FAILED ? -1 : 0; // Virtual mapping; only touched pages consume RAM.
 }
@@ -42,6 +44,9 @@ int pcie_rx_poll(PcieRx* rx, PcieDescriptor* out) {
 
 int main() {
     using namespace pcie_source;
+    try { PcieReceiver rejected("unused", CPU_SETSIZE); assert(false); }
+    catch (const std::invalid_argument&) {}
+    assert(hardware_opens == 0); // Binding must fail before hardware initialization.
     PcieReceiver receiver("unused");
     Templates templates{};
     CpiAssembler assembler(templates);

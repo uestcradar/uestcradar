@@ -1,0 +1,35 @@
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Configuring done (0.6s)
+-- Generating done (0.0s)
+-- Build files have been written to: /work/build
+[  2%] Building C object CMakeFiles/pcie_rx.dir/pcie/xdma_rx.c.o
+[ 10%] Building CXX object ringbuf/CMakeFiles/uestcradar_ringbuf.dir/ringbuf.cpp.o
+[ 10%] Building C object CMakeFiles/pcie_json.dir/pcie/cJSON.c.o
+[ 10%] Building C object CMakeFiles/pcie_rx.dir/pcie/devmem_io.c.o
+[ 13%] Linking C static library libpcie_rx.a
+In file included from /work/workspace/infra/common/ringbuf/ringbuf.cpp:1:
+/work/workspace/infra/common/ringbuf/ringbuf.hpp:5:10: fatal error: raw_frame.hpp: No such file or directory
+    5 | #include "raw_frame.hpp"
+      |          ^~~~~~~~~~~~~~~
+compilation terminated.
+gmake[2]: *** [ringbuf/CMakeFiles/uestcradar_ringbuf.dir/build.make:76: ringbuf/CMakeFiles/uestcradar_ringbuf.dir/ringbuf.cpp.o] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:1289: ringbuf/CMakeFiles/uestcradar_ringbuf.dir/all] Error 2
+gmake[1]: *** Waiting for unfinished jobs....
+[ 13%] Built target pcie_rx
+[ 16%] Linking C static library libpcie_json.a
+[ 16%] Built target pcie_json
+gmake: *** [Makefile:101: all] Error 2

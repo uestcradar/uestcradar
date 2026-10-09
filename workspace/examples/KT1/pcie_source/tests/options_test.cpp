@@ -8,7 +8,14 @@ int main() {
         for (auto arg : args) argv.push_back(const_cast<char*>(arg));
         return pcie_source::parse_options(static_cast<int>(argv.size()), argv.data());
     };
+    unsetenv("PCIE_CPU_MAP");
     const auto defaults = parse({"pcie_source"});
+    assert((defaults.cpus == pcie_source::CpuMap{8,9,10}));
+    setenv("PCIE_CPU_MAP", "11,12,13", 1);
+    assert((parse({"pcie_source"}).cpus == pcie_source::CpuMap{11,12,13}));
+    setenv("PCIE_CPU_MAP", "invalid", 1);
+    assert((parse({"pcie_source", "--cpu-map", "1,2,3"}).cpus == pcie_source::CpuMap{1,2,3}));
+    unsetenv("PCIE_CPU_MAP");
     assert(defaults.channel == 0 && defaults.queue_frames == 512 && !defaults.capture_only);
     assert(defaults.timestamp_errors == "rx_timestamp_errors.jsonl");
     const auto capture = parse({"pcie_source", "--capture-only", "--channel", "7",
@@ -19,6 +26,11 @@ int main() {
         try { (void)parse(args); } catch (const std::invalid_argument&) { return true; }
         return false;
     };
+    assert(fails({"pcie_source", "--cpu-map", "8,8,10"}));
+    assert(fails({"pcie_source", "--cpu-map", "8,9"}));
+    setenv("PCIE_CPU_MAP", "invalid", 1);
+    assert(fails({"pcie_source"}));
+    unsetenv("PCIE_CPU_MAP");
     assert(fails({"pcie_source", "--channel", "-1"}));
     assert(fails({"pcie_source", "--channel", "8"}));
     assert(fails({"pcie_source", "--channel", "1junk"}));

@@ -1,0 +1,15 @@
+{
+  "path": "/root/workspace/captures/pcie-cpu-published-flow-20261009T014304Z/record-60/d5a875717ea093fe236e55328dfc9607.sink",
+  "complete": true,
+  "frames": 229254,
+  "samples": 1878048768,
+  "raw_bytes": 7532369424,
+  "first_frame": 95354,
+  "last_frame": 324607,
+  "first_tx": "18446744073709551615",
+  "first_rx": "23344414269312",
+  "raw_sha256": "c3e72f5b91c4467d554b02b7b86419774dd8472b782961dfeb6765a3a5af5ac9",
+  "rx_delta": 98304,
+  "source_digest_comparison": "unavailable for mid-stream recording window",
+  "sample_continuity": "unverified"
+}

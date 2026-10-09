@@ -1,0 +1,15 @@
+{
+  "path": "/root/workspace/captures/pcie-cpu-full-session-20261009T015025Z/capture/2557a43784ab43598804f5bdb5e988db.sink",
+  "complete": true,
+  "frames": 254155,
+  "samples": 2082037760,
+  "raw_bytes": 8350516680,
+  "first_frame": 1,
+  "last_frame": 254155,
+  "first_tx": "18446744073709551615",
+  "first_rx": "23493519122304",
+  "raw_sha256": "bab02a3c6c16819fea27a1ea2f7a3d7e4ffaaf3691f526f4670aceb6679f2ee9",
+  "rx_delta": 98304,
+  "source_digest_comparison": "unavailable for mid-stream recording window",
+  "sample_continuity": "unverified"
+}

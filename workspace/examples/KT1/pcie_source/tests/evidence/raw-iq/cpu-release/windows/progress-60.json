@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "state": "recording",
+  "recording_id": "d5a875717ea093fe236e55328dfc9607",
+  "directory": "pcie-cpu-published-flow-20261009T014304Z/record-60",
+  "error": "",
+  "accepted_frames": "226701",
+  "written_frames": "226701",
+  "written_bytes": "7448488056",
+  "queue_used_bytes": "0",
+  "queue_capacity_bytes": "536870912",
+  "elapsed_ms": "60453",
+  "sample_continuity": "unverified",
+  "disk_total_bytes": "54715047936",
+  "disk_used_bytes": "27324596224",
+  "disk_available_bytes": "24577859584"
+}

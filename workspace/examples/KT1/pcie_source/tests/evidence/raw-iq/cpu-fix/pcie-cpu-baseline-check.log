@@ -1,0 +1,6 @@
+ 09:22:42 up 13 min,  0 users,  load average: 0.07, 0.10, 0.08
+{"mode": "split", "seconds": 10, "exit": "0", "elapsed": 11.105856558999903, "affinity": {"5544": [8], "5582": [9]}, "container": "e964fde101bf7c422de19f087bc3e8706a39989e83253b8c0447d2bd2980339f"}
+[capture] elapsed_s=9.0003645859999999 synchronized=1 descriptors=100967 iq_packets=67305 control_packets=33653 bit_packets=9 invalid_packets=0 changed_copies=0 timestamp_comparisons=33652 timestamp_errors=0 selected_channel=0 channel_count=1 selected_samples=275681280 completed_frames=33652 submitted_frames=0 startup_samples=4096 tail_samples=0 integrity_verified=false hardware_loss_count=unknown
+[capture] elapsed_s=10.000031675000001 synchronized=1 descriptors=112213 iq_packets=74802 control_packets=37401 bit_packets=10 invalid_packets=0 changed_copies=0 timestamp_comparisons=37400 timestamp_errors=0 selected_channel=0 channel_count=1 selected_samples=306388992 completed_frames=37400 submitted_frames=0 startup_samples=4096 tail_samples=4096 integrity_verified=false hardware_loss_count=unknown
+[raw-iq] synthetic=false capture_only=1 channel_count=1 selected_channel=0 frames=37400 samples=306380800 receive_check=pass integrity_verified=false downstream_tested=false
+evidence /tmp/pcie-isolate-1791508962498054327

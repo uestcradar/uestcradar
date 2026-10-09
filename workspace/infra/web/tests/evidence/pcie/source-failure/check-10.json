@@ -1,0 +1,15 @@
+{
+  "path": "/root/workspace/captures/web-pcie-crossnode-20261008T153307Z/record-10/63aaabc502d012e495bd7d019623600c.sink",
+  "complete": true,
+  "frames": 40868,
+  "samples": 334790656,
+  "raw_bytes": 1342759008,
+  "first_frame": 20333,
+  "last_frame": 61200,
+  "first_tx": "18446744073709551615",
+  "first_rx": "9846059343744",
+  "raw_sha256": "cff3564aadc91c37680ae06380433554ac95b29feb522a28a4b964d450d609bb",
+  "rx_delta": 98304,
+  "source_digest_comparison": "unavailable for mid-stream recording window",
+  "sample_continuity": "unverified"
+}

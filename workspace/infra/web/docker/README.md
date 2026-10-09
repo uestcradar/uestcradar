@@ -77,6 +77,16 @@ docker start uestcradar-web
 
 节点从现有列表探查选择；仍需要可用的已有 SSH 凭据，不覆盖未知业务。证书、CA、8081 白名单不再是执行门槛。新版本移除 Web 9901 和旧预览实现，无双路径兼容。
 
+## PCIe Source 自动设备配置
+
+选中已批准的 PCIe Source 后，Web 自动给该节点的 **worker-node** 添加 `/dev/mem:/dev/mem:rw` 和 `SYS_RAWIO`；用户无需手工改 Docker。部署前只读核对 `/dev/mem`、`04:00.0` 板卡 `10ee:7038` 及 BAR0 `0xef000000`，不自动修复权限、安装驱动或改变硬件配置。平台 DMA 预留内存等前置条件仍须符合该已验证镜像的部署要求。
+
+硬件授权绑定 `internal/orchestration/planner.go` 中 `pcieSourceReference` 的不可变 digest，并核对 Entrypoint、无覆盖 Command、ARM64 和 source/none→4:1 契约。仅改标签或伪造 Entrypoint 不会获得权限；新版 PCIe Worker 必须审核并更新此引用。PCIe Worker 设为不自动重启，异常后保留诊断，不重复初始化板卡或假装录制连续。
+
+SignalSink、普通 Worker、Frontend 不获得该权限；Sidecar 保留原有 RDMA 设备配置。SignalSink 的捕获目录与录制控件保持原实现。Web 不设置线程 CPU 绑定；已批准的新版 PCIe Source 自行校验并绑定采集/DMA/输出角色（当前平台默认 8/9/10）。不改变系统全局调度配置。
+
+推荐拓扑为 `.64` PCIe Source → strict-RDMA → `.80` SignalSink，每个节点各自运行 Worker/Sidecar/Frontend。Web 更新会清空内存 SSH 会话，需重新登录及确认节点指纹；不需要再次手工配置容器设备。
+
 ## 更新节点 Frontend
 
 已探查节点的操作区包含“更新 Sidecar / 更新 Worker / 更新 Frontend”。Frontend 更新复用现有登录、SSH 指纹确认、异步任务和控制台日志；拉取 Web 当前配置的已发布 Frontend digest，并检查 ARM64、入口及运行用户。不是选择任意 latest 标签，也不新增凭据。

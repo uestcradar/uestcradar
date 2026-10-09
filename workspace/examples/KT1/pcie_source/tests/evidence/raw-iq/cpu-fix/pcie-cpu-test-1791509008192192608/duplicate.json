@@ -1,0 +1,9 @@
+{
+  "mode": "duplicate",
+  "exit": "1",
+  "affinity": {},
+  "container": "359a5eac6370669ee7c72b9421b5b30ed9f0bb2227d5d0324dafe3e27bfa9abb",
+  "binary": "/tmp/pcie-cpu-candidate/build/pcie_source",
+  "log": "[source] error=cpu-map roles require distinct CPUs\n",
+  "delivery": "temporary native candidate binary mount, not published acceptance"
+}

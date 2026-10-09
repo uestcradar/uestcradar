@@ -1,4 +1,6 @@
 #pragma once
+#include "cpu_affinity.hpp"
+#include <cstdlib>
 #include <charconv>
 #include <filesystem>
 #include <stdexcept>
@@ -6,6 +8,7 @@
 
 namespace pcie_source {
 struct Options {
+    CpuMap cpus{8, 9, 10};
     unsigned channel{};
     unsigned duration_seconds{};
     unsigned queue_frames{512};
@@ -16,6 +19,8 @@ struct Options {
 
 inline Options parse_options(int argc, char** argv) {
     Options result;
+    std::string_view cpu_map = "8,9,10";
+    if (const char* configured = std::getenv("PCIE_CPU_MAP")) cpu_map = configured;
     for (int i = 1; i < argc; ++i) {
         const std::string_view option(argv[i]);
         if (option == "--capture-only") result.capture_only = true;
@@ -23,7 +28,9 @@ inline Options parse_options(int argc, char** argv) {
         else {
             if (i + 1 == argc) throw std::invalid_argument("missing option value");
             const std::string_view value(argv[++i]);
-            if (option == "--timestamp-errors") {
+            if (option == "--cpu-map") {
+                cpu_map = value;
+            } else if (option == "--timestamp-errors") {
                 if (value.empty()) throw std::invalid_argument("empty timestamp error path");
                 result.timestamp_errors = value;
             } else if (option == "--pcie-config-dir") {
@@ -40,6 +47,7 @@ inline Options parse_options(int argc, char** argv) {
             } else throw std::invalid_argument("unknown option");
         }
     }
+    result.cpus = parse_cpu_map(cpu_map);
     if (result.channel >= 8) throw std::invalid_argument("channel must be 0..7");
     if (!result.queue_frames || result.queue_frames > 32768)
         throw std::invalid_argument("queue-frames must be 1..32768");

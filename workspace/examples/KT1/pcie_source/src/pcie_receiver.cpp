@@ -6,7 +6,8 @@
 #include <system_error>
 
 namespace pcie_source {
-PcieReceiver::PcieReceiver(const std::filesystem::path& config_dir) {
+PcieReceiver::PcieReceiver(const std::filesystem::path& config_dir, std::optional<int> dma_cpu)
+    : dma_copy_(dma_cpu) {
     static_assert(std::endian::native == std::endian::little,
                   "legacy MMIO/control protocol requires a verified little-endian host");
     PcieConfig sync{}, drp{};

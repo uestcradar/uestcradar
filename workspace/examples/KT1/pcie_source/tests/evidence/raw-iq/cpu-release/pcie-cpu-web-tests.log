@@ -1,0 +1,6 @@
+?   	uestcradar/telemetry/cmd/telemetry	[no test files]
+ok  	uestcradar/telemetry/internal/orchestration	5.745s
+ok  	uestcradar/telemetry/internal/server	0.011s
+?   	uestcradar/telemetry/internal/telemetrypb	[no test files]
+?   	uestcradar/telemetry/web	[no test files]
+ok  	uestcradar/telemetry/internal/orchestration	6.827s

@@ -1,0 +1,114 @@
+请选择要发布的镜像：
+  1) Sidecar
+  2) Web
+  3) Worker
+  4) SDK / Algo Base
+  0) 退出
+dispatching web release to root@192.162.2.64:/root/workspace/uestcradar
+[release] remote host=node4-1 arch=aarch64 component=web
+[release] validating release checkout
+[release] checking Docker engine
+Docker server=19.03.15 storage=overlay2
+[release] checking Registry read access with registry.chengyistudio.com/cxx/sidecar:latest
+latest: Pulling from cxx/sidecar
+Digest: sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c
+Status: Image is up to date for registry.chengyistudio.com/cxx/sidecar:latest
+registry.chengyistudio.com/cxx/sidecar:latest
+[release] checking immutable Tag is unused: registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64
+[release] immutable Tag is available: registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64
+[release] checking Web build base: registry.chengyistudio.com/cxx/web:build-base
+build-base: Pulling from cxx/web
+Digest: sha256:52c3755b78f07a64e28b95efccf3d4c70ac97808b65b51bc1e8f8a7829c2835b
+Status: Image is up to date for registry.chengyistudio.com/cxx/web:build-base
+registry.chengyistudio.com/cxx/web:build-base
+[release] building Web: registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64
+Sending build context to Docker daemon  9.345MB
+Step 1/17 : ARG WEB_PLATFORM=linux/arm64
+Step 2/17 : ARG GO_BASE=registry.chengyistudio.com/cxx/web:build-base
+Step 3/17 : FROM --platform=${WEB_PLATFORM} ${GO_BASE} AS builder
+ ---> 56887034ebde
+Step 4/17 : WORKDIR /src/web
+ ---> Using cache
+ ---> 872687865773
+Step 5/17 : ENV GOPROXY=https://goproxy.cn,direct
+ ---> Using cache
+ ---> 83eb6eaeb03f
+Step 6/17 : COPY workspace/infra/web/go.mod workspace/infra/web/go.sum ./
+ ---> Using cache
+ ---> bcf4d216f989
+Step 7/17 : RUN go mod download
+ ---> Using cache
+ ---> 180c03d23996
+Step 8/17 : COPY workspace/infra/web/frontend/package.json workspace/infra/web/frontend/package-lock.json ./frontend/
+ ---> Using cache
+ ---> cb67623d30d1
+Step 9/17 : RUN cmp frontend/package-lock.json /opt/web-frontend/package-lock.json     && cp -a /opt/web-frontend/node_modules frontend/node_modules
+ ---> Using cache
+ ---> b617466f7ed5
+Step 10/17 : COPY workspace/infra/web/ ./
+ ---> 4c0603ab8e5a
+Step 11/17 : COPY workspace/infra/proto/telemetry.proto /src/proto/telemetry.proto
+ ---> be4ee4468de1
+Step 12/17 : RUN (cd frontend && npm run build)     && protoc       -I /src/proto       --go_out=.       --go_opt=module=uestcradar/telemetry       /src/proto/telemetry.proto     && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags="-s -w"        -o /out/telemetry ./cmd/telemetry
+ ---> Running in 700ff787c640
+
+> uestcradar-control-plane@1.0.0 build
+> tsc && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 31 modules transformed.
+rendering chunks...
+computing gzip size...
+../web/dist/index.html                   0.41 kB │ gzip:  0.28 kB
+../web/dist/assets/index-DycgTZUV.css   13.54 kB │ gzip:  3.57 kB
+../web/dist/assets/index-5mMLyRGx.js   177.10 kB │ gzip: 57.82 kB
+✓ built in 1.22s
+[91mnpm notice
+npm notice New major version of npm available! 10.8.2 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+[0mRemoving intermediate container 700ff787c640
+ ---> 4eb7052f7fa1
+Step 13/17 : FROM --platform=${WEB_PLATFORM} scratch
+ ---> 
+Step 14/17 : LABEL io.uestcradar.contract="web/v1"
+ ---> Using cache
+ ---> 74d79cba5b1e
+Step 15/17 : COPY --from=builder /out/telemetry /telemetry
+ ---> dd069d3d5e4f
+Step 16/17 : USER 65532:65532
+ ---> Running in dc79dcae7883
+Removing intermediate container dc79dcae7883
+ ---> 18183049dd99
+Step 17/17 : ENTRYPOINT ["/telemetry"]
+ ---> Running in 6119cce5d848
+Removing intermediate container 6119cce5d848
+ ---> 94e45521a115
+Successfully built 94e45521a115
+Successfully tagged registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64
+[release] verifying Web image contract
+contract verified: image=registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64 kind=web architecture=arm64
+[release] pushing immutable image: registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64
+The push refers to repository [registry.chengyistudio.com/cxx/web]
+43b4a0643045: Preparing
+43b4a0643045: Pushed
+sha-aa29acd02cc6-arm64: digest: sha256:57fb023e6d07ed242a485910430058b4952ad0d094517be384e00911d54a1b41 size: 528
+[release] pulling immutable image for contract verification: registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64
+sha-aa29acd02cc6-arm64: Pulling from cxx/web
+Digest: sha256:57fb023e6d07ed242a485910430058b4952ad0d094517be384e00911d54a1b41
+Status: Image is up to date for registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64
+registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64
+contract verified: image=registry.chengyistudio.com/cxx/web:sha-aa29acd02cc6-arm64 kind=web architecture=arm64
+[release] updating moving Tag: registry.chengyistudio.com/cxx/web:latest
+The push refers to repository [registry.chengyistudio.com/cxx/web]
+43b4a0643045: Preparing
+43b4a0643045: Layer already exists
+latest: digest: sha256:57fb023e6d07ed242a485910430058b4952ad0d094517be384e00911d54a1b41 size: 528
+latest: Pulling from cxx/web
+Digest: sha256:57fb023e6d07ed242a485910430058b4952ad0d094517be384e00911d54a1b41
+Status: Image is up to date for registry.chengyistudio.com/cxx/web:latest
+registry.chengyistudio.com/cxx/web:latest
+contract verified: image=registry.chengyistudio.com/cxx/web:latest kind=web architecture=arm64
+registry.chengyistudio.com/cxx/web@sha256:57fb023e6d07ed242a485910430058b4952ad0d094517be384e00911d54a1b41

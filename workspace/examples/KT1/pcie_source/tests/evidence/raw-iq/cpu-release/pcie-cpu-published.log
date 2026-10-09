@@ -1,0 +1,217 @@
+请选择要发布的镜像：
+  1) Sidecar
+  2) Web
+  3) Worker
+  4) SDK / Algo Base
+  0) 退出
+请选择 Worker：
+  1) KT2
+  2) KT1/cascade_worker
+  3) KT1/pcie_source
+  4) KT1/signalsink
+  5) KT1/signalsource
+  6) KT1/signalsource_raw_iq
+  0) 退出
+dispatching Worker 'KT1/pcie_source' release to root@192.162.2.64:/root/workspace/uestcradar
+[release] remote host=node4-1 arch=aarch64 component=worker worker=KT1/pcie_source
+[release] validating release checkout
+[release] checking Docker engine
+Docker server=19.03.15 storage=overlay2
+[release] checking Registry read access with registry.chengyistudio.com/cxx/sidecar:latest
+latest: Pulling from cxx/sidecar
+Digest: sha256:d400a3b523fd1868b21d4a479552ef9de6bfec4ead6940dabae611a052f4f20c
+Status: Image is up to date for registry.chengyistudio.com/cxx/sidecar:latest
+registry.chengyistudio.com/cxx/sidecar:latest
+[release] checking immutable Tag is unused: registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64
+[release] immutable Tag is available: registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64
+[release] pulling Worker SDK base: registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42: Pulling from cxx/algo-base
+Digest: sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+Status: Image is up to date for registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+registry.chengyistudio.com/cxx/algo-base@sha256:7a314aabea8f51e492081d88e9191714f834d73e69556463e18a4104c3d21a42
+[release] building Worker 'KT1/pcie_source': registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64
+Sending build context to Docker daemon  6.766MB
+Step 1/14 : ARG ALGO_BASE=registry.chengyistudio.com/cxx/algo-base:latest
+Step 2/14 : FROM ${ALGO_BASE} AS build
+ ---> e683273fe978
+Step 3/14 : WORKDIR /app
+ ---> Using cache
+ ---> 98a22000a76a
+Step 4/14 : COPY CMakeLists.txt ./
+ ---> 59785ee6609a
+Step 5/14 : COPY src/ ./src/
+ ---> cb438da4e1ed
+Step 6/14 : COPY pcie/ ./pcie/
+ ---> 51d64a8812ef
+Step 7/14 : COPY tests/ ./tests/
+ ---> 3d43fb9ff91e
+Step 8/14 : RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON     && cmake --build build --parallel 4     && ctest --test-dir build --output-on-failure
+ ---> Running in b60da4930491
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Monorepo Ring source absent: run RawIQ output/checker tests separately in the full repository
+-- Configuring done (0.4s)
+-- Generating done (0.0s)
+-- Build files have been written to: /app/build
+[  6%] Building C object CMakeFiles/pcie_rx.dir/pcie/xdma_rx.c.o
+[  6%] Building C object CMakeFiles/pcie_json.dir/pcie/cJSON.c.o
+[ 10%] Building C object CMakeFiles/pcie_rx.dir/pcie/devmem_io.c.o
+[ 13%] Linking C static library libpcie_rx.a
+[ 13%] Built target pcie_rx
+[ 17%] Linking C static library libpcie_json.a
+[ 17%] Built target pcie_json
+[ 31%] Building CXX object CMakeFiles/iq_decode_test.dir/tests/iq_decode_test.cpp.o
+[ 31%] Building CXX object CMakeFiles/pcie_source.dir/src/main.cpp.o
+[ 31%] Building CXX object CMakeFiles/cpu_affinity_test.dir/tests/cpu_affinity_test.cpp.o
+[ 31%] Building CXX object CMakeFiles/cpi_templates_test.dir/tests/cpi_templates_test.cpp.o
+[ 34%] Linking CXX executable cpu_affinity_test
+[ 34%] Built target cpu_affinity_test
+[ 37%] Building CXX object CMakeFiles/cpi_assembler_test.dir/tests/cpi_assembler_test.cpp.o
+[ 41%] Linking CXX executable iq_decode_test
+[ 41%] Built target iq_decode_test
+[ 44%] Building CXX object CMakeFiles/options_test.dir/tests/options_test.cpp.o
+[ 48%] Linking CXX executable cpi_templates_test
+[ 48%] Built target cpi_templates_test
+[ 51%] Building CXX object CMakeFiles/pcie_source.dir/src/pcie_receiver.cpp.o
+[ 55%] Linking CXX executable options_test
+[ 55%] Built target options_test
+[ 58%] Building CXX object CMakeFiles/receiver_test.dir/tests/receiver_test.cpp.o
+[ 62%] Building CXX object CMakeFiles/timestamp_check_test.dir/tests/timestamp_check_test.cpp.o
+[ 65%] Linking CXX executable cpi_assembler_test
+[ 65%] Built target cpi_assembler_test
+[ 68%] Building CXX object CMakeFiles/receiver_control_test.dir/tests/receiver_control_test.cpp.o
+[ 72%] Linking CXX executable receiver_test
+[ 75%] Linking CXX executable timestamp_check_test
+[ 75%] Built target receiver_test
+[ 79%] Building CXX object CMakeFiles/dma_snapshot_test.dir/tests/dma_snapshot_test.cpp.o
+[ 79%] Built target timestamp_check_test
+[ 82%] Building CXX object CMakeFiles/raw_assembler_test.dir/tests/raw_assembler_test.cpp.o
+[ 86%] Linking CXX executable dma_snapshot_test
+[ 89%] Linking CXX executable pcie_source
+[ 89%] Built target dma_snapshot_test
+[ 93%] Building CXX object CMakeFiles/receiver_control_test.dir/src/pcie_receiver.cpp.o
+[ 93%] Built target pcie_source
+[ 96%] Linking CXX executable raw_assembler_test
+[ 96%] Built target raw_assembler_test
+[100%] Linking CXX executable receiver_control_test
+[100%] Built target receiver_control_test
+Internal ctest changing into directory: /app/build
+Test project /app/build
+      Start  1: pcie-cpu_affinity
+ 1/14 Test  #1: pcie-cpu_affinity ................   Passed    0.01 sec
+      Start  2: pcie-iq_decode
+ 2/14 Test  #2: pcie-iq_decode ...................   Passed    0.00 sec
+      Start  3: pcie-cpi_templates
+ 3/14 Test  #3: pcie-cpi_templates ...............   Passed    0.01 sec
+      Start  4: pcie-cpi_assembler
+ 4/14 Test  #4: pcie-cpi_assembler ...............   Passed    0.05 sec
+      Start  5: pcie-options
+ 5/14 Test  #5: pcie-options .....................   Passed    0.00 sec
+      Start  6: pcie-receiver
+ 6/14 Test  #6: pcie-receiver ....................   Passed    0.00 sec
+      Start  7: pcie-timestamp_check
+ 7/14 Test  #7: pcie-timestamp_check .............   Passed    0.00 sec
+      Start  8: pcie-receiver_control
+ 8/14 Test  #8: pcie-receiver_control ............   Passed    0.00 sec
+      Start  9: pcie-dma_snapshot
+ 9/14 Test  #9: pcie-dma_snapshot ................   Passed    0.04 sec
+      Start 10: pcie-raw_assembler
+10/14 Test #10: pcie-raw_assembler ...............   Passed    0.00 sec
+      Start 11: pcie-help
+11/14 Test #11: pcie-help ........................   Passed    0.00 sec
+      Start 12: pcie-reject-shared-cpu
+12/14 Test #12: pcie-reject-shared-cpu ...........   Passed    0.00 sec
+      Start 13: pcie-reject-channel
+13/14 Test #13: pcie-reject-channel ..............   Passed    0.00 sec
+      Start 14: pcie-reject-missing-port
+14/14 Test #14: pcie-reject-missing-port .........   Passed    3.02 sec
+
+100% tests passed, 0 tests failed out of 14
+
+Total Test time (real) =   3.14 sec
+Removing intermediate container b60da4930491
+ ---> c5e22080fbdc
+Step 9/14 : FROM ${ALGO_BASE}
+ ---> e683273fe978
+Step 10/14 : WORKDIR /app
+ ---> Using cache
+ ---> 98a22000a76a
+Step 11/14 : COPY --from=build /app/build/pcie_source /app/pcie_source
+ ---> ca7083d76b9c
+Step 12/14 : COPY pcie_config/config_sync_4.txt pcie_config/config_drp_4g8.txt pcie_config/log.json /app/pcie_config/
+ ---> 131c7cbf4f6b
+Step 13/14 : ENTRYPOINT ["/app/pcie_source"]
+ ---> Running in a7cb686b0b8c
+Removing intermediate container a7cb686b0b8c
+ ---> 62925f6bf905
+Step 14/14 : LABEL io.uestcradar.contract="worker/v2"       io.uestcradar.roles="source"       io.uestcradar.input="none"       io.uestcradar.output="4:1"
+ ---> Running in 0c35a5af9357
+Removing intermediate container 0c35a5af9357
+ ---> 037a74f95d83
+Successfully built 037a74f95d83
+Successfully tagged registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64
+[release] verifying Worker image contract
+contract verified: image=registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64 kind=worker architecture=arm64
+[release] pushing immutable image: registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64
+The push refers to repository [registry.chengyistudio.com/cxx/worker]
+d07644458129: Preparing
+709753381de3: Preparing
+6adb9badfca7: Preparing
+9c626f9f6e46: Preparing
+a721e92e0608: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+2d8834226313: Waiting
+d47ac722b9a4: Waiting
+a721e92e0608: Layer already exists
+6adb9badfca7: Layer already exists
+9c626f9f6e46: Layer already exists
+2d8834226313: Layer already exists
+d47ac722b9a4: Layer already exists
+709753381de3: Pushed
+d07644458129: Pushed
+pcie-source-sha-f674cc29ee37-arm64: digest: sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59 size: 1783
+[release] pulling immutable image for contract verification: registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64
+pcie-source-sha-f674cc29ee37-arm64: Pulling from cxx/worker
+Digest: sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59
+Status: Image is up to date for registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64
+registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64
+contract verified: image=registry.chengyistudio.com/cxx/worker:pcie-source-sha-f674cc29ee37-arm64 kind=worker architecture=arm64
+[release] updating moving Tag: registry.chengyistudio.com/cxx/worker:pcie-source-latest
+The push refers to repository [registry.chengyistudio.com/cxx/worker]
+d07644458129: Preparing
+709753381de3: Preparing
+6adb9badfca7: Preparing
+9c626f9f6e46: Preparing
+a721e92e0608: Preparing
+d47ac722b9a4: Preparing
+2d8834226313: Preparing
+d47ac722b9a4: Waiting
+2d8834226313: Waiting
+709753381de3: Layer already exists
+9c626f9f6e46: Layer already exists
+6adb9badfca7: Layer already exists
+d07644458129: Layer already exists
+a721e92e0608: Layer already exists
+2d8834226313: Layer already exists
+d47ac722b9a4: Layer already exists
+pcie-source-latest: digest: sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59 size: 1783
+pcie-source-latest: Pulling from cxx/worker
+Digest: sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59
+Status: Image is up to date for registry.chengyistudio.com/cxx/worker:pcie-source-latest
+registry.chengyistudio.com/cxx/worker:pcie-source-latest
+contract verified: image=registry.chengyistudio.com/cxx/worker:pcie-source-latest kind=worker architecture=arm64
+registry.chengyistudio.com/cxx/worker@sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59

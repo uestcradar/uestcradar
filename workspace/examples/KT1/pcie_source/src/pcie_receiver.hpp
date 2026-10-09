@@ -21,7 +21,7 @@ struct ReceivedBlock {
 
 class PcieReceiver {
 public:
-    explicit PcieReceiver(const std::filesystem::path& config_dir);
+    explicit PcieReceiver(const std::filesystem::path& config_dir, std::optional<int> dma_cpu = std::nullopt);
     ~PcieReceiver();
     PcieReceiver(const PcieReceiver&) = delete;
     PcieReceiver& operator=(const PcieReceiver&) = delete;

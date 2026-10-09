@@ -1,0 +1,1 @@
+{"old_container": "b4b900c7938df5316d734d55a95f35b3216076a2d7f08cc8c81a584554cf8865", "rollback_name": "uestcradar-web-rollback-aa29acd", "new_container": "a8c5e5c15bf442d03465e501adcda79cfd48eb15eb678f1e8a4699117272f96f", "image": "registry.chengyistudio.com/cxx/web@sha256:57fb023e6d07ed242a485910430058b4952ad0d094517be384e00911d54a1b41", "https_ready": true}

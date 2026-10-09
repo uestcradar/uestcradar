@@ -20,7 +20,8 @@ int main(int argc, char** argv) {
         const auto options = pcie_source::parse_options(argc, argv);
         if (options.help) {
             std::cout << "Usage: pcie_source [--capture-only] [--channel 0..7] [--queue-frames 1..32768] "
-                "[--duration-seconds N] [--pcie-config-dir PATH] [--timestamp-errors PATH]\n"
+                "[--duration-seconds N] [--cpu-map RX,DMA,OUTPUT] [--pcie-config-dir PATH] [--timestamp-errors PATH]\n"
+                "CPU map: default 8,9,10; PCIE_CPU_MAP environment override; CLI takes precedence.\n"
                 "Output: RawIQFrame 4:1, one selected channel, no CPI templates.\n"
                 "Capture-only: same framing checks, no SDK/SHM output.\n"
                 "RX timestamp diagnostics retain raw integers; DMA ownership remains unverified.\n";
@@ -31,6 +32,9 @@ int main(int argc, char** argv) {
         sigemptyset(&action.sa_mask);
         if (sigaction(SIGINT, &action, nullptr) || sigaction(SIGTERM, &action, nullptr))
             throw std::system_error(errno, std::generic_category(), "install signal handlers");
+        // Capture original allowed set before new threads inherit the RX-only mask.
+        pcie_source::validate_cpu_map(options.cpus, options.capture_only);
+        pcie_source::bind_cpu(pthread_self(), options.cpus[0]);
         // Validate log and SDK port before the first hardware access.
         std::ofstream timestamp_errors;
         timestamp_errors.exceptions(std::ios::failbit | std::ios::badbit);
@@ -42,13 +46,16 @@ int main(int argc, char** argv) {
             << pcie_source::TimestampCheck::expected_delta << "}\n";
         timestamp_errors.flush();
         std::unique_ptr<pcie_source::RawOutput> output;
-        if (!options.capture_only) output = std::make_unique<pcie_source::RawOutput>(options.queue_frames);
+        if (!options.capture_only) output = std::make_unique<pcie_source::RawOutput>(options.queue_frames, options.cpus[2]);
         if (stop_requested) return 0; // Do not initialize hardware after a stop during port startup.
         std::cout << "[source] mode=" << (options.capture_only ? "capture-only" : "raw-iq-output")
             << " contract=4:1 selected_channel=" << options.channel << " channel_count=1 templates=disabled"
             << " queue_frames=" << options.queue_frames << " integrity_verified=false\n";
         pcie_source::RawAssembler assembler;
-        pcie_source::PcieReceiver receiver(options.config_dir);
+        pcie_source::PcieReceiver receiver(options.config_dir, options.cpus[1]);
+        std::cout << "[source] cpu_placement_verified=true capture_cpu=" << options.cpus[0]
+            << " dma_cpu=" << options.cpus[1] << " output_cpu="
+            << (options.capture_only ? "disabled" : std::to_string(options.cpus[2])) << '\n';
         const auto start = std::chrono::steady_clock::now();
         auto last_log = start;
         raw_iq::Digest digest;

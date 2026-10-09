@@ -1,0 +1,87 @@
+[  2%] Building CXX object ringbuf/CMakeFiles/uestcradar_ringbuf.dir/ringbuf.cpp.o
+[  8%] Built target pcie_json
+[ 16%] Built target pcie_rx
+[ 24%] Building CXX object CMakeFiles/iq_decode_test.dir/tests/iq_decode_test.cpp.o
+[ 24%] Building CXX object CMakeFiles/pcie_source.dir/src/main.cpp.o
+[ 24%] Building CXX object CMakeFiles/cpu_affinity_test.dir/tests/cpu_affinity_test.cpp.o
+[ 27%] Linking CXX executable cpu_affinity_test
+[ 27%] Built target cpu_affinity_test
+[ 29%] Building CXX object CMakeFiles/cpi_templates_test.dir/tests/cpi_templates_test.cpp.o
+[ 32%] Linking CXX static library libuestcradar_ringbuf.a
+[ 32%] Built target uestcradar_ringbuf
+[ 35%] Linking CXX executable iq_decode_test
+[ 37%] Building CXX object CMakeFiles/cpi_assembler_test.dir/tests/cpi_assembler_test.cpp.o
+[ 37%] Built target iq_decode_test
+[ 40%] Building CXX object CMakeFiles/options_test.dir/tests/options_test.cpp.o
+[ 43%] Linking CXX executable options_test
+[ 45%] Building CXX object CMakeFiles/pcie_source.dir/src/pcie_receiver.cpp.o
+[ 45%] Built target options_test
+[ 48%] Building CXX object CMakeFiles/receiver_test.dir/tests/receiver_test.cpp.o
+[ 51%] Linking CXX executable cpi_assembler_test
+[ 51%] Built target cpi_assembler_test
+[ 54%] Building CXX object CMakeFiles/timestamp_check_test.dir/tests/timestamp_check_test.cpp.o
+[ 56%] Linking CXX executable receiver_test
+[ 56%] Built target receiver_test
+[ 59%] Building CXX object CMakeFiles/receiver_control_test.dir/tests/receiver_control_test.cpp.o
+[ 62%] Linking CXX executable cpi_templates_test
+[ 62%] Built target cpi_templates_test
+[ 64%] Building CXX object CMakeFiles/dma_snapshot_test.dir/tests/dma_snapshot_test.cpp.o
+[ 67%] Linking CXX executable timestamp_check_test
+[ 67%] Built target timestamp_check_test
+[ 70%] Building CXX object CMakeFiles/raw_assembler_test.dir/tests/raw_assembler_test.cpp.o
+[ 72%] Linking CXX executable pcie_source
+[ 72%] Built target pcie_source
+[ 75%] Building CXX object CMakeFiles/raw_output_test.dir/tests/raw_output_test.cpp.o
+[ 78%] Linking CXX executable dma_snapshot_test
+[ 78%] Built target dma_snapshot_test
+[ 81%] Building CXX object CMakeFiles/raw-iq-check.dir/tests/raw_iq_check.cpp.o
+[ 83%] Building CXX object CMakeFiles/receiver_control_test.dir/src/pcie_receiver.cpp.o
+[ 86%] Linking CXX executable raw_assembler_test
+[ 86%] Built target raw_assembler_test
+[ 89%] Building CXX object ringbuf/CMakeFiles/ringbuf-test.dir/ringbuf_test.cpp.o
+[ 91%] Linking CXX executable raw-iq-check
+[ 91%] Built target raw-iq-check
+[ 94%] Linking CXX executable raw_output_test
+[ 94%] Built target raw_output_test
+[ 97%] Linking CXX executable ringbuf-test
+[ 97%] Built target ringbuf-test
+[100%] Linking CXX executable receiver_control_test
+[100%] Built target receiver_control_test
+Internal ctest changing into directory: /work/build
+Test project /work/build
+      Start  1: pcie-cpu_affinity
+ 1/16 Test  #1: pcie-cpu_affinity ................   Passed    0.01 sec
+      Start  2: pcie-iq_decode
+ 2/16 Test  #2: pcie-iq_decode ...................   Passed    0.00 sec
+      Start  3: pcie-cpi_templates
+ 3/16 Test  #3: pcie-cpi_templates ...............   Passed    0.01 sec
+      Start  4: pcie-cpi_assembler
+ 4/16 Test  #4: pcie-cpi_assembler ...............   Passed    0.05 sec
+      Start  5: pcie-options
+ 5/16 Test  #5: pcie-options .....................   Passed    0.00 sec
+      Start  6: pcie-receiver
+ 6/16 Test  #6: pcie-receiver ....................   Passed    0.00 sec
+      Start  7: pcie-timestamp_check
+ 7/16 Test  #7: pcie-timestamp_check .............   Passed    0.00 sec
+      Start  8: pcie-receiver_control
+ 8/16 Test  #8: pcie-receiver_control ............   Passed    0.00 sec
+      Start  9: pcie-dma_snapshot
+ 9/16 Test  #9: pcie-dma_snapshot ................   Passed    0.04 sec
+      Start 10: pcie-raw_assembler
+10/16 Test #10: pcie-raw_assembler ...............   Passed    0.00 sec
+      Start 11: pcie-help
+11/16 Test #11: pcie-help ........................   Passed    0.00 sec
+      Start 12: pcie-reject-shared-cpu
+12/16 Test #12: pcie-reject-shared-cpu ...........   Passed    0.00 sec
+      Start 13: pcie-reject-channel
+13/16 Test #13: pcie-reject-channel ..............   Passed    0.00 sec
+      Start 14: pcie-reject-missing-port
+14/16 Test #14: pcie-reject-missing-port .........   Passed    3.02 sec
+      Start 15: pcie-raw-output
+15/16 Test #15: pcie-raw-output ..................   Passed    5.01 sec
+      Start 16: ringbuf-test
+16/16 Test #16: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 16
+
+Total Test time (real) =   8.15 sec

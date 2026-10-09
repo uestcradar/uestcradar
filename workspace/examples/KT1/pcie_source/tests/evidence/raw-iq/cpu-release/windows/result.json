@@ -1,0 +1,6 @@
+{
+  "status": "passed",
+  "topology": "64 source -> strict-rdma -> 80 sink",
+  "source_digest_comparison": "not available for mid-stream recording windows",
+  "sample_continuity": "unverified"
+}

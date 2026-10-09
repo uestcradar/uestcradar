@@ -1,0 +1,3 @@
+{
+  "error": "(1, 'Traceback (most recent call last):\\n  File \"<stdin>\", line 3, in <module>\\nFileNotFoundError: [Errno 2] No such file or directory: \\'/root/workspace/docker/captures/web-pcie-crossnode-20261008T153044Z/record-10/b3fc4c1a34ba01f8ad39e85594b46c8d.sink\\'\\n', '')"
+}

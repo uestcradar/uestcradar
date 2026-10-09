@@ -1,0 +1,40 @@
+Internal ctest changing into directory: /tmp/rawiq-pcie-build
+Test project /tmp/rawiq-pcie-build
+      Start  1: pcie-cpu_affinity
+ 1/17 Test  #1: pcie-cpu_affinity ................   Passed    0.00 sec
+      Start  2: pcie-iq_decode
+ 2/17 Test  #2: pcie-iq_decode ...................   Passed    0.00 sec
+      Start  3: pcie-cpi_templates
+ 3/17 Test  #3: pcie-cpi_templates ...............   Passed    0.01 sec
+      Start  4: pcie-cpi_assembler
+ 4/17 Test  #4: pcie-cpi_assembler ...............   Passed    0.04 sec
+      Start  5: pcie-options
+ 5/17 Test  #5: pcie-options .....................   Passed    0.00 sec
+      Start  6: pcie-receiver
+ 6/17 Test  #6: pcie-receiver ....................   Passed    0.00 sec
+      Start  7: pcie-timestamp_check
+ 7/17 Test  #7: pcie-timestamp_check .............   Passed    0.00 sec
+      Start  8: pcie-receiver_control
+ 8/17 Test  #8: pcie-receiver_control ............   Passed    0.01 sec
+      Start  9: pcie-dma_snapshot
+ 9/17 Test  #9: pcie-dma_snapshot ................   Passed    0.04 sec
+      Start 10: pcie-raw_assembler
+10/17 Test #10: pcie-raw_assembler ...............   Passed    0.00 sec
+      Start 11: pcie-help
+11/17 Test #11: pcie-help ........................   Passed    0.00 sec
+      Start 12: pcie-reject-shared-cpu
+12/17 Test #12: pcie-reject-shared-cpu ...........   Passed    0.00 sec
+      Start 13: pcie-reject-channel
+13/17 Test #13: pcie-reject-channel ..............   Passed    0.00 sec
+      Start 14: pcie-reject-missing-port
+14/17 Test #14: pcie-reject-missing-port .........   Passed    3.02 sec
+      Start 15: pcie-raw-output
+15/17 Test #15: pcie-raw-output ..................   Passed    5.02 sec
+      Start 16: raw-iq-source-stop
+16/17 Test #16: raw-iq-source-stop ...............   Passed    3.06 sec
+      Start 17: ringbuf-test
+17/17 Test #17: ringbuf-test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 17
+
+Total Test time (real) =  11.23 sec

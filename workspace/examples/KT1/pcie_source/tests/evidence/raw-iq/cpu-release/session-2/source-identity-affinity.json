@@ -1,0 +1,16 @@
+{
+  "affinity": {
+    "37289": [
+      8
+    ],
+    "37300": [
+      10
+    ],
+    "37301": [
+      9
+    ]
+  },
+  "image": "registry.chengyistudio.com/cxx/worker@sha256:6e9b3da9aa6cd0960cdf3e81b68e4f368ea85a797fda15622eeae61be16b0f59",
+  "image_id": "sha256:037a74f95d83a440e07388afac4b4456123e6d1903bd0702cb4d8adf05eb7fe5",
+  "mounts": []
+}

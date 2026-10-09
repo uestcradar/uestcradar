@@ -1,0 +1,54 @@
+5fe7f105b60289e55707f2547a675f642b45c5c8
+From github.com:uestcradar/uestcradar
+ * branch            feat/signalsink -> FETCH_HEAD
+   5fe7f10..6f254ed  feat/signalsink -> origin/feat/signalsink
+Previous HEAD position was 5fe7f10 docs(raw-iq): record published digests and no-data hardware gate
+HEAD is now at 6f254ed fix(web): provision device access for approved PCIe source
+
+> uestcradar-control-plane@1.0.0 test
+> vitest run --run
+
+
+ RUN  v3.2.7 /tmp/check/web/frontend
+
+ ✓ src/logic.test.ts (8 tests) 9ms
+ ✓ src/topology.test.ts (11 tests) 10ms
+ ✓ src/api.test.ts (4 tests) 40ms
+stderr | src/frontendEmbedding.test.tsx > same-origin Frontend embedding > embeds the node page, not the former Web renderer
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at TopologyCanvas (/tmp/check/web/frontend/src/App.tsx:597:27)
+    at section
+    at main
+    at div
+    at App (/tmp/check/web/frontend/src/App.tsx:14:79)
+
+ ✓ src/frontendEmbedding.test.tsx (2 tests) 37ms
+ ✓ src/RecordingPanel.test.tsx (4 tests) 50ms
+
+ Test Files  5 passed (5)
+      Tests  29 passed (29)
+   Start at  15:11:51
+   Duration  1.61s (transform 989ms, setup 0ms, collect 1.35s, tests 147ms, environment 1ms, prepare 3.04s)
+
+
+> uestcradar-control-plane@1.0.0 build
+> tsc && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 31 modules transformed.
+rendering chunks...
+computing gzip size...
+../web/dist/index.html                   0.41 kB │ gzip:  0.28 kB
+../web/dist/assets/index-DycgTZUV.css   13.54 kB │ gzip:  3.57 kB
+../web/dist/assets/index-5mMLyRGx.js   177.10 kB │ gzip: 57.82 kB
+✓ built in 1.20s
+FAIL	uestcradar/telemetry/cmd/telemetry [setup failed]
+# uestcradar/telemetry/cmd/telemetry
+internal/server/server.go:17:2: package uestcradar/telemetry/internal/telemetrypb is not in std (/usr/local/go/src/uestcradar/telemetry/internal/telemetrypb)
+# uestcradar/telemetry/internal/server
+internal/server/server.go:17:2: package uestcradar/telemetry/internal/telemetrypb is not in std (/usr/local/go/src/uestcradar/telemetry/internal/telemetrypb)
+FAIL	uestcradar/telemetry/internal/server [setup failed]
+ok  	uestcradar/telemetry/internal/orchestration	5.728s
+?   	uestcradar/telemetry/web	[no test files]
+FAIL
