@@ -65,10 +65,11 @@ describe('preview protocol', () => {
     expect(adaptiveWaveformPeak(channel)).toBeCloseTo(0.006954);
     expect(adaptiveWaveformPeak()).toBe(Number.EPSILON);
     expect(waveformXAxisLabel('1')).toBe('采样点');
+    expect(waveformXAxisLabel('4')).toBe('采样点');
     expect(waveformXAxisLabel('2')).toBe('距离 Bin');
   });
 
-  it('keeps waveform channels isolated while decoding', () => {
+  it.each([[1, 2], [4, 1]])('keeps waveform channels isolated for contract %i:%i', (typeId, typeVersion) => {
     const builder = new flatbuffers.Builder(512);
     const channelOffsets = [
       {index: 0, scale: 10, values: [1, 0, 2, 0]},
@@ -87,7 +88,7 @@ describe('preview protocol', () => {
     const instance = builder.createString('instance-a');
     const frame = fb.PreviewFrame.createPreviewFrame(
       builder, node, instance, fb.Leg.Output,
-      builder.createLong(1, 0), 2, builder.createLong(1, 2097152), builder.createLong(88, 0),
+      builder.createLong(typeId, 0), typeVersion, builder.createLong(1, 2097152), builder.createLong(88, 0),
       2, 128, 2, 1, fb.ValueEncoding.ComplexInt8, 0,
       fb.PreviewBody.WaveformPreview, waveform,
     );
@@ -98,6 +99,8 @@ describe('preview protocol', () => {
     const decoded = decodePreviewMessage(builder.asUint8Array());
     expect(decoded.kind).toBe('waveform');
     if (decoded.kind !== 'waveform') return;
+    expect(decoded.typeId).toBe(String(typeId));
+    expect(decoded.typeVersion).toBe(typeVersion);
     expect(decoded.frameId).toBe('9007199254740993');
     expect(decoded.channels?.map(channel => channel.channelIndex)).toEqual([0, 1]);
     expect(decoded.channels?.[0].maximum[0].magnitude).toBe(20);

@@ -40,7 +40,7 @@ export function adaptiveWaveformPeak(channel?: WaveformChannelData): number {
 }
 
 export function waveformXAxisLabel(typeId: string): string {
-  if (typeId === '1') return '采样点';
+  if (typeId === '1' || typeId === '4') return '采样点';
   if (typeId === '2') return '距离 Bin';
   return '数据点';
 }
