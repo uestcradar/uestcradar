@@ -1,0 +1,9 @@
+{
+  "mode": "restricted",
+  "exit": "1",
+  "affinity": {},
+  "container": "aa4d2be316d54f8316c16c55b8069222e5daf1f609a38ed808f8ba1c14326f32",
+  "binary": "/tmp/pcie-cpu-candidate/build/pcie_source",
+  "log": "[source] error=cpu-map CPU is offline or outside the allowed set\n",
+  "delivery": "temporary native candidate binary mount, not published acceptance"
+}

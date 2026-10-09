@@ -1,5 +1,6 @@
 #pragma once
 #include "raw_iq.hpp"
+#include "cpu_affinity.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -13,13 +14,20 @@ namespace pcie_source {
 // One acquisition producer, one SDK writer. Capacity includes the in-flight block.
 class RawOutput {
 public:
-    explicit RawOutput(std::size_t capacity)
+    explicit RawOutput(std::size_t capacity, std::optional<int> cpu = std::nullopt)
         : output_(std::chrono::seconds(3)), capacity_(capacity) {
         if (!capacity || capacity > 32768) throw std::invalid_argument("queue-frames must be 1..32768");
         worker_ = std::thread([this] { run(); });
+        try { if (cpu) bind_cpu(worker_.native_handle(), *cpu); }
+        catch (...) {
+            { std::lock_guard lock(mutex_); abort_.store(true); }
+            ready_.notify_one();
+            worker_.join();
+            throw;
+        }
     }
     ~RawOutput() {
-        abort_.store(true);
+        { std::lock_guard lock(mutex_); abort_.store(true); }
         ready_.notify_one();
         if (worker_.joinable()) worker_.join();
     }

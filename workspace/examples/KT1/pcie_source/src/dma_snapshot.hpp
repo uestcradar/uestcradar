@@ -1,4 +1,5 @@
 #pragma once
+#include "cpu_affinity.hpp"
 #include <atomic>
 #include <cstddef>
 #include <cstring>
@@ -11,7 +12,11 @@ namespace pcie_source {
 // Two snapshots remain diagnostics, NOT a hardware ownership/consistency guarantee.
 class DmaSnapshot {
 public:
-    DmaSnapshot() : worker_([this] { run(); }) {}
+    explicit DmaSnapshot(std::optional<int> cpu = std::nullopt) : worker_([this] { run(); }) {
+        // The helper waits for work; no DMA access is possible before binding succeeds.
+        try { if (cpu) bind_cpu(worker_.native_handle(), *cpu); }
+        catch (...) { stop(); throw; }
+    }
     ~DmaSnapshot() { stop(); }
     DmaSnapshot(const DmaSnapshot&) = delete;
     DmaSnapshot& operator=(const DmaSnapshot&) = delete;

@@ -1,0 +1,12 @@
+duplicate 1 {} [source] error=cpu-map roles require distinct CPUs
+restricted 1 {} [source] error=cpu-map CPU is offline or outside the allowed set
+Traceback (most recent call last):
+  File "/tmp/pcie-cpu-candidate-test.py", line 27, in <module>
+    assert record['exit']=='0' and 'receive_check=pass' in text and 'cpu_placement_verified=true capture_cpu=8 dma_cpu=9 output_cpu=disabled' in text,text
+AssertionError: [source] mode=capture-only contract=4:1 selected_channel=0 channel_count=1 templates=disabled queue_frames=512 integrity_verified=false
+[source] cpu_placement_verified=true capture_cpu=8 dma_cpu=9 output_cpu=disabled
+[capture] elapsed_s=1.0000657129999999 synchronized=1 descriptors=1 iq_packets=0 control_packets=0 bit_packets=1 invalid_packets=0 changed_copies=0 timestamp_comparisons=0 timestamp_errors=0 selected_channel=0 channel_count=1 selected_samples=0 completed_frames=0 submitted_frames=0 startup_samples=0 tail_samples=0 integrity_verified=false hardware_loss_count=unknown
+[capture] elapsed_s=2.0000658059999998 synchronized=1 descriptors=2 iq_packets=0 control_packets=0 bit_packets=2 invalid_packets=0 changed_copies=0 timestamp_comparisons=0 timestamp_errors=0 selected_channel=0 channel_count=1 selected_samples=0 completed_frames=0 submitted_frames=0 startup_samples=0 tail_samples=0 integrity_verified=false hardware_loss_count=unknown
+[capture] elapsed_s=2.2352191239999999 synchronized=1 descriptors=3 iq_packets=0 control_packets=0 bit_packets=2 invalid_packets=1 changed_copies=0 timestamp_comparisons=0 timestamp_errors=0 selected_channel=0 channel_count=1 selected_samples=0 completed_frames=0 submitted_frames=0 startup_samples=0 tail_samples=0 integrity_verified=false hardware_loss_count=unknown
+[source] error=PCIe receive gap or unstable DMA snapshot; recording run failed
+

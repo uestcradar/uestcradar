@@ -25,6 +25,13 @@ template<class Predicate> void wait(Predicate predicate) {
 int main() {
     {
         Ring ring;
+        for (int i=0; i<100; ++i) {
+            try { pcie_source::RawOutput output(2, CPU_SETSIZE); assert(false); }
+            catch (const std::invalid_argument&) {}
+        }
+    }
+    {
+        Ring ring;
         pcie_source::RawOutput output(2);
         uestcradar::Input<uestcradar::RawIQFrame> input;
         raw_iq::Digest expected;
